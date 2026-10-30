@@ -1383,3 +1383,26 @@ mark.personalizado { background: #fff1c2; border-radius: 3px; padding: 0 1px; cu
   .aviso-negocio .btn { width: 100%; justify-content: center; }
   .chev-usuario { display: none; }
 }
+
+/* Reportes */
+.filtros-reporte { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; padding: 14px 18px; }
+.filtros-reporte label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--mut); min-width: 170px; }
+.titulo-tarjeta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 15px; margin: 0 0 14px; }
+.titulo-tarjeta small { font-weight: 400; font-size: 12.5px; }
+.embudo-fila.con-valor { grid-template-columns: 136px 1fr 40px 90px; }
+.embudo-fila.con-valor small { text-align: right; font-size: 12px; }
+.barras-dia { display: flex; align-items: flex-end; gap: 3px; height: 170px; padding-top: 6px; border-bottom: 1px solid var(--line); }
+.barra-dia { flex: 1; display: flex; align-items: flex-end; gap: 1px; height: 100%; min-width: 2px; }
+.barra-dia i { flex: 1; border-radius: 3px 3px 0 0; min-height: 2px; transform-origin: bottom; animation: crecerY .7s var(--ease) both; }
+.barra-dia i.env, .leyenda i.env { background: #ffb39c; }
+.barra-dia i.resp, .leyenda i.resp { background: var(--acc); }
+.leyenda { display: flex; gap: 16px; font-size: 12px; color: var(--mut); margin: 10px 0 4px; }
+.leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+.chips-fila { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.tabla-scroll { overflow-x: auto; margin: 0 -8px; }
+.tasa { display: inline-block; width: 46px; height: 6px; border-radius: 4px; background: #f2eee8; overflow: hidden; vertical-align: middle; margin-right: 6px; }
+.tasa i { display: block; height: 100%; background: var(--acc); border-radius: 4px; }
+@media (max-width: 760px) { .embudo-fila.con-valor { grid-template-columns: 96px 1fr 30px 70px; } .filtros-reporte label { min-width: 0; flex: 1; } }
+.dos-col > * { min-width: 0; }
+.tabla td:has(> .tasa) { white-space: nowrap; }
+.filtros-reporte label select, .filtros-reporte label input { margin-top: 0; }

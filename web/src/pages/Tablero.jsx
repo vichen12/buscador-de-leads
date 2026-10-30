@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Store, Users, Send, MessageCircle, Trophy, CalendarClock, ArrowRight, Upload, Search, Sparkles, ChevronRight, Flame, Inbox } from 'lucide-react'
+import { Store, Users, Send, MessageCircle, Trophy, CalendarClock, ArrowRight, Upload, Search, Sparkles, ChevronRight, Flame, Inbox, ListTodo } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { ESTADOS, ESTADOS_VISIBLES, fecha, hoyLocal, saludoHora } from '../lib/util.js'
 import { Avatar, Esqueleto, Aviso, Contador } from '../components/ui.jsx'
@@ -11,9 +11,16 @@ export default function Tablero() {
   const [vencidos, setVencidos] = useState([])
   const [listos, setListos] = useState([])
   const [rubros, setRubros] = useState([])
+  const [tasas, setTasas] = useState(null)
+  const [tareas, setTareas] = useState([])
 
   useEffect(() => {
     refrescar()
+    const hoy = hoyLocal(), menos = n => { const d = new Date(hoy + 'T12:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10) }
+    Promise.all([7, 30].map(n => supabase.rpc('reporte', { p_desde: menos(n - 1), p_hasta: hoy, p_owner: session.user.id })))
+      .then(([a, b]) => a.data && b.data && setTasas({ d7: a.data.totales, d30: b.data.totales }))
+    supabase.from('tareas').select('id, titulo, tipo, vence, prospecto_id, prospectos(nombre)').eq('owner_id', session.user.id).is('hecha_at', null)
+      .lte('vence', hoyLocal()).order('vence').limit(5).then(({ data }) => setTareas(data ?? []))
     supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', session.user.id)
       .eq('estado', 'contactado').lte('proximo_seguimiento', hoyLocal())
       .order('proximo_seguimiento').limit(6).then(({ data }) => setVencidos(data ?? []))
@@ -90,7 +97,9 @@ export default function Tablero() {
           {lim
             ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
             : <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />}
-          <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Tasa de respuesta" valor={`${tasa}%`} pie={`${t.respondieron ?? 0} de ${t.contactados ?? 0} contactados`} />
+          {tasas
+            ? <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Respuesta · 30 días" valor={`${tasas.d30.contactados ? Math.round((tasas.d30.respondieron / tasas.d30.contactados) * 100) : 0}%`} pie={`${tasas.d30.respondieron} de ${tasas.d30.contactados} · últimos 7 días: ${tasas.d7.contactados ? Math.round((tasas.d7.respondieron / tasas.d7.contactados) * 100) + '%' : '—'}`} />
+            : <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Tasa de respuesta" valor={`${tasa}%`} pie={`${t.respondieron ?? 0} de ${t.contactados ?? 0} contactados`} />}
           <Kpi icono={Trophy} color="#15803d" fondo="#e8f6ec" titulo="Clientes" valor={t.clientes ?? 0} />
           <Kpi icono={CalendarClock} color="#8b2c3c" fondo="#f8ecee" titulo="Seguimientos para hoy" valor={t.seguimientos_vencidos ?? 0} alerta={t.seguimientos_vencidos > 0} />
         </div>
@@ -141,9 +150,16 @@ export default function Tablero() {
             )}
           </section>
           <section className="tarjeta">
-            <div className="tarjeta-titulo"><h3><CalendarClock size={16} /> Seguimientos vencidos</h3><Link to="/seguimientos" className="chico">Ver todos</Link></div>
-            {vencidos.length === 0 ? <p className="muted">Nada pendiente. Cuando alguien no responda en {perfil?.dias_seguimiento ?? 5} días, aparece acá.</p> : (
+            <div className="tarjeta-titulo"><h3><CalendarClock size={16} /> Para hacer hoy</h3><Link to="/seguimientos" className="chico">Ver todo</Link></div>
+            {vencidos.length === 0 && tareas.length === 0 ? <p className="muted">Nada pendiente. Las tareas de tus secuencias y los seguimientos de quien no responda en {perfil?.dias_seguimiento ?? 5} días aparecen acá.</p> : (
               <div className="accion-lista">
+                {tareas.map(ta => (
+                  <Link key={ta.id} to={ta.prospecto_id ? `/prospectos/${ta.prospecto_id}` : '/seguimientos'} className="accion-item">
+                    <span className="aviso-icono"><ListTodo size={15} /></span>
+                    <div><b className="fuerte">{ta.titulo}</b><div className="muted chico">{ta.vence < hoyLocal() ? `Vencida el ${fecha(ta.vence)}` : 'Para hoy'}{ta.prospectos?.nombre ? ` · ${ta.prospectos.nombre}` : ''}</div></div>
+                    <span className="espacio" /><ChevronRight size={16} />
+                  </Link>
+                ))}
                 {vencidos.map(p => (
                   <Link key={p.id} to={`/prospectos/${p.id}?tab=seguimiento`} className="accion-item">
                     <Avatar nombre={p.nombre} />
@@ -157,7 +173,7 @@ export default function Tablero() {
         </div>
 
         <section className="tarjeta sin-pad">
-          <div className="tarjeta-titulo" style={{ padding: '18px 22px 0' }}><h3>Por rubro</h3></div>
+          <div className="tarjeta-titulo" style={{ padding: '18px 22px 0' }}><h3>Por rubro</h3><Link to="/reportes" className="chico">Ver reportes completos <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link></div>
           <div className="scroll-x">
             <table className="tabla">
               <thead><tr><th>Rubro</th><th>Total</th><th>Contactados</th><th>Respondieron</th><th>Respuesta</th></tr></thead>

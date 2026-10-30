@@ -24,6 +24,7 @@ import { Baja, Terminos, Privacidad } from './pages/Publico.jsx'
 import Respuestas from './pages/Respuestas.jsx'
 import Secuencias from './pages/Secuencias.jsx'
 import Equipo from './pages/Equipo.jsx'
+import Reportes from './pages/Reportes.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -128,6 +129,7 @@ function Privada() {
           <Route path="/asistente" element={<Asistente />} />
           <Route path="/admin" element={perfil?.es_admin ? <Admin /> : <Navigate to="/" />} />
           <Route path="/equipo" element={<Equipo />} />
+          <Route path="/reportes" element={<Reportes />} />
           <Route path="/ajustes" element={<Navigate to="/cuenta" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

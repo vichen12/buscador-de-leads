@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
+  Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
   Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
@@ -50,7 +50,7 @@ export default function Layout({ children }) {
 
   // [ruta, texto, ícono, contador, en el celular va en la barra de abajo]
   const secciones = [
-    ['Inicio', [['/', 'Tablero', LayoutDashboard, 0, true]]],
+    ['Inicio', [['/', 'Tablero', LayoutDashboard, 0, true], ['/reportes', 'Reportes', BarChart3]]],
     ['Prospectar', [
       ['/negocio', 'Mi negocio', Store],
       ['/buscar', 'Buscar clientes', Search],
