@@ -18,6 +18,8 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
   const [abierto, setAbierto] = useState(null)
   const [error, setError] = useState('')
   const [progreso, setProgreso] = useState('')
+  const [espera, setEspera] = useState(0)
+  const [sinCopia, setSinCopia] = useState(0)
   const [total, setTotal] = useState(0)
   const [sinBorrador, setSinBorrador] = useState([])
 
@@ -56,8 +58,14 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
 
   async function enviar() {
     setFase('enviando'); setTotal(elegidos.length)
-    let enviados = 0
-    for (const it of elegidos) {
+    let enviados = 0, faltaCopia = 0
+    for (const [n, it] of elegidos.entries()) {
+      // Pausa entre mails: una ráfaga de emails en frío seguidos es lo que más manda a spam
+      if (n > 0 && enviados > 0) {
+        const seg = 15 + Math.floor(Math.random() * 11)
+        for (let t = seg; t > 0; t--) { setEspera(t); await new Promise(r => setTimeout(r, 1000)) }
+        setEspera(0)
+      }
       if (enviados >= cupo) { cambiar(it.p.id, { estado: 'error', error: 'Llegaste al límite de hoy' }); continue }
       cambiar(it.p.id, { estado: 'enviando' })
       try {
@@ -65,7 +73,8 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
           const { error } = await supabase.from('mensajes').update({ asunto: it.asunto, cuerpo: it.cuerpo, editado: true }).eq('id', it.m.id)
           if (error) throw error
         }
-        await llamarFuncion('correo', { modo: 'enviar', mensaje_id: it.m.id, adjuntos: it.adjuntos.filter(id => arch.adjuntos.some(a => a.id === id)) })
+        const r = await llamarFuncion('correo', { modo: 'enviar', mensaje_id: it.m.id, adjuntos: it.adjuntos.filter(id => arch.adjuntos.some(a => a.id === id)) })
+        if (r?.en_enviados === false) setSinCopia(++faltaCopia)
         enviados++
         cambiar(it.p.id, { estado: 'ok' })
       } catch (e) {
@@ -88,7 +97,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
           <div>
             <h2><Mail size={19} /> Enviar emails personalizados</h2>
             <p className="muted">{fase === 'preparando' ? 'Claude escribe un email distinto para cada empresa, con tu negocio, tu firma y los archivos que sumen.'
-              : fase === 'listo' ? `Listo: ${ok} enviados${fallaron ? `, ${fallaron} con problemas` : ''}. Están en tu carpeta Enviados y quedan registrados con el seguimiento agendado.`
+              : fase === 'listo' ? `Listo: ${ok} enviados${fallaron ? `, ${fallaron} con problemas` : ''}. ${sinCopia ? `Salieron bien, pero ${sinCopia} no se pudieron copiar a tu carpeta Enviados (quedan registrados acá).` : 'Están en tu carpeta Enviados'} y quedan registrados con el seguimiento agendado.`
                 : `Salen desde ${correo?.email}. Revisalos y tocá enviar: cada uno es distinto.`}</p>
           </div>
           <button className="btn fantasma chico" onClick={onCerrar} disabled={fase === 'enviando'} aria-label="Cerrar"><X size={17} /></button>
@@ -154,7 +163,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
             <button className="btn" onClick={onCerrar}>Cancelar</button>
             <button className="btn primario" onClick={enviar} disabled={!elegidos.length || pasaCupo}><Send size={15} /> Enviar {elegidos.length} {elegidos.length === 1 ? 'email' : 'emails'}</button>
           </>}
-          {fase === 'enviando' && <span className="muted"><Loader2 size={14} className="spin" style={{ verticalAlign: -2 }} /> Enviando {Math.min(total, items.filter(x => x.estado === 'ok' || x.estado === 'error').length + 1)} de {total}… no cierres esta ventana</span>}
+          {fase === 'enviando' && <span className="muted"><Loader2 size={14} className="spin" style={{ verticalAlign: -2 }} /> {espera ? `Enviado ${items.filter(x => x.estado === 'ok').length} de ${total}. El próximo sale en ${espera} s (así no cae en spam)` : `Enviando ${Math.min(total, items.filter(x => x.estado === 'ok' || x.estado === 'error').length + 1)} de ${total}…`} No cierres esta ventana.</span>}
           {fase === 'listo' && <><span className="espacio" /><button className="btn primario" onClick={onCerrar}>Listo</button></>}
           {fase === 'preparando' && <><span className="muted chico"><Sparkles size={13} style={{ verticalAlign: -2 }} /> Usa tu negocio, tu firma y tus archivos de la sección Email</span><span className="espacio" /><button className="btn" onClick={onCerrar}>Cancelar</button></>}
         </footer>

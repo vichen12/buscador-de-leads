@@ -66,7 +66,7 @@ async function smtpSesion(cfg: Dic, clave: string, fn?: (l: Linea) => Promise<vo
   const l = await Linea.abrir(cfg.smtp_host, cfg.smtp_puerto)
   try {
     const hola = await smtpRespuesta(l); if (hola.codigo !== 220) throw new Error('SMTP: ' + hola.texto)
-    await smtpCmd(l, 'EHLO prospecta.app', [250])
+    await smtpCmd(l, `EHLO ${String(cfg.email ?? '').split('@')[1] || 'localhost'}`, [250])
     await smtpCmd(l, 'AUTH LOGIN', [334]); await smtpCmd(l, b64(cfg.email), [334])
     try { await smtpCmd(l, b64(clave), [235]) } catch (e) { throw new Error('AUTH: ' + (e as Error).message) }
     if (fn) await fn(l)
@@ -82,27 +82,49 @@ function b64Bytes(d: Uint8Array) {
   return btoa(s)
 }
 const lineas76 = (s: string) => s.replace(/.{1,76}/g, m => m + '\r\n')
+/** quoted-printable (RFC 2045): lo que usan Gmail y Outlook para el texto. El texto en base64 suma puntos de spam. */
+function qp(s: string) {
+  const out: string[] = []
+  for (const linea of s.replace(/\r?\n/g, '\n').split('\n')) {
+    let l = ''
+    for (const b of enc.encode(linea)) {
+      const c = String.fromCharCode(b)
+      l += (b >= 33 && b <= 126 && b !== 61) || b === 32 ? c : '=' + b.toString(16).toUpperCase().padStart(2, '0')
+    }
+    l = l.replace(/ $/, '=20')
+    let resto = l
+    while (resto.length > 75) {
+      let corte = 75
+      const i = resto.lastIndexOf('=', corte - 1); if (i > corte - 3) corte = i
+      out.push(resto.slice(0, corte) + '='); resto = resto.slice(corte)
+    }
+    out.push(resto)
+  }
+  return out.join('\r\n')
+}
 const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const enlazar = (s: string) => s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
 function html(cuerpo: string, conFirma: boolean) {
   const parrafos = escapar(cuerpo).split(/\n{2,}/).map(p => `<p style="margin:0 0 14px">${enlazar(p).replace(/\n/g, '<br>')}</p>`).join('')
-  return `<!doctype html><html><body><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#222">${parrafos}${conFirma ? '<img src="cid:firma@prospecta" alt="" style="display:block;max-width:360px;height:auto;margin-top:6px">' : ''}</div></body></html>`
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;padding:0"><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#222">${parrafos}${conFirma ? '<img src="cid:firma@prospecta" alt="" style="display:block;max-width:360px;height:auto;margin-top:6px">' : ''}</div></body></html>`
 }
 function armarMail(o: { de: string, nombre: string, para: string, asunto: string, cuerpo: string, firma?: Archivo | null, adjuntos?: Archivo[] }) {
   const dominio = o.de.split('@')[1] || 'prospecta.app'
   const texto = o.cuerpo.replace(/\r?\n/g, '\r\n')
   const cab = [
     `From: ${o.nombre ? `${palabra(o.nombre)} ` : ''}<${o.de}>`, `To: <${o.para}>`, `Subject: ${palabra(o.asunto)}`,
-    `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${dominio}>`, 'MIME-Version: 1.0',
+    `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${dominio}>`,
+    // Baja con un clic por mail: Gmail y Yahoo lo valoran y evita que marquen "spam" para cortar
+    `List-Unsubscribe: <mailto:${o.de}?subject=${encodeURIComponent('Baja')}>`, 'Content-Language: es', 'MIME-Version: 1.0',
   ]
   const adj = o.adjuntos ?? []
-  if (!o.firma && !adj.length) return [...cab, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', lineas76(b64(texto))].join('\r\n')
+  const parteQp = (tipo: string, datos: string) => [`Content-Type: ${tipo}`, 'Content-Transfer-Encoding: quoted-printable', '', qp(datos)].join('\r\n')
   const f = () => 'b' + crypto.randomUUID().replace(/-/g, '')
   const [bMix, bRel, bAlt] = [f(), f(), f()]
   const parte = (tipo: string, datos: string, extra: string[] = []) => [`Content-Type: ${tipo}`, 'Content-Transfer-Encoding: base64', ...extra, '', datos].join('\r\n')
   const alternativa = [`Content-Type: multipart/alternative; boundary="${bAlt}"`, '',
-    `--${bAlt}`, parte('text/plain; charset=UTF-8', lineas76(b64(texto))),
-    `--${bAlt}`, parte('text/html; charset=UTF-8', lineas76(b64(html(o.cuerpo, !!o.firma)))), `--${bAlt}--`, ''].join('\r\n')
+    `--${bAlt}`, parteQp('text/plain; charset=UTF-8', texto),
+    `--${bAlt}`, parteQp('text/html; charset=UTF-8', html(o.cuerpo, !!o.firma)), `--${bAlt}--`, ''].join('\r\n')
   const cuerpo = o.firma
     ? [`Content-Type: multipart/related; boundary="${bRel}"`, '', `--${bRel}`, alternativa,
        `--${bRel}`, parte(`${o.firma.mime}; name="${palabra(o.firma.nombre)}"`, lineas76(b64Bytes(o.firma.datos)), ['Content-ID: <firma@prospecta>', `Content-Disposition: inline; filename="${palabra(o.firma.nombre)}"`]),
@@ -313,8 +335,9 @@ Deno.serve(async req => {
     try {
       const { firma } = await archivosDe(db, user.id, [])
       const copia = await enviarMail(cfg, clave, cfg.email, 'Prueba de Prospecta ✓', `¡Hola!\n\nSi te llegó este mail, tu cuenta ${cfg.email} quedó conectada a Prospecta y ya podés enviar emails a tus prospectos desde la app.${firma ? '\n\nAbajo vas a ver tu firma tal como la reciben tus clientes.' : ''}\n\nProspecta`, { firma })
-      try { await guardarEnEnviados(cfg, clave, copia) } catch (e) { console.error('copia en Enviados', e) }
-      return json({ ok: true })
+      let enEnviados = true
+      try { await guardarEnEnviados(cfg, clave, copia) } catch (e) { enEnviados = false; console.error('copia en Enviados', e) }
+      return json({ ok: true, en_enviados: enEnviados })
     } catch (e) { return json({ error: explicar(e, cfg) }, 400) }
   }
 

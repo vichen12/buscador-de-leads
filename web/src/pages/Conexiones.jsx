@@ -71,7 +71,7 @@ export function CorreoCard() {
     try {
       const r = await llamarFuncion('correo', { modo, ...extra })
       if (modo === 'conectar') { setCorreo(r.conexion); toast(r.aviso ? 'Email conectado (sólo para enviar)' : '¡Email conectado!') }
-      if (modo === 'probar') toast(`Te mandamos un mail de prueba a ${correo.email}`)
+      if (modo === 'probar') toast(`Te mandamos un mail de prueba a ${correo.email}${r.en_enviados === false ? '. Ojo: no pude copiarlo a tu carpeta Enviados' : r.en_enviados ? '. También quedó en tu carpeta Enviados' : ''}`, r.en_enviados === false ? 'info' : '')
       if (modo === 'revisar') toast(r.respondieron?.length ? `Respondieron: ${r.respondieron.join(', ')}` : `Revisé ${r.revisados} mails nuevos: ninguno es de un prospecto`, r.respondieron?.length ? '' : 'info')
       if (modo === 'desconectar') { setCorreo(null); toast('Email desconectado') }
       if (modo !== 'desconectar') { const e = await llamarFuncion('correo', { modo: 'estado' }); if (e.conexion) setCorreo(e.conexion) }
