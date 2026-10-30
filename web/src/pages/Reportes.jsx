@@ -32,7 +32,7 @@ export default function Reportes() {
     setCargando(true); setError(null)
     const p_owner = quien === 'yo' ? session.user.id : quien !== 'todos' ? quien : null
     const { data, error } = await supabase.rpc('reporte', { p_desde: desde, p_hasta: hasta, p_owner })
-    if (error) setError(error); else setDatos(data)
+    if (error) setError(error); else if (data?.totales) setDatos(data); else setError(new Error('El reporte vino vacío. Probá de nuevo en un rato.'))
     setCargando(false)
   }
   useEffect(() => { cargar() }, [desde, hasta, quien])
