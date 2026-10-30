@@ -29,3 +29,10 @@ Fuente: los tres documentos "Mejoras para Prospecta" (parte 1: completar y orden
 ## Pendiente de decisión
 - Email de contacto de privacidad y responsable legal: cargar en config_claves (`email_privacidad`, `responsable_legal`).
 - URL pública de la app para los links de baja: config_claves `url_app` (por defecto https://web-puce-mu-10.vercel.app).
+
+## 30/10 — P4, P5 y separación B2B/B2C
+- P4 hecho: estados reunión/propuesta/perdido (con motivo), valor estimado, equipo con roles (admin/vendedor), navbar nueva (búsqueda Ctrl+K, Nuevo, avisos, menú de cuenta, barra móvil).
+- P5 hecho: RPC `reporte(desde, hasta, owner)` + página /reportes (exporta CSV para Excel); tablero con tasa 7/30 días y tareas de hoy.
+- B2B/B2C: `perfiles.modo` + `perfiles.modos`, `cambiar_modo`, `habilitar_modo`; tabla `clientes` (B2C) con consentimiento documentado por constraint; `tablero_b2c()`. En B2C el menú, el color (violeta), la búsqueda global y "Nuevo" son propios.
+- Sigue: P6 (seguridad/robustez), B2C aliados/creadores/campañas, Parte 2.
+- Pendiente de decisión: si B2C es un plan pago (hoy lo habilita el admin sin costo).
