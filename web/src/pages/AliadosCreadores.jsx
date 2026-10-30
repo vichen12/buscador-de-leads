@@ -11,14 +11,14 @@ const CONFIG = {
   aliados: {
     tabla: 'aliados', tipoIA: 'aliado', titulo: 'Aliados', icono: Handshake, singular: 'aliado',
     bajada: 'Negocios que tienen a tus mismos clientes y te pueden recomendar: una peluquería para un spa, una inmobiliaria para una mudadora.',
-    estados: [['identificado', 'Para contactar', '#a8a196'], ['contactado', 'Contactado', '#3b82f6'], ['conversando', 'Conversando', '#f59e0b'], ['activo', 'Aliado activo', '#15803d'], ['pausado', 'En pausa', '#7c3aed'], ['descartado', 'Descartado', '#c0262d']],
+    estados: [['identificado', 'Para contactar', '#a8a196'], ['contactado', 'Contactado', '#3b82f6'], ['conversando', 'Conversando', '#f59e0b'], ['activo', 'Aliado activo', '#15803d'], ['pausado', 'En pausa', '#6f695f'], ['descartado', 'Descartado', '#c0262d']],
     vacio: { nombre: '', rubro: '', zona: '', contacto: '', email: '', telefono: '', web: '', instagram: '', estado: 'identificado', comision_tipo: 'porcentaje', comision_valor: 10, codigo: '', acuerdo: '', notas: '', proximo_contacto: '' },
     campos: [['nombre', 'Nombre del negocio', 'text', true], ['rubro', 'Rubro'], ['zona', 'Zona'], ['contacto', 'Persona de contacto'], ['email', 'Email', 'email'], ['telefono', 'Teléfono / WhatsApp'], ['web', 'Web'], ['instagram', 'Instagram'], ['codigo', 'Código o link para sus clientes'], ['proximo_contacto', 'Próximo contacto', 'date']],
   },
   creadores: {
     tabla: 'creadores', tipoIA: 'creador', titulo: 'Creadores', icono: Megaphone, singular: 'creador',
     bajada: 'Gente con audiencia en tu zona o tu nicho que puede mostrar lo que vendés, por canje, pago o comisión.',
-    estados: [['identificado', 'Para contactar', '#a8a196'], ['contactado', 'Contactado', '#3b82f6'], ['negociando', 'Negociando', '#f59e0b'], ['acordado', 'Acordado', '#7c3aed'], ['publicado', 'Publicado', '#15803d'], ['descartado', 'Descartado', '#c0262d']],
+    estados: [['identificado', 'Para contactar', '#a8a196'], ['contactado', 'Contactado', '#3b82f6'], ['negociando', 'Negociando', '#f59e0b'], ['acordado', 'Acordado', '#0d9488'], ['publicado', 'Publicado', '#15803d'], ['descartado', 'Descartado', '#c0262d']],
     vacio: { nombre: '', red: 'instagram', usuario: '', link: '', seguidores: '', nicho: '', zona: '', email: '', estado: 'identificado', propuesta: '', costo: 0, codigo: '', resultado: '', notas: '', publicado_at: '' },
     campos: [['nombre', 'Nombre', 'text', true], ['usuario', 'Usuario (@)'], ['link', 'Link al perfil'], ['seguidores', 'Seguidores', 'number'], ['nicho', 'De qué habla'], ['zona', 'Zona'], ['email', 'Email de contacto', 'email'], ['codigo', 'Código de descuento'], ['costo', 'Costo ($)', 'number'], ['publicado_at', 'Fecha de publicación', 'date']],
   },

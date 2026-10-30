@@ -89,14 +89,14 @@ export default function TableroB2C() {
           <div className="grilla-2">
             <section className="tarjeta">
               <div className="tarjeta-titulo"><h3>Últimos 6 meses</h3></div>
-              <AreaDoble datos={extra.meses} series={[{ clave: 'nuevos', nombre: 'Clientes nuevos', color: '#b794f6' }, { clave: 'compraron', nombre: 'Última compra en el mes', color: '#15803d' }]} />
+              <AreaDoble datos={extra.meses} series={[{ clave: 'nuevos', nombre: 'Clientes nuevos', color: '#5ec8b8' }, { clave: 'compraron', nombre: 'Última compra en el mes', color: '#0b6f66' }]} />
             </section>
             <section className="tarjeta">
               <div className="tarjeta-titulo"><h3>Permiso para escribirles</h3><Link to="/clientes" className="chico">Ver clientes</Link></div>
               <Dona centro={`${t.total ? Math.round((t.con_consentimiento / t.total) * 100) : 0}%`} sub="con permiso" items={[
-                { label: 'Email y WhatsApp', valor: Math.max(0, t.acepta_email + t.acepta_whatsapp - t.con_consentimiento), color: '#7c3aed' },
-                { label: 'Sólo email', valor: Math.max(0, t.con_consentimiento - t.acepta_whatsapp), color: '#b794f6' },
-                { label: 'Sólo WhatsApp', valor: Math.max(0, t.con_consentimiento - t.acepta_email), color: '#14955a' },
+                { label: 'Email y WhatsApp', valor: Math.max(0, t.acepta_email + t.acepta_whatsapp - t.con_consentimiento), color: '#0b6f66' },
+                { label: 'Sólo email', valor: Math.max(0, t.con_consentimiento - t.acepta_whatsapp), color: '#5ec8b8' },
+                { label: 'Sólo WhatsApp', valor: Math.max(0, t.con_consentimiento - t.acepta_email), color: '#f59e0b' },
                 { label: 'Sin permiso', valor: t.total - t.con_consentimiento, color: '#ddd6cb' },
               ]} />
             </section>

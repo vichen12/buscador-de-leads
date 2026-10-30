@@ -118,7 +118,7 @@ export default function Tablero() {
           <section className="tarjeta">
             <div className="tarjeta-titulo"><h3>Actividad de los últimos 30 días</h3>{tasas && <span className="chip">{tasas.d30.enviados} envíos · {tasas.r30.totales.respuestas} respuestas</span>}</div>
             {tasas ? <AreaDoble datos={tasas.r30.por_dia.map(d => ({ ...d, etiqueta: new Date(d.dia + 'T12:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }), titulo: new Date(d.dia + 'T12:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) }))}
-              series={[{ clave: 'enviados', nombre: 'Envíos', color: '#ff9a7a' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#7c3aed' }]} /> : <Esqueleto filas={3} />}
+              series={[{ clave: 'enviados', nombre: 'Envíos', color: '#ff9a7a' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#16161a' }]} /> : <Esqueleto filas={3} />}
           </section>
         </div>
 
