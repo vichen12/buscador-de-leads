@@ -13,7 +13,7 @@ const FILTROS = [
   ['todos', 'Todos'], ['consentimiento', 'Aceptan mensajes'], ['sin', 'Sin permiso'],
   ['recompra', 'Compraron más de una vez'], ['dormidos', 'Dormidos (+90 días)'], ['baja', 'Se dieron de baja'],
 ]
-const VACIO = { nombre: '', email: '', telefono: '', ciudad: '', compras: 0, total_gastado: 0, ultima_compra: '', cumpleanos: '', notas: '', acepta_email: false, acepta_whatsapp: false, consentimiento_fuente: '', origen: 'manual' }
+const VACIO = { aliado_id: '', creador_id: '', nombre: '', email: '', telefono: '', ciudad: '', compras: 0, total_gastado: 0, ultima_compra: '', cumpleanos: '', notas: '', acepta_email: false, acepta_whatsapp: false, consentimiento_fuente: '', origen: 'manual' }
 const plata = n => '$ ' + Math.round(Number(n) || 0).toLocaleString('es-AR')
 
 export default function Clientes() {
@@ -145,6 +145,11 @@ function EditarCliente({ inicial, onCerrar, onGuardado }) {
   const toast = useToast()
   const [f, setF] = useState({ ...VACIO, ...Object.fromEntries(Object.entries(inicial).map(([k, v]) => [k, v ?? ''])) })
   const [guardando, setGuardando] = useState(false)
+  const [socios, setSocios] = useState({ aliados: [], creadores: [] })
+  useEffect(() => {
+    Promise.all([supabase.from('aliados').select('id, nombre').order('nombre'), supabase.from('creadores').select('id, nombre').order('nombre')])
+      .then(([a, c]) => setSocios({ aliados: a.data ?? [], creadores: c.data ?? [] }))
+  }, [])
   const set = (k, v) => setF(x => ({ ...x, [k]: v }))
   const pide = f.acepta_email || f.acepta_whatsapp
 
@@ -156,7 +161,7 @@ function EditarCliente({ inicial, onCerrar, onGuardado }) {
     const fila = {
       nombre: f.nombre.trim(), email: f.email.trim() || null, telefono: f.telefono.trim() || null, ciudad: f.ciudad.trim() || null,
       compras: Number(f.compras) || 0, total_gastado: Number(f.total_gastado) || 0, ultima_compra: f.ultima_compra || null, cumpleanos: f.cumpleanos || null,
-      notas: f.notas, acepta_email: !!f.acepta_email, acepta_whatsapp: !!f.acepta_whatsapp, consentimiento_fuente: pide ? f.consentimiento_fuente : null, origen: f.origen || 'manual',
+      notas: f.notas, aliado_id: f.origen === 'aliado' ? (f.aliado_id || null) : null, creador_id: f.origen === 'creador' ? (f.creador_id || null) : null, acepta_email: !!f.acepta_email, acepta_whatsapp: !!f.acepta_whatsapp, consentimiento_fuente: pide ? f.consentimiento_fuente : null, origen: f.origen || 'manual',
     }
     const { error } = inicial.id ? await supabase.from('clientes').update(fila).eq('id', inicial.id) : await supabase.from('clientes').insert(fila)
     setGuardando(false)
@@ -178,6 +183,8 @@ function EditarCliente({ inicial, onCerrar, onGuardado }) {
           <label>Total gastado ($)<input type="number" min="0" step="any" value={f.total_gastado} onChange={e => set('total_gastado', e.target.value)} /></label>
           <label>Última compra<input type="date" value={f.ultima_compra} max={hoyLocal()} onChange={e => set('ultima_compra', e.target.value)} /></label>
           <label>Origen<select value={f.origen} onChange={e => set('origen', e.target.value)}>{Object.entries(ORIGENES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+          {f.origen === 'aliado' && <label>¿Qué aliado lo mandó?<select value={f.aliado_id || ''} onChange={e => set('aliado_id', e.target.value)}><option value="">Elegí uno</option>{socios.aliados.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}</select></label>}
+          {f.origen === 'creador' && <label>¿Qué creador?<select value={f.creador_id || ''} onChange={e => set('creador_id', e.target.value)}><option value="">Elegí uno</option>{socios.creadores.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}</select></label>}
         </div>
         <fieldset className="tarjeta" style={{ padding: 14, margin: '6px 0 12px' }}>
           <legend className="chico fuerte" style={{ padding: '0 6px' }}><ShieldCheck size={13} style={{ verticalAlign: -2 }} /> Permiso para escribirle</legend>

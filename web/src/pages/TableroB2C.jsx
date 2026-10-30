@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Heart, ShieldCheck, Repeat, Moon, Cake, UserPlus, Upload, ArrowRight, Wallet, Store } from 'lucide-react'
+import { Heart, ShieldCheck, Repeat, Moon, Cake, UserPlus, Upload, ArrowRight, Wallet, Store, Handshake, Megaphone, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { saludoHora } from '../lib/util.js'
 import { Esqueleto, ErrorCarga, Contador } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
+import { Dona, BarrasH, AreaDoble } from '../components/Graficos.jsx'
 
 const ORIGENES = { manual: 'A mano', compra: 'Compra', formulario: 'Formulario', importado: 'Importados', referido: 'Referidos', aliado: 'Aliados', creador: 'Creadores' }
 const plata = n => '$ ' + Math.round(Number(n) || 0).toLocaleString('es-AR')
@@ -14,8 +15,24 @@ export default function TableroB2C() {
   const { perfil, comercial } = useApp()
   const [t, setT] = useState(null)
   const [error, setError] = useState(null)
+  const [extra, setExtra] = useState(null)
   const cargar = () => supabase.rpc('tablero_b2c').then(({ data, error }) => (error ? setError(error) : setT(data)))
-  useEffect(() => { cargar() }, [])
+  useEffect(() => {
+    cargar()
+    // Para los gráficos: altas por mes, recompra por frecuencia y top clientes
+    supabase.from('clientes').select('id, nombre, compras, total_gastado, created_at, ultima_compra, acepta_email, acepta_whatsapp, baja_at').limit(5000).then(({ data }) => {
+      const cs = data ?? []
+      const meses = []
+      for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); meses.push({ clave: d.toISOString().slice(0, 7), etiqueta: d.toLocaleDateString('es-AR', { month: 'short' }), titulo: d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }), nuevos: 0, compraron: 0 }) }
+      for (const c of cs) {
+        const m = meses.find(x => x.clave === String(c.created_at).slice(0, 7)); if (m) m.nuevos++
+        const u = meses.find(x => x.clave === String(c.ultima_compra ?? '').slice(0, 7)); if (u) u.compraron++
+      }
+      const frec = [['1 compra', x => x.compras === 1], ['2 compras', x => x.compras === 2], ['3 a 5', x => x.compras >= 3 && x.compras <= 5], ['Más de 5', x => x.compras > 5]].map(([label, f]) => ({ label, valor: cs.filter(f).length }))
+      const top = [...cs].sort((a, b) => Number(b.total_gastado) - Number(a.total_gastado)).slice(0, 5).filter(x => Number(x.total_gastado) > 0).map(x => ({ label: x.nombre, valor: Number(x.total_gastado), sub: `${x.compras} compras` }))
+      setExtra({ meses, frec, top })
+    })
+  }, [])
   const nombre = (perfil?.nombre || '').split(' ')[0]
 
   if (error) return <ErrorCarga error={error} onReintentar={cargar} />
@@ -61,6 +78,42 @@ export default function TableroB2C() {
           <Kpi icono={Moon} titulo="Dormidos" valor={t.dormidos} pie="Sin comprar hace más de 90 días" />
           <Kpi icono={Wallet} titulo="Ticket promedio" valor={plata(t.ticket_promedio)} pie={`${plata(t.facturado)} en total`} />
         </div>
+
+        <div className="kpis kpis-3">
+          <Link to="/campanas" className="kpi"><div className="kpi-top"><span>Mensajes de campañas (30 días)</span><span className="kpi-icono" style={{ color: 'var(--acc)', background: 'var(--acc-soft)' }}><Send size={16} /></span></div><b>{t.campanas_30 ?? 0}</b><small>Sólo a clientes con permiso</small></Link>
+          <Link to="/aliados" className="kpi"><div className="kpi-top"><span>Aliados activos</span><span className="kpi-icono" style={{ color: 'var(--acc)', background: 'var(--acc-soft)' }}><Handshake size={16} /></span></div><b>{t.aliados_activos ?? 0}</b><small>{t.por_origen?.aliado ?? 0} clientes vinieron por ellos</small></Link>
+          <Link to="/creadores" className="kpi"><div className="kpi-top"><span>Creadores acordados</span><span className="kpi-icono" style={{ color: 'var(--acc)', background: 'var(--acc-soft)' }}><Megaphone size={16} /></span></div><b>{t.creadores_acordados ?? 0}</b><small>{t.por_origen?.creador ?? 0} clientes vinieron por ellos</small></Link>
+        </div>
+
+        {extra && (
+          <div className="grilla-2">
+            <section className="tarjeta">
+              <div className="tarjeta-titulo"><h3>Últimos 6 meses</h3></div>
+              <AreaDoble datos={extra.meses} series={[{ clave: 'nuevos', nombre: 'Clientes nuevos', color: '#b794f6' }, { clave: 'compraron', nombre: 'Última compra en el mes', color: '#15803d' }]} />
+            </section>
+            <section className="tarjeta">
+              <div className="tarjeta-titulo"><h3>Permiso para escribirles</h3><Link to="/clientes" className="chico">Ver clientes</Link></div>
+              <Dona centro={`${t.total ? Math.round((t.con_consentimiento / t.total) * 100) : 0}%`} sub="con permiso" items={[
+                { label: 'Email y WhatsApp', valor: Math.max(0, t.acepta_email + t.acepta_whatsapp - t.con_consentimiento), color: '#7c3aed' },
+                { label: 'Sólo email', valor: Math.max(0, t.con_consentimiento - t.acepta_whatsapp), color: '#b794f6' },
+                { label: 'Sólo WhatsApp', valor: Math.max(0, t.con_consentimiento - t.acepta_email), color: '#14955a' },
+                { label: 'Sin permiso', valor: t.total - t.con_consentimiento, color: '#ddd6cb' },
+              ]} />
+            </section>
+          </div>
+        )}
+        {extra && (
+          <div className="grilla-2">
+            <section className="tarjeta">
+              <div className="tarjeta-titulo"><h3>Cuántas veces compran</h3></div>
+              <BarrasH items={extra.frec} />
+            </section>
+            <section className="tarjeta">
+              <div className="tarjeta-titulo"><h3>Tus mejores clientes</h3></div>
+              {extra.top.length ? <BarrasH items={extra.top} formato={plata} /> : <p className="muted">Cargá compras y total gastado para ver quiénes te compran más.</p>}
+            </section>
+          </div>
+        )}
 
         <div className="grilla-2">
           <section className="tarjeta">

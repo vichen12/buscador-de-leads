@@ -28,6 +28,8 @@ import Reportes from './pages/Reportes.jsx'
 import Clientes from './pages/Clientes.jsx'
 import { NuevaClave, DosPasos } from './components/Seguridad.jsx'
 import TableroB2C from './pages/TableroB2C.jsx'
+import { Aliados, Creadores } from './pages/AliadosCreadores.jsx'
+import Campanas from './pages/Campanas.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -127,6 +129,9 @@ function Privada() {
         <Routes>
           <Route path="/" element={perfil?.modo === 'b2c' ? <TableroB2C /> : <Tablero />} />
           <Route path="/clientes" element={<Clientes />} />
+          <Route path="/campanas" element={<Campanas />} />
+          <Route path="/aliados" element={<Aliados />} />
+          <Route path="/creadores" element={<Creadores />} />
           <Route path="/prospectos" element={<Prospectos />} />
           <Route path="/prospectos/:id" element={<Prospecto />} />
           <Route path="/seguimientos" element={<Seguimientos />} />

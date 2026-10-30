@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
-  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight,
+  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
@@ -61,7 +61,12 @@ export default function Layout({ children }) {
     ['Inicio', [['/', 'Tablero', LayoutDashboard, 0, true]]],
     ['Mis clientes', [
       ['/clientes', 'Clientes', Heart, 0, true],
-      ['/asistente', 'Asistente IA', Bot, 0, true],
+      ['/campanas', 'Campañas', Send, 0, true],
+    ]],
+    ['Crecer', [
+      ['/aliados', 'Aliados', Handshake, 0, true],
+      ['/creadores', 'Creadores', Megaphone],
+      ['/asistente', 'Asistente IA', Bot],
     ]],
     config,
   ] : [
@@ -271,6 +276,9 @@ function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
               {modo === 'b2c' ? <>
               <Link to="/clientes?nuevo=1"><UserPlus size={16} /> Cliente a mano</Link>
               <Link to="/clientes?importar=1"><Upload size={16} /> Importar clientes</Link>
+              <Link to="/campanas"><Send size={16} /> Campaña</Link>
+              <Link to="/aliados"><Handshake size={16} /> Aliado</Link>
+              <Link to="/creadores"><Megaphone size={16} /> Creador</Link>
               </> : <>
               <button type="button" onClick={onNuevo}><Building2 size={16} /> Empresa a mano</button>
               <Link to="/buscar"><Search size={16} /> Buscar clientes con IA</Link>

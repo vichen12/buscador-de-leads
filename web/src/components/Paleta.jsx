@@ -11,7 +11,7 @@ const PAGINAS = [
   ['/negocio', 'Mi negocio', Store], ['/email', 'Email', Mail], ['/asistente', 'Asistente IA', Bot],
 ]
 const PAGINAS_B2C = [
-  ['/', 'Tablero', LayoutDashboard], ['/clientes', 'Mis clientes', Heart], ['/asistente', 'Asistente IA', Bot],
+  ['/', 'Tablero', LayoutDashboard], ['/clientes', 'Mis clientes', Heart], ['/campanas', 'Campañas', Send], ['/aliados', 'Aliados', Users], ['/creadores', 'Creadores', Users], ['/asistente', 'Asistente IA', Bot],
   ['/negocio', 'Mi negocio', Store], ['/email', 'Email', Mail],
 ]
 const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
