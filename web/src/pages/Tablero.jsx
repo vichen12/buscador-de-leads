@@ -35,7 +35,8 @@ export default function Tablero() {
   if (!t) return <Esqueleto />
   const tasa = t.contactados ? Math.round((t.respondieron / t.contactados) * 100) : 0
   const maxDia = Math.max(1, ...t.envios_7_dias.map(d => d.envios))
-  const quedan = Math.max(0, t.limite_diario - t.enviados_hoy)
+  const lim = t.email
+  const quedan = lim ? Math.max(0, lim.limite_hoy - lim.enviados_hoy) : Math.max(0, t.limite_diario - t.enviados_hoy)
   const nombre = (perfil?.nombre || '').split(' ')[0]
 
   return (
@@ -86,7 +87,9 @@ export default function Tablero() {
       ) : <>
         <div className="kpis stagger">
           <Kpi icono={Users} color="#52525b" fondo="#f1f1f3" titulo="Prospectos" valor={t.total} />
-          <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />
+          {lim
+            ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
+            : <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />}
           <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Tasa de respuesta" valor={`${tasa}%`} pie={`${t.respondieron} de ${t.contactados} contactados`} />
           <Kpi icono={Trophy} color="#15803d" fondo="#e8f6ec" titulo="Clientes" valor={t.clientes} />
           <Kpi icono={CalendarClock} color="#8b2c3c" fondo="#f8ecee" titulo="Seguimientos para hoy" valor={t.seguimientos_vencidos} alerta={t.seguimientos_vencidos > 0} />

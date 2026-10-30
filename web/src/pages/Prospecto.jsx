@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, AtSign, Globe, MapPin, Star, Clock, CalendarClock, MessageCircle, Send, Sparkles, Wand2, Loader2,
-  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target, Paperclip,
+  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target, Paperclip, MailX, ShieldOff,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
 import { linkWhatsApp, linkEmail, linkGmail, numeroWhatsApp } from '@shared/clasificar.js'
-import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, useConfirmar, useToast } from '../components/ui.jsx'
+import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
 import { useArchivos } from '../lib/archivos.js'
@@ -18,7 +18,7 @@ const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail],
 const TIPO_INT = {
   enviado: ['Mensaje enviado', Send, '#1d4ed8', '#e8efff'], respuesta: ['Respondió', Reply, '#b45309', '#fdf3e2'],
   nota: ['Nota', StickyNote, '#52525b', '#f0ece5'], cambio_estado: ['Cambio de estado', RefreshCw, '#7c3aed', '#f1ebff'],
-  llamada: ['Llamada', Phone, '#15803d', '#e8f6ec'],
+  llamada: ['Llamada', Phone, '#15803d', '#e8f6ec'], rebote: ['Rebotó', MailX, '#c0262d', '#fdeceb'], baja: ['Pidió la baja', ShieldOff, '#7f1d1d', '#f6e9e9'],
 }
 const RAPIDOS = ['Más corto', 'Más cálido', 'Más profesional', 'Mencioná su Instagram', 'Otro enfoque', 'Sin signos de exclamación']
 
@@ -28,7 +28,7 @@ export default function Prospecto() {
   const [params] = useSearchParams()
   const toast = useToast()
   const confirmar = useConfirmar()
-  const { perfil, enviadosHoy, refrescar, servicios, correo, session } = useApp()
+  const { perfil, enviadosHoy, refrescar, servicios, correo, session, tablero } = useApp()
   const arch = useArchivos(session?.user?.id)
   const [adj, setAdj] = useState(null) // ids de archivos a adjuntar; null = lo que eligió Claude
   const [mandando, setMandando] = useState(false)
@@ -45,6 +45,8 @@ export default function Prospecto() {
   const [editando, setEditando] = useState(false)
   const [nota, setNota] = useState('')
   const [aviso, setAviso] = useState('')
+  const [bloqueo, setBloqueo] = useState(null) // motivo si el email está en "No contactar"
+  const verificado = useRef(new Set())
 
   async function cargar() {
     const [{ data: pr }, { data: ms }, { data: hs }] = await Promise.all([
@@ -60,16 +62,28 @@ export default function Prospecto() {
     setHist(hs ?? [])
   }
   useEffect(() => { cargar() }, [id])
+  // Verificar el email (formato, que el dominio reciba correo) y si está en "No contactar"
+  useEffect(() => {
+    if (!p?.email) { setBloqueo(null); return }
+    supabase.rpc('mi_motivo_supresion', { p_email: p.email }).then(({ data }) => setBloqueo(data || null))
+    if (!p.email_verificado_at && !verificado.current.has(p.id + p.email)) {
+      verificado.current.add(p.id + p.email)
+      llamarFuncion('verificar-email', { ids: [p.id] }).then(cargar).catch(() => {})
+    }
+  }, [p?.id, p?.email, p?.email_verificado_at])
   // Si todavía no hay borradores, Claude los escribe solo al abrir la ficha (con tu negocio, tu firma y tus archivos)
   const autoGenerado = useRef(new Set())
   useEffect(() => {
-    if (!p || p.id !== id || Object.keys(msgs).length || !servicios.ia || p.estado === 'no_interesado' || autoGenerado.current.has(id)) return
+    if (!p || p.id !== id || Object.keys(msgs).length || !servicios.ia || ['no_interesado', 'no_contactar'].includes(p.estado) || autoGenerado.current.has(id)) return
     autoGenerado.current.add(id)
     generar()
   }, [p, msgs, servicios.ia])
 
   if (!p) return <Cargando />
-  const optOut = p.estado === 'no_interesado'
+  const optOut = p.estado === 'no_interesado' || p.estado === 'no_contactar'
+  const limEmail = tablero?.email
+  const sinCupoEmail = limEmail ? limEmail.enviados_hoy >= limEmail.limite_hoy : false
+  const emailBloqueado = bloqueo ? `No se puede enviar: ${bloqueo}.` : p.email_estado === 'invalido' ? `No se puede enviar: ${p.email_motivo || 'el email no es válido'}. Corregí el email.` : ''
   const actual = borrador[tab] ?? { asunto: '', cuerpo: '' }
   const adjElegidos = adj ?? (msgs.email?.adjuntos ?? [])
   const alternarAdj = id => setAdj(a => { const s = new Set(a ?? msgs.email?.adjuntos ?? []); s.has(id) ? s.delete(id) : s.add(id); return [...s] })
@@ -120,7 +134,8 @@ export default function Prospecto() {
   async function abrir(canal) {
     setAviso('')
     if (optOut) return
-    if (sinCupo) { setAviso(mensajeError({ message: 'LIMITE_DIARIO' })); return }
+    if (canal === 'whatsapp' || canal === 'instagram' ? sinCupo : sinCupoEmail) { setAviso(mensajeError({ message: canal === 'whatsapp' || canal === 'instagram' ? 'LIMITE_DIARIO' : 'LIMITE_EMAIL' })); return }
+    if ((canal === 'email' || canal === 'gmail') && emailBloqueado) { setAviso(emailBloqueado); return }
     if (!actual.cuerpo.trim()) { setAviso('El mensaje está vacío.'); return }
     const m = sucio || !msgs[tab] ? await guardarBorrador(true) : msgs[tab]
     if (!m) return
@@ -150,7 +165,7 @@ export default function Prospecto() {
   // Envío directo desde la cuenta conectada (función "correo")
   async function enviarDesdeApp() {
     setAviso('')
-    if (optOut || sinCupo) return
+    if (optOut || sinCupoEmail || emailBloqueado) return
     if (!actual.cuerpo.trim()) { setAviso('El mensaje está vacío.'); return }
     const m = sucio || !msgs[tab] ? await guardarBorrador(true) : msgs[tab]
     if (!m) return
@@ -223,7 +238,7 @@ export default function Prospecto() {
   return (
     <>
       <Link to="/prospectos" className="migas"><ArrowLeft size={15} /> Prospectos</Link>
-      {optOut && <div className="banner"><Ban size={18} /> Marcado como No interesado: fuera de toda secuencia. No se le puede escribir más.</div>}
+      {optOut && <div className="banner"><Ban size={18} /> {p.estado === 'no_contactar' ? 'Pidió no recibir más mensajes o está en tu lista de "No contactar"' : 'Marcado como No interesado'}: fuera de toda secuencia. No se le puede escribir más.</div>}
       {aviso && <Aviso tipo="error">{aviso}</Aviso>}
 
       <div className="detalle">
@@ -247,7 +262,9 @@ export default function Prospecto() {
           ) : (
             <div className="datos">
               <Phone size={16} /><div>{p.telefono || '—'}{p.telefono && !tieneWA && <small>Parece fijo: sin WhatsApp</small>}</div>
-              <Mail size={16} /><div>{p.email ? <a href={`mailto:${p.email}`}>{p.email}</a> : '—'}</div>
+              <Mail size={16} /><div>{p.email ? <><a href={`mailto:${p.email}`}>{p.email}</a> <EstadoEmail estado={p.email_estado} motivo={p.email_motivo} conTexto /></> : '—'}
+                {p.email && p.email_estado && p.email_estado !== 'valido' && <small className={p.email_estado === 'invalido' ? 'texto-error' : ''}>{p.email_motivo}</small>}
+                {bloqueo && <small className="texto-error">{bloqueo}</small>}</div>
               <MapPin size={16} /><div>{p.direccion || '—'}{p.zona && <small>{p.zona}</small>}</div>
               <Globe size={16} /><div><Enlaces e={p} conTexto /></div>
               {(p.resenas || p.rating) && <><Star size={16} /><div>{p.resenas ?? '—'} reseñas{p.rating ? ` · ${p.rating}★` : ''}</div></>}
@@ -347,17 +364,19 @@ export default function Prospecto() {
                 </button>
               )}
               {tab !== 'whatsapp' && correo && (
-                <button className="btn primario" onClick={enviarDesdeApp} disabled={optOut || !p.email || sinCupo || mandando} title={!p.email ? 'Cargá un email' : `Sale desde ${correo.email}`}>
+                <button className="btn primario" onClick={enviarDesdeApp} disabled={optOut || !p.email || sinCupoEmail || mandando || !!emailBloqueado} title={!p.email ? 'Cargá un email' : emailBloqueado || `Sale desde ${correo.email}`}>
                   {mandando ? <Loader2 size={16} className="spin" /> : <Send size={16} />} Enviar email
                 </button>
               )}
               {tab !== 'whatsapp' && <>
-                <button className="btn" onClick={() => abrir('gmail')} disabled={optOut || !p.email || sinCupo} title={!p.email ? 'Cargá un email' : ''}><Mail size={16} /> Abrir en Gmail</button>
-                <button className="btn" onClick={() => abrir('email')} disabled={optOut || !p.email || sinCupo}>App de mail</button>
+                <button className="btn" onClick={() => abrir('gmail')} disabled={optOut || !p.email || sinCupoEmail || !!emailBloqueado} title={!p.email ? 'Cargá un email' : emailBloqueado}><Mail size={16} /> Abrir en Gmail</button>
+                <button className="btn" onClick={() => abrir('email')} disabled={optOut || !p.email || sinCupoEmail || !!emailBloqueado}>App de mail</button>
               </>}
               {p.instagram && <button className="btn" onClick={() => abrir('instagram')} disabled={optOut || sinCupo}><Copy size={16} /> Copiar y abrir Instagram</button>}
             </div>
-            {sinCupo && <Aviso>Llegaste al límite de hoy ({limite}). Seguí mañana o cambialo en Mi cuenta.</Aviso>}
+            {tab !== 'whatsapp' && emailBloqueado && !optOut && <Aviso tipo="error">{emailBloqueado}</Aviso>}
+            {tab !== 'email' && sinCupo && <Aviso>Llegaste al límite de WhatsApp de hoy ({limite}). Seguí mañana o cambialo en Mi cuenta.</Aviso>}
+            {tab !== 'whatsapp' && sinCupoEmail && <Aviso>Llegaste al límite de emails de hoy para tu casilla ({limEmail.limite_hoy}{limEmail.calentando ? ', está en calentamiento' : ''}). Seguí mañana.</Aviso>}
           </div>
         </section>
       </div>

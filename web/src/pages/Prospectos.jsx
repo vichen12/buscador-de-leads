@@ -4,7 +4,7 @@ import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2,
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fecha, mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
-import { Avatar, Esqueleto, EstadoBadge, useConfirmar, useToast } from '../components/ui.jsx'
+import { Avatar, Esqueleto, EstadoBadge, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
 import NuevoProspecto from '../components/NuevoProspecto.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
@@ -43,6 +43,13 @@ export default function Prospectos() {
     setCargando(false)
   }
   useEffect(() => { cargar() }, [])
+  // Verificar en segundo plano los emails que todavía no se revisaron (de a 60)
+  const [verificando, setVerificando] = useState(false)
+  useEffect(() => {
+    if (cargando || verificando || !lista.some(p => p.email && !p.email_verificado_at)) return
+    setVerificando(true)
+    llamarFuncion('verificar-email', {}).then(r => { if (r.resultados?.length) cargar() }).catch(() => {}).finally(() => setTimeout(() => setVerificando(false), 1500))
+  }, [cargando, lista])
   useEffect(() => {
     if (!busqueda) { setInfoBusqueda(null); return }
     supabase.from('busquedas').select('*').eq('id', busqueda).maybeSingle().then(({ data }) => setInfoBusqueda(data))
@@ -241,7 +248,7 @@ export default function Prospectos() {
                     <td><Calificador valor={p.calificacion} onCambiar={v => calificar(p, v)} /></td>
                     <td className="contacto-celda">
                       {p.telefono ? <a href={`tel:${p.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={12} /> {p.telefono}</a> : null}
-                      {p.email ? <a href={`mailto:${p.email}`}><Mail size={12} /> {p.email}</a> : null}
+                      {p.email ? <a href={`mailto:${p.email}`}><Mail size={12} /> {p.email} <EstadoEmail estado={p.email_estado} motivo={p.email_motivo} /></a> : null}
                       {!p.telefono && !p.email && <span className="muted">—</span>}
                     </td>
                     <td><Enlaces e={p} fuente={false} /></td>

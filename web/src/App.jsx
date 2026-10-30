@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { supabase, configurado, llamarFuncion } from './lib/supabase.js'
 import { ToastProvider, ConfirmProvider, Cargando } from './components/ui.jsx'
 import Layout from './components/Layout.jsx'
@@ -19,6 +19,7 @@ import Admin from './pages/Admin.jsx'
 import Asistente from './pages/Asistente.jsx'
 import MiNegocio from './pages/MiNegocio.jsx'
 import Conexiones from './pages/Conexiones.jsx'
+import { Baja, Terminos, Privacidad } from './pages/Publico.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -34,7 +35,21 @@ export default function App() {
   )
 }
 
+// Páginas públicas: se ven sin iniciar sesión (link de baja de los mails, términos y privacidad)
+const PUBLICAS = /^\/(baja\/|terminos$|privacidad$)/
 function Raiz() {
+  const { pathname } = useLocation()
+  if (PUBLICAS.test(pathname)) return (
+    <Routes>
+      <Route path="/baja/:token" element={<Baja />} />
+      <Route path="/terminos" element={<Terminos />} />
+      <Route path="/privacidad" element={<Privacidad />} />
+    </Routes>
+  )
+  return <Privada />
+}
+
+function Privada() {
   const [session, setSession] = useState(undefined)
   const [perfil, setPerfil] = useState(null)
   const [tablero, setTablero] = useState(null)

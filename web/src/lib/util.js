@@ -6,13 +6,24 @@ export const ESTADOS = {
   respondio: { label: 'Respondió', color: '#b45309', fondo: '#fdf4e4', borde: '#f5ddb2', barra: '#f59e0b', ayuda: 'Hay conversación en curso' },
   cliente: { label: 'Cliente', color: '#15803d', fondo: '#e9f7ee', borde: '#c6eacf', barra: '#22c55e', ayuda: 'Cerraste el trabajo' },
   no_interesado: { label: 'No interesado', color: '#c0262d', fondo: '#fdeceb', borde: '#f6cac6', barra: '#ef4444', ayuda: 'No se le escribe más (opt-out)' },
+  no_contactar: { label: 'No contactar', color: '#7f1d1d', fondo: '#f6e9e9', borde: '#e7c9c9', barra: '#991b1b', ayuda: 'Pidió la baja o está en tu lista de "No contactar": no se le puede escribir' },
+}
+
+// Estado del email del prospecto (verificación antes de enviar)
+export const ESTADO_EMAIL = {
+  valido: { label: 'Email válido', corto: 'Válido', color: '#15803d', fondo: '#e9f7ee' },
+  dudoso: { label: 'Email dudoso', corto: 'Dudoso', color: '#b45309', fondo: '#fdf4e4' },
+  invalido: { label: 'Email inválido', corto: 'Inválido', color: '#c0262d', fondo: '#fdeceb' },
 }
 
 /** Traduce los errores de las reglas de la base a mensajes para la persona */
 export function mensajeError(e) {
   const m = e?.message || String(e)
   if (m.includes('LIMITE_DIARIO')) return 'Llegaste al límite de envíos de hoy. Es a propósito: de a pocos se cuida el número y la reputación. Seguí mañana o subí el límite en Ajustes.'
-  if (m.includes('OPT_OUT')) return 'Este negocio está marcado como "No interesado": no se le puede escribir más.'
+  if (m.includes('OPT_OUT')) return 'Este negocio pidió no ser contactado ("No interesado" o "No contactar"): no se le puede escribir más.'
+  if (m.includes('SUPRIMIDO')) return m.replace(/^.*SUPRIMIDO:\s*/, 'No se puede enviar: ') + (m.includes('No contactar') ? '' : '. Está en tu lista de "No contactar".')
+  if (m.includes('LIMITE_EMAIL')) return 'Llegaste al límite de emails de hoy para tu casilla. Es para cuidar que tus mails no caigan en spam. Seguí mañana.'
+  if (m.includes('EMAIL_INVALIDO')) return m.replace(/^.*EMAIL_INVALIDO:\s*/, '')
   if (m.includes('TEXTO_REPETIDO')) return 'Ese texto es idéntico a uno que ya enviaste a otro negocio. Personalizalo un poco antes de enviarlo.'
   if (m.includes('duplicate key')) return 'Ya existe un prospecto con ese teléfono o con ese nombre y dirección.'
   return m

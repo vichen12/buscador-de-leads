@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Loader2, Sparkles, ShieldCheck, Send, AlertCircle, Lock, Mail, ArrowRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import Logo from '../components/Logo.jsx'
 
@@ -56,7 +57,7 @@ export default function Login() {
               ? <span>Pedile al administrador que te genere una contraseña nueva desde su panel.</span>
               : <button type="button" className="link" onClick={() => setOlvido(true)}>¿Olvidaste tu contraseña?</button>}
           </div>
-          <p className="login-pie">¿No tenés cuenta? Las cuentas las crea el administrador de tu empresa.</p>
+          <p className="login-pie">¿No tenés cuenta? Las cuentas las crea el administrador de tu empresa.<br /><Link to="/terminos">Términos de uso</Link> · <Link to="/privacidad">Privacidad</Link></p>
         </form>
       </section>
     </div>

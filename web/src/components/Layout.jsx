@@ -18,10 +18,13 @@ export default function Layout({ children }) {
     sessionStorage.setItem('revisando', '1')
     llamarFuncion('correo', { modo: 'revisar' }).then(r => {
       if (r.respondieron?.length) { toastRevision(`📬 Te respondieron: ${r.respondieron.join(', ')}`); refrescar() }
+      if (r.bajas?.length) { toastRevision(`Pidieron no recibir más mensajes: ${r.bajas.join(', ')}. Quedaron en "No contactar".`, 'info'); refrescar() }
+      if (r.rebotes?.length) { toastRevision(`Rebotaron los mails a: ${r.rebotes.join(', ')}. Marcamos esos emails como inválidos.`, 'info'); refrescar() }
     }).catch(() => {}).finally(() => setTimeout(() => sessionStorage.removeItem('revisando'), 15 * 60000))
   }, [correo?.owner_id])
-  const limite = perfil?.limite_diario ?? 15
-  const enviados = tablero?.enviados_hoy ?? 0
+  const lim = tablero?.email
+  const limite = lim ? lim.limite_hoy : perfil?.limite_diario ?? 15
+  const enviados = lim ? lim.enviados_hoy : tablero?.enviados_hoy ?? 0
   const pct = Math.min(100, (enviados / limite) * 100)
   const vencidos = tablero?.seguimientos_vencidos ?? 0
   const nombre = perfil?.nombre || session.user.email
@@ -62,10 +65,10 @@ export default function Layout({ children }) {
           <div className="nav-titulo">Cuenta</div>
           {cuenta.map(enlace)}
         </nav>
-        <div className="cupo" title="Envíos confirmados hoy / límite diario">
-          <div className="cupo-top"><span>Envíos de hoy</span><b>{perfil ? `${enviados} / ${limite}` : '…'}</b></div>
+        <div className="cupo" title={lim ? 'Emails enviados hoy desde tu casilla / límite de hoy' : 'Envíos confirmados hoy / límite diario'}>
+          <div className="cupo-top"><span>{lim ? 'Emails de hoy' : 'Envíos de hoy'}</span><b>{perfil ? `${enviados} / ${limite}` : '…'}</b></div>
           <div className="cupo-barra"><span style={{ width: pct + '%' }} /></div>
-          <small>Cada mensaje lo revisás y lo enviás vos, de a pocos.</small>
+          <small>{lim?.calentando ? `Casilla en calentamiento (semana ${lim.etapa} de 3): vamos subiendo de a poco.` : 'Cada mensaje lo revisás y lo enviás vos, de a pocos.'}</small>
           {servicios.ia !== null && (
             <span className={'ia-pill ' + (servicios.ia ? 'on' : 'off')}><Sparkles size={12} /> {servicios.ia ? 'Claude conectado' : 'Claude sin clave'}</span>
           )}
@@ -123,7 +126,8 @@ function Topbar({ nombre, perfil, session, empresa, enviados, limite }) {
             {empresa && <div className="cab" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Building2 size={15} className="muted" /><span>{empresa}</span></div>}
             <Link to="/cuenta"><UserCircle size={16} /> Mi cuenta</Link>
             {perfil?.es_admin && <Link to="/admin"><Crown size={16} /> Super admin</Link>}
-            <div className="cab" style={{ border: 0, margin: 0 }}><span>Envíos de hoy: {enviados} / {limite}</span></div>
+            <div className="cab" style={{ border: 0, margin: 0 }}><span>Hoy: {enviados} de {limite} envíos</span></div>
+            <Link to="/terminos"><span className="muted">Términos y privacidad</span></Link>
             <hr />
             <button type="button" onClick={() => supabase.auth.signOut()}><LogOut size={16} /> Salir</button>
           </div>

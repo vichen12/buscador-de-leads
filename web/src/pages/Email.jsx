@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Mail, PenLine, Paperclip, Loader2, Save, Wand2 } from 'lucide-react'
+import { Mail, PenLine, Paperclip, Loader2, Save, Wand2, ShieldOff, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { useArchivos } from '../lib/archivos.js'
 import { Cargando, useToast } from '../components/ui.jsx'
 import { EditorFirma, ArchivosAdjuntos } from '../components/ArchivosCorreo.jsx'
 import { CorreoCard } from './Conexiones.jsx'
+import { LimiteEnvios, SaludDominio, NoContactar } from '../components/ProteccionEmail.jsx'
 import { useApp } from '../App.jsx'
 
 /** Todo lo del email en un solo lugar: la casilla conectada, la firma y los archivos para adjuntar */
@@ -42,11 +43,12 @@ export default function Email() {
   return (
     <div className="pagina-email">
       <header className="cabecera">
-        <div><h1>Email</h1><p>Todo lo de tus emails en un lugar: tu casilla, tu firma y los archivos que adjuntás.</p></div>
+        <div><h1>Email</h1><p>Todo lo de tus emails en un lugar: tu casilla y su límite, tu firma, cómo escribe Claude, los archivos, la lista de "No contactar" y la salud de tu dominio.</p></div>
       </header>
 
       <div className="email-paso"><span>1</span><h2><Mail size={17} /> Tu casilla</h2></div>
       <CorreoCard />
+      <LimiteEnvios />
 
       <div className="email-paso"><span>2</span><h2><PenLine size={17} /> Tu firma</h2></div>
       <section className="tarjeta">
@@ -112,6 +114,12 @@ export default function Email() {
         <p className="muted chico ayuda" style={{ marginTop: 0 }}>Subí tus PDF, brochures o presentaciones (hasta 20 MB) y contá de qué se tratan. Marcá <b>Va siempre</b> en los que tienen que ir en todos los emails (por ejemplo, el brochure). Con <b>Claude decide</b>, Claude lo adjunta cuando suma.</p>
         {arch.lista ? <ArchivosAdjuntos arch={arch} /> : <Cargando />}
       </section>
+
+      <div className="email-paso" id="no-contactar"><span>5</span><h2><ShieldOff size={17} /> No contactar</h2></div>
+      <NoContactar />
+
+      <div className="email-paso" id="salud"><span>6</span><h2><ShieldCheck size={17} /> Salud de tu dominio</h2></div>
+      <SaludDominio />
     </div>
   )
 }

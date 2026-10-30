@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, AlertCircle, Info, Loader2, X, Circle, Send, MessageSquareReply, Trophy, Ban, ChevronDown, Check } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Info, Loader2, X, Circle, Send, MessageSquareReply, Trophy, Ban, ChevronDown, Check, ShieldOff, MailCheck, MailWarning, MailX } from 'lucide-react'
 import { ESTADOS } from '../lib/util.js'
 
 // ---------- Toasts ----------
@@ -78,7 +78,7 @@ export function Avatar({ nombre = '', grande, className = '' }) {
   return <span className={'avatar ' + (grande ? 'grande ' : '') + className} style={{ background: color }}>{ini}</span>
 }
 
-export const ICONO_ESTADO = { pendiente: Circle, contactado: Send, respondio: MessageSquareReply, cliente: Trophy, no_interesado: Ban }
+export const ICONO_ESTADO = { pendiente: Circle, contactado: Send, respondio: MessageSquareReply, cliente: Trophy, no_interesado: Ban, no_contactar: ShieldOff }
 
 export function EstadoBadge({ estado }) {
   const e = ESTADOS[estado] ?? ESTADOS.pendiente
@@ -165,4 +165,36 @@ export function QueTieneChip({ valor }) {
   if (!valor) return <span className="muted">—</span>
   const clase = /instagram/i.test(valor) ? 'ig' : /sin web/i.test(valor) ? 'sin' : ''
   return <span className={'chip ' + clase}>{valor}</span>
+}
+
+/** Indicador de verificación del email: válido / dudoso / inválido (con el motivo al pasar el mouse) */
+export function EstadoEmail({ estado, motivo, conTexto }) {
+  if (!estado) return null
+  const e = { valido: ['Válido', '#15803d', MailCheck], dudoso: ['Dudoso', '#b45309', MailWarning], invalido: ['Inválido', '#c0262d', MailX] }[estado]
+  if (!e) return null
+  const [label, color, Icono] = e
+  return <span className="email-estado" style={{ color }} title={motivo || label} aria-label={`Email ${label.toLowerCase()}${motivo ? ': ' + motivo : ''}`}><Icono size={13} />{conTexto && <span>{label}</span>}</span>
+}
+
+/** Estado vacío: qué es esto y qué hacer */
+export function Vacio({ icono: Icono = Info, titulo, children, accion }) {
+  return (
+    <div className="vacio">
+      {Icono && <Icono size={30} className="vacio-icono" />}
+      {titulo && <h3>{titulo}</h3>}
+      {children && <p>{children}</p>}
+      {accion}
+    </div>
+  )
+}
+
+/** Error al cargar, con un mensaje entendible y forma de reintentar */
+export function ErrorCarga({ error, onReintentar }) {
+  return (
+    <div className="aviso error error-carga"><AlertCircle size={17} />
+      <div>No pudimos cargar esto{error ? `: ${typeof error === 'string' ? error : error.message || ''}` : '.'}
+        {onReintentar && <> <button type="button" className="link" onClick={onReintentar}>Reintentar</button></>}
+      </div>
+    </div>
+  )
 }

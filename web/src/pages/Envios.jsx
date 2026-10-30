@@ -25,7 +25,7 @@ export default function Envios() {
   const [envio, setEnvio] = useState(null)
 
   async function cargar() {
-    const { data, error } = await supabase.from('prospectos').select('id, nombre, rubro, zona, email, estado, calificacion, ultimo_contacto, puntaje').neq('estado', 'no_interesado').order('calificacion', { ascending: false, nullsFirst: false }).order('puntaje', { ascending: false, nullsFirst: false })
+    const { data, error } = await supabase.from('prospectos').select('id, nombre, rubro, zona, email, estado, calificacion, ultimo_contacto, puntaje, email_estado, email_motivo, email_verificado_at').not('estado', 'in', '(no_interesado,no_contactar)').order('calificacion', { ascending: false, nullsFirst: false }).order('puntaje', { ascending: false, nullsFirst: false })
     if (error) toast(mensajeError(error), 'error')
     setLista(data ?? [])
   }
