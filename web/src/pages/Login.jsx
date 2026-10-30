@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Loader2, Sparkles, ShieldCheck, Send, AlertCircle, Lock, Mail, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import Logo from '../components/Logo.jsx'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -21,9 +22,9 @@ export default function Login() {
   return (
     <div className="login">
       <section className="login-hero">
-        <div className="marca"><span className="marca-logo">P</span>Prospecta</div>
-        <h1>Conseguí clientes para tu estudio, de a uno y bien.</h1>
-        <p>Claude encuentra negocios sin web, te escribe los mensajes con tu estilo y te ordena el seguimiento. Vos revisás y enviás cada uno.</p>
+        <div className="marca"><Logo size={28} claro /></div>
+        <h1>Conseguí clientes para tu negocio, de a uno y bien.</h1>
+        <p>Contale a Claude qué vendés y a quién: encuentra las empresas que encajan, te escribe los mensajes y te ordena el seguimiento. Vos revisás y enviás cada uno.</p>
         <div className="login-puntos">
           <div><Sparkles size={18} /> Búsqueda de negocios y borradores con Claude</div>
           <div><Send size={18} /> WhatsApp y email con un clic, siempre enviados por vos</div>
@@ -37,7 +38,7 @@ export default function Login() {
           <p>Entrá con el email y la contraseña que te dio el administrador.</p>
           <label>Email
             <div className="campo-icono"><Mail size={16} />
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" autoFocus placeholder="vos@estudio.com" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" autoFocus placeholder="vos@tuempresa.com" />
             </div>
           </label>
           <label>Contraseña
@@ -55,7 +56,7 @@ export default function Login() {
               ? <span>Pedile al administrador que te genere una contraseña nueva desde su panel.</span>
               : <button type="button" className="link" onClick={() => setOlvido(true)}>¿Olvidaste tu contraseña?</button>}
           </div>
-          <p className="login-pie">¿No tenés cuenta? Las cuentas las crea el administrador de tu estudio.</p>
+          <p className="login-pie">¿No tenés cuenta? Las cuentas las crea el administrador de tu empresa.</p>
         </form>
       </section>
     </div>

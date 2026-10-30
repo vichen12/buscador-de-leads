@@ -7,18 +7,32 @@
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
 import { borradoresPlantilla, situacionHoy, nombreCorto } from '../_shared/plantillas.js'
 
-let MODELO = 'claude-sonnet-5-5'
+let MODELO = 'claude-haiku-5-5'
 const MAX_POR_LLAMADA = 25
 
 type Borradores = { whatsapp: string; email: { asunto: string; cuerpo: string }; seguimiento: string }
 type Dic = Record<string, unknown>
 
-const TONO = `Reglas de tono (obligatorias):
+const TONO_WEB = `Reglas de tono (obligatorias):
 - Español rioplatense, cercano, con "vos", natural, como lo escribiría una persona de Mendoza. Nada corporativo ni de vendedor.
 - Entrá por el VALOR: algo genuino de su negocio o su Instagram ("te vi el IG, está buenísimo") y lo que ganarían con una web propia (que la gente los encuentre en Google y reserve o consulte sin DM).
 - NUNCA por el miedo, la culpa o la urgencia falsa. No critiques su Instagram ni su negocio. No prometas resultados.
 - Una sola pregunta al final, liviana y sin compromiso (mostrar un boceto o una idea).
 - No inventes datos que no estén en la ficha (premios, años, seguidores, precios).`
+
+// Perfil comercial del usuario (qué vende y a quién). Si no lo completó, se asume un estudio de diseño web.
+let COMERCIAL: Dic | null = null
+const oferta = () => (COMERCIAL?.respuestas as Dic)?.que_vende as string || 'una página web'
+function tono() {
+  const e = (COMERCIAL?.estrategia ?? {}) as Dic
+  if (!COMERCIAL) return TONO_WEB
+  return `Reglas de tono (obligatorias):
+- Español rioplatense, con "vos", natural, como lo escribiría una persona real. Nada corporativo ni de vendedor.${e.tono ? `\n- Tono pedido: ${e.tono}` : ''}
+- Entrá por el VALOR para ESE negocio: algo genuino de lo que hacen y cómo lo que ofrecemos les sirve a ellos.${e.angulo ? `\n- Ángulo de entrada recomendado: ${e.angulo}` : ''}
+- NUNCA por el miedo, la culpa o la urgencia falsa. No critiques su negocio. No prometas resultados.
+- Una sola pregunta al final, liviana y sin compromiso.
+- No inventes datos que no estén en la ficha (premios, años, precios, clientes).`
+}
 
 function ficha(p: Dic, perfil: Dic) {
   return `Negocio:
@@ -26,17 +40,18 @@ function ficha(p: Dic, perfil: Dic) {
 - Rubro: ${p.rubro || 's/d'}
 - Zona: ${p.zona || p.direccion || 'Mendoza'}
 - Instagram: ${p.instagram || 'no informado'}
-- Qué tiene hoy en lugar de web: ${p.que_tiene_hoy || 'no tiene web'} (${situacionHoy(String(p.que_tiene_hoy || ''))})
+${COMERCIAL ? `- Web o presencia online: ${p.web_actual || p.que_tiene_hoy || 's/d'}` : `- Qué tiene hoy en lugar de web: ${p.que_tiene_hoy || 'no tiene web'} (${situacionHoy(String(p.que_tiene_hoy || ''))})`}
+${p.encaje ? `- Por qué es buen prospecto: ${p.encaje}` : ''}
 - Reseñas en Google: ${p.resenas ?? 's/d'} (puntaje ${p.rating ?? 's/d'})
 - Notas del vendedor: ${p.notas || '—'}
 
-Quien escribe: ${perfil.nombre || '[tu nombre]'}, de ${perfil.estudio || '[tu estudio]'} (estudio de diseño web de Mendoza).
+Quien escribe: ${perfil.nombre || '[tu nombre]'}, de ${(COMERCIAL?.respuestas as Dic)?.empresa || perfil.estudio || '[tu empresa]'}${COMERCIAL ? `. Qué ofrecemos: ${oferta()}${(COMERCIAL.respuestas as Dic)?.diferencial ? `. Diferencial: ${(COMERCIAL.respuestas as Dic).diferencial}` : ''}` : ' (estudio de diseño web de Mendoza)'}.
 Firma de email: ${perfil.firma || perfil.nombre || ''}
 ${perfil.portfolio_url ? `Portfolio (mencionalo sólo si suma): ${perfil.portfolio_url}` : ''}
 ${perfil.instrucciones_ia ? `Indicaciones del usuario para todos sus mensajes: ${perfil.instrucciones_ia}` : ''}`
 }
 
-async function claude(key: string, prompt: string, maxTokens = 1200): Promise<string> {
+async function claude(key: string, prompt: string, maxTokens = 3000): Promise<string> {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -44,21 +59,47 @@ async function claude(key: string, prompt: string, maxTokens = 1200): Promise<st
   })
   if (!r.ok) throw new Error(`IA ${r.status}: ${(await r.text()).slice(0, 200)}`)
   const data = await r.json()
-  return data.content?.map((c: { text?: string }) => c.text ?? '').join('') ?? ''
+  const texto = data.content?.map((c: { text?: string }) => c.text ?? '').join('') ?? ''
+  if (!texto.includes('{')) console.error('IA sin JSON', data.stop_reason, JSON.stringify((data.content ?? []).map((c: Dic) => c.type)), texto.slice(0, 300))
+  return texto
 }
 
+// Lee el JSON aunque la IA ponga saltos de línea crudos dentro de los textos o lo envuelva en ```json
 function extraerJSON(texto: string) {
-  const m = texto.match(/\{[\s\S]*\}/)
+  const m = (texto.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1] ?? texto).match(/\{[\s\S]*\}/)
   if (!m) throw new Error('La IA no devolvió JSON')
-  return JSON.parse(m[0])
+  try { return JSON.parse(m[0]) } catch { /* sigue abajo */ }
+  let out = '', enTexto = false, escape = false
+  for (const ch of m[0]) {
+    if (enTexto && !escape && ch === '\n') { out += '\\n'; continue }
+    if (enTexto && !escape && ch === '\r') continue
+    if (enTexto && !escape && ch === '\t') { out += '\\t'; continue }
+    if (ch === '"' && !escape) enTexto = !enTexto
+    escape = ch === '\\' && !escape
+    out += ch
+  }
+  return JSON.parse(out.replace(/,\s*([}\]])/g, '$1'))
+}
+
+// Respaldo sin IA para cualquier negocio (la plantilla de plantillas.js es para estudios de diseño web)
+function plantillaGenerica(p: Dic, perfil: Dic): Borradores {
+  const nom = nombreCorto(String(p.nombre))
+  const yo = String(perfil.nombre || '[tu nombre]')
+  const empresa = String((COMERCIAL?.respuestas as Dic)?.empresa || perfil.estudio || '[tu empresa]')
+  const que = oferta()
+  return {
+    whatsapp: `¡Hola! ¿Cómo va? Soy ${yo}, de ${empresa}. Trabajamos con ${String(p.rubro || 'negocios')} de la zona: ${que}. Me pareció que a ${nom} le podría servir. ¿Te puedo contar en dos minutos cómo trabajamos?`,
+    email: { asunto: `Una propuesta para ${nom}`, cuerpo: `Hola, ¿cómo están?\n\nSoy ${yo}, de ${empresa}. Nos dedicamos a ${que}.\n\nVimos a ${nom} y creemos que les podría servir. Si les interesa, les cuento cómo trabajamos y armamos una propuesta sin compromiso.\n\n¿Les parece?\n\nSaludos,\n${perfil.firma || yo}` },
+    seguimiento: `¡Hola! Te escribí hace unos días de parte de ${empresa}. Si te sirve, te paso una propuesta concreta para ${nom}, sin compromiso. Y si no es momento, avisame y no insisto. ¡Gracias!`,
+  }
 }
 
 async function generarConIA(p: Dic, perfil: Dic, key: string): Promise<Borradores> {
-  const prompt = `Escribí borradores para contactar a UN negocio y ofrecerle una página web. Los revisa y envía una persona, a mano.
+  const prompt = `Escribí borradores para contactar a UN negocio y ofrecerle ${COMERCIAL ? `lo nuestro (${oferta()})` : 'una página web'}. Los revisa y envía una persona, a mano.
 
 ${ficha(p, perfil)}
 
-${TONO}
+${tono()}
 - WhatsApp: 3 a 5 oraciones, máximo 600 caracteres, sin emojis o como mucho uno.
 - Email: asunto corto (máximo 6 palabras, sin mayúsculas sostenidas) y cuerpo de 80 a 140 palabras con saludo y firma.
 - Seguimiento (para quien no respondió en unos días): 1 a 3 oraciones, amable, ofrece algo concreto y deja la puerta abierta a decir que no.
@@ -83,12 +124,12 @@ ${tipo === 'email' && asunto ? `Asunto: ${asunto}\n` : ''}${cuerpo}
 
 Indicación: ${instruccion}
 
-${TONO}
+${tono()}
 - Mantené lo que esté bien y cambiá sólo lo que pide la indicación.
 ${tipo === 'email' ? '- Devolvé también el asunto.' : '- Máximo 600 caracteres.'}
 
 Respondé SOLO con JSON válido: {"cuerpo": "..."${tipo === 'email' ? ', "asunto": "..."' : ''}}`
-  const r = extraerJSON(await claude(key, prompt, 900))
+  const r = extraerJSON(await claude(key, prompt, 2000))
   if (!r.cuerpo) throw new Error('La IA no devolvió el texto')
   return { cuerpo: String(r.cuerpo), asunto: r.asunto ? String(r.asunto) : asunto }
 }
@@ -99,13 +140,15 @@ Deno.serve(async req => {
     const { supabase, user } = await clienteDelUsuario(req)
     const body = await req.json()
     const [key, modelo, places] = await Promise.all([claveServicio('anthropic'), claveServicio('modelo_ia'), claveServicio('google_places')])
-    MODELO = modelo || 'claude-sonnet-5-5'
+    MODELO = modelo || 'claude-haiku-5-5'
 
     if (body.modo === 'estado') {
       return json({ ia: !!key, modelo: key ? MODELO : null, places: !!places })
     }
 
     const { data: perfil } = await supabase.from('perfiles').select('*').eq('id', user.id).single()
+    const { data: com } = await supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', user.id).maybeSingle()
+    COMERCIAL = (com?.respuestas as Dic)?.que_vende ? com : null
 
     if (body.modo === 'reescribir') {
       const { prospecto_id, tipo = 'whatsapp', cuerpo = '', asunto = '', instruccion = '' } = body
@@ -135,9 +178,9 @@ Deno.serve(async req => {
       let origen = 'plantilla'
       if (key) {
         try { b = await generarConIA(p, perfil ?? {}, key); origen = 'ia' }
-        catch (e) { errorIA = e instanceof Error ? e.message : String(e); console.error(e); b = borradoresPlantilla(p, perfil ?? {}) }
+        catch (e) { errorIA = e instanceof Error ? e.message : String(e); console.error(e); b = COMERCIAL ? plantillaGenerica(p, perfil ?? {}) : borradoresPlantilla(p, perfil ?? {}) }
       } else {
-        b = borradoresPlantilla(p, perfil ?? {})
+        b = COMERCIAL ? plantillaGenerica(p, perfil ?? {}) : borradoresPlantilla(p, perfil ?? {})
       }
 
       const filas = [

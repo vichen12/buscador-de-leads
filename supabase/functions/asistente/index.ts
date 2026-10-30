@@ -11,23 +11,26 @@ const HISTORIAL = 20
 
 const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
 
-async function contexto(supabase: any, perfil: Dic) {
-  const [{ data: t }, { data: ps }, { data: ints }] = await Promise.all([
+async function contexto(supabase: any, perfil: Dic, userId: string) {
+  const [{ data: t }, { data: ps }, { data: ints }, { data: com }] = await Promise.all([
     supabase.rpc('tablero'),
     supabase.from('prospectos')
-      .select('id, nombre, rubro, zona, estado, telefono, email, instagram, que_tiene_hoy, rating, resenas, ultimo_contacto, proximo_seguimiento, notas')
+      .select('id, nombre, rubro, zona, estado, telefono, email, instagram, que_tiene_hoy, rating, resenas, ultimo_contacto, proximo_seguimiento, notas, encaje, puntaje')
       .order('updated_at', { ascending: false }).limit(300),
     supabase.from('interacciones').select('tipo, detalle, created_at, prospecto_id').order('created_at', { ascending: false }).limit(40),
+    supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', userId).maybeSingle(),
   ])
+  const e = (com?.estrategia ?? {}) as Dic, resp = (com?.respuestas ?? {}) as Dic
   const nombre = new Map((ps ?? []).map((p: Dic) => [p.id, p.nombre]))
   const filas = (ps ?? []).map((p: Dic) =>
-    [p.nombre, p.rubro, p.zona, p.estado, p.que_tiene_hoy, p.resenas ? `${p.resenas} reseñas ${p.rating ?? ''}★` : '', p.telefono ? 'tel' : '', p.email ? 'email' : '',
+    [p.nombre, p.rubro, p.zona, p.estado, p.puntaje ? `encaje ${p.puntaje}/5` : '', p.encaje ? `por qué: ${String(p.encaje).slice(0, 120)}` : '', p.que_tiene_hoy, p.resenas ? `${p.resenas} reseñas ${p.rating ?? ''}★` : '', p.telefono ? 'tel' : '', p.email ? 'email' : '',
      p.instagram ? 'IG' : '', p.ultimo_contacto ? `últ. contacto ${String(p.ultimo_contacto).slice(0, 10)}` : '',
      p.proximo_seguimiento ? `seguir ${p.proximo_seguimiento}` : '', p.notas ? `notas: ${String(p.notas).slice(0, 120)}` : '']
       .filter(Boolean).join(' | '))
   const actividad = (ints ?? []).map((i: Dic) => `${String(i.created_at).slice(0, 16).replace('T', ' ')} · ${i.tipo} · ${nombre.get(i.prospecto_id) ?? '?'}${i.detalle ? ' · ' + String(i.detalle).slice(0, 100) : ''}`)
   return `## Quién usa el sistema
-${perfil.nombre || 'Usuario'}${perfil.estudio ? `, de ${perfil.estudio}` : ''}. Ofrece páginas web a negocios (principalmente de Mendoza, Argentina) que tienen Instagram pero no web propia.
+${perfil.nombre || 'Usuario'}${resp.empresa || perfil.estudio ? `, de ${resp.empresa || perfil.estudio}` : ''}.
+${e.resumen ? `Qué vende y a quién: ${e.resumen}\nCliente ideal: ${e.cliente_ideal || ''}\nRubros que busca: ${(e.rubros ?? []).map((r: Dic) => r.nombre).join(', ')}\nZonas: ${(e.zonas ?? []).join(', ')}\nCómo conviene escribirles: ${e.angulo || ''}` : 'Todavía no completó "Mi negocio" (qué vende y a quién). Si hace falta, sugerile completarlo.'}
 Límite diario de envíos: ${perfil.limite_diario}. Seguimiento a los ${perfil.dias_seguimiento} días.
 ${perfil.instrucciones_ia ? `Indicaciones propias: ${perfil.instrucciones_ia}` : ''}
 
@@ -41,7 +44,7 @@ ${filas.join('\n') || '(todavía no cargó prospectos)'}
 ${actividad.join('\n') || '(sin actividad)'}`
 }
 
-const SISTEMA = (ctx: string, hoy: string) => `Sos el asistente de Prospecta, un sistema para conseguir clientes de diseño web contactando negocios de a uno, con mensajes revisados por una persona.
+const SISTEMA = (ctx: string, hoy: string, pagina: string) => `Sos el asistente de Prospecta, un sistema para conseguir clientes para cualquier tipo de empresa: busca negocios que encajan con lo que vende el usuario y los contacta de a uno, con mensajes revisados por una persona.
 Hoy es ${hoy} (hora de Argentina). Respondé en español rioplatense, claro y directo, con tuteo/voseo natural.
 
 Podés ayudar con cualquier cosa: dudas generales, estrategia comercial, redactar mensajes, precios, objeciones, analizar sus datos, armar planes o reportes, leer PDFs que te adjunten (por ejemplo, el perfil de la empresa) y lo que te pidan.
@@ -50,7 +53,8 @@ Podés ayudar con cualquier cosa: dudas generales, estrategia comercial, redacta
 - No propongas envíos masivos automáticos, compra de bases de datos ni scraping: el sistema contacta de a pocos y cada mensaje lo revisa una persona.
 - Sé breve si la pregunta es breve.
 
-${ctx}`
+${ctx}
+${pagina ? `\n## Lo que el usuario está mirando ahora en la app\n${pagina}` : ''}`
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -75,7 +79,8 @@ Deno.serve(async req => {
 
   const key = await claveServicio('anthropic')
   if (!key) return json({ error: 'Falta la clave de Claude: la carga el super admin en Super admin → Claves.', codigo: 'SIN_CLAVE' }, 503)
-  const modelo = (await claveServicio('modelo_ia')) || 'claude-sonnet-5-5'
+  const modelo = (await claveServicio('modelo_ia')) || 'claude-haiku-5-5'
+  const pagina = String(body.pagina ?? '').slice(0, 3000)
 
   // Conversación (nueva o existente y propia)
   let convId: string | null = body.conversacion_id ?? null
@@ -107,7 +112,7 @@ Deno.serve(async req => {
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
       model: modelo, max_tokens: 4000,
-      system: SISTEMA(await contexto(supabase, perfil ?? {}), hoy),
+      system: SISTEMA(await contexto(supabase, perfil ?? {}, user.id), hoy, pagina),
       messages: [...historial, { role: 'user', content: contenido }],
     }),
   })

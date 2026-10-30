@@ -13,6 +13,8 @@ import BuscarPlaces from './pages/BuscarPlaces.jsx'
 import Cuenta from './pages/Cuenta.jsx'
 import Admin from './pages/Admin.jsx'
 import Asistente from './pages/Asistente.jsx'
+import MiNegocio from './pages/MiNegocio.jsx'
+import Conexiones from './pages/Conexiones.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -34,6 +36,8 @@ function Raiz() {
   const [tablero, setTablero] = useState(null)
   const [servicios, setServicios] = useState({ ia: null, places: null })
   const [acceso, setAcceso] = useState(null)
+  const [correo, setCorreo] = useState(null)
+  const [comercial, setComercial] = useState(undefined) // perfil comercial: undefined = cargando, null = sin completar
 
   useEffect(() => {
     if (!configurado) return
@@ -44,11 +48,14 @@ function Raiz() {
 
   const refrescar = useCallback(async () => {
     if (!session) return
-    const [{ data: p }, { data: t }, { data: a }] = await Promise.all([
+    const [{ data: p }, { data: t }, { data: a }, { data: c }] = await Promise.all([
       supabase.from('perfiles').select('*').eq('id', session.user.id).single(),
       supabase.rpc('tablero'),
       supabase.rpc('mi_acceso'),
+      supabase.from('perfil_comercial').select('*').eq('owner_id', session.user.id).maybeSingle(),
     ])
+    setComercial(c ?? null)
+    supabase.from('conexiones_correo').select('*').eq('owner_id', session.user.id).maybeSingle().then(({ data }) => setCorreo(data ?? null))
     setPerfil(p)
     setTablero(t)
     setAcceso(a ?? { habilitado: true })
@@ -70,7 +77,7 @@ function Raiz() {
   if (!acceso) return <div className="centro-pantalla"><Cargando /></div>
   if (acceso.habilitado === false) return <Suspendido acceso={acceso} email={session.user.email} />
 
-  const valor = { session, perfil, tablero, enviadosHoy: tablero?.enviados_hoy ?? 0, refrescar, servicios, refrescarServicios, acceso }
+  const valor = { session, perfil, tablero, enviadosHoy: tablero?.enviados_hoy ?? 0, refrescar, servicios, refrescarServicios, acceso, comercial, setComercial, correo, setCorreo }
   return (
     <Ctx.Provider value={valor}>
       <Layout>
@@ -82,6 +89,8 @@ function Raiz() {
           <Route path="/importar" element={<Importar />} />
           <Route path="/buscar" element={<BuscarPlaces />} />
           <Route path="/cuenta" element={<Cuenta />} />
+          <Route path="/negocio" element={<MiNegocio />} />
+          <Route path="/conexiones" element={<Conexiones />} />
           <Route path="/asistente" element={<Asistente />} />
           <Route path="/admin" element={perfil?.es_admin ? <Admin /> : <Navigate to="/" />} />
           <Route path="/equipo" element={<Navigate to="/admin" />} />

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, Send, MessageCircle, Trophy, CalendarClock, ArrowRight, Upload, Search, Sparkles, ChevronRight, Flame } from 'lucide-react'
+import { Store, Users, Send, MessageCircle, Trophy, CalendarClock, ArrowRight, Upload, Search, Sparkles, ChevronRight, Flame } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { ESTADOS, fecha, hoyLocal, saludoHora } from '../lib/util.js'
 import { Avatar, Esqueleto, Aviso, Contador } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Tablero() {
-  const { perfil, tablero: t, refrescar, servicios } = useApp()
+  const { perfil, tablero: t, refrescar, servicios, comercial } = useApp()
   const [vencidos, setVencidos] = useState([])
   const [listos, setListos] = useState([])
   const [rubros, setRubros] = useState([])
@@ -53,6 +53,14 @@ export default function Tablero() {
         </div>
       </header>
 
+      {comercial === null && (
+        <div className="aviso-negocio">
+          <Store size={22} />
+          <div style={{ flex: 1 }}><b>Empezá por contarnos de tu negocio</b><p>Qué vendés, a quién y dónde. Claude arma tu estrategia (rubros, zonas y filtros) y la usa para buscar clientes y escribir los mensajes.</p></div>
+          <Link className="btn primario" to="/negocio">Completar mi negocio <ArrowRight size={15} /></Link>
+        </div>
+      )}
+
       {servicios.ia === false && t.total > 0 && (
         <Aviso tipo="info">Los borradores se están armando con plantillas. Cuando el super admin cargue la clave de Claude en el panel, los escribe la IA para cada negocio. {perfil?.es_admin ? <Link to="/admin">Cargar la clave</Link> : <Link to="/cuenta">Ver estado</Link>}</Aviso>
       )}
@@ -61,10 +69,10 @@ export default function Tablero() {
         <div className="tarjeta vacio">
           <div className="icono-grande"><Users size={26} /></div>
           <h3>Todavía no cargaste prospectos</h3>
-          <p>Subí un CSV o Excel con tu lista, o buscá en Google negocios que no tengan web propia.</p>
+          <p>Subí un CSV o Excel con tu lista, o pedile a Claude que busque negocios sin web propia.</p>
           <div className="acciones" style={{ justifyContent: 'center' }}>
             <Link className="btn primario" to="/importar"><Upload size={16} /> Importar lista</Link>
-            <Link className="btn" to="/buscar"><Search size={16} /> Buscar en Google</Link>
+            <Link className="btn" to="/buscar"><Search size={16} /> Buscar negocios con IA</Link>
           </div>
         </div>
       ) : <>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, AtSign, Globe, MapPin, Star, Clock, CalendarClock, MessageCircle, Send, Sparkles, Wand2, Loader2,
-  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save,
+  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
@@ -13,7 +13,7 @@ import { useApp } from '../App.jsx'
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
 const TIPO_INT = {
   enviado: ['Mensaje enviado', Send, '#1d4ed8', '#e8efff'], respuesta: ['Respondió', Reply, '#b45309', '#fdf3e2'],
-  nota: ['Nota', StickyNote, '#52525b', '#f1f1f3'], cambio_estado: ['Cambio de estado', RefreshCw, '#7c3aed', '#f1ebff'],
+  nota: ['Nota', StickyNote, '#52525b', '#f0ece5'], cambio_estado: ['Cambio de estado', RefreshCw, '#7c3aed', '#f1ebff'],
   llamada: ['Llamada', Phone, '#15803d', '#e8f6ec'],
 }
 const RAPIDOS = ['Más corto', 'Más cálido', 'Más profesional', 'Mencioná su Instagram', 'Otro enfoque', 'Sin signos de exclamación']
@@ -24,7 +24,9 @@ export default function Prospecto() {
   const [params] = useSearchParams()
   const toast = useToast()
   const confirmar = useConfirmar()
-  const { perfil, enviadosHoy, refrescar, servicios } = useApp()
+  const { perfil, enviadosHoy, refrescar, servicios, correo } = useApp()
+  const [mandando, setMandando] = useState(false)
+  const [agenda, setAgenda] = useState(null)
   const [p, setP] = useState(null)
   const [msgs, setMsgs] = useState({})
   const [borrador, setBorrador] = useState({})
@@ -129,6 +131,37 @@ export default function Prospecto() {
     await Promise.all([cargar(), refrescar()])
   }
 
+  // Envío directo desde la cuenta conectada (función "correo")
+  async function enviarDesdeApp() {
+    setAviso('')
+    if (optOut || sinCupo) return
+    if (!actual.cuerpo.trim()) { setAviso('El mensaje está vacío.'); return }
+    const m = sucio || !msgs[tab] ? await guardarBorrador(true) : msgs[tab]
+    if (!m) return
+    if (!(await confirmar({ titulo: `¿Enviar el email a ${p.email}?`, texto: `Sale desde ${correo.email} con el asunto "${m.asunto || 'Hola'}". Queda registrado y se agenda el seguimiento.`, aceptar: 'Enviar' }))) return
+    setMandando(true)
+    try {
+      await llamarFuncion('correo', { modo: 'enviar', mensaje_id: m.id })
+      toast(`Email enviado a ${p.email}`)
+      await Promise.all([cargar(), refrescar()])
+    } catch (e) { setAviso(mensajeError(e)) }
+    setMandando(false)
+  }
+
+  // Google Calendar: abre el evento cargado (sin conectar nada) y deja nota + seguimiento
+  async function agendar(e) {
+    e.preventDefault()
+    const { titulo, fecha: dia, hora: h, duracion } = agenda
+    const ini = new Date(`${dia}T${h}`), fin = new Date(ini.getTime() + Number(duracion) * 60000)
+    const f = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+    const detalles = [p.telefono && `Tel: ${p.telefono}`, p.email && `Email: ${p.email}`, p.instagram && `Instagram: ${p.instagram}`, p.notas && `\nNotas: ${p.notas}`, `\nFicha: ${location.origin}/prospectos/${p.id}`].filter(Boolean).join('\n')
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titulo)}&dates=${f(ini)}/${f(fin)}&details=${encodeURIComponent(detalles)}&location=${encodeURIComponent(p.direccion || p.zona || '')}`
+    window.open(url, '_blank', 'noopener')
+    await supabase.from('interacciones').insert({ prospecto_id: id, tipo: 'nota', detalle: `Agendado: ${titulo} (${ini.toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })})` })
+    await supabase.from('prospectos').update({ proximo_seguimiento: dia }).eq('id', id)
+    setAgenda(null); toast('Abrimos tu Google Calendar con el evento cargado'); cargar()
+  }
+
   async function registrar(tipo, detalle = '') {
     const { error } = await supabase.from('interacciones').insert({ prospecto_id: id, tipo, detalle })
     if (error) toast(mensajeError(error), 'error')
@@ -205,6 +238,7 @@ export default function Prospecto() {
             <button className="btn" onClick={() => registrar('respuesta', 'Respondió')} disabled={optOut}><Reply size={15} /> Respondió</button>
             <button className="btn" onClick={() => cambiarEstado('cliente')}><Trophy size={15} /> ¡Es cliente!</button>
             <button className="btn" onClick={() => registrar('llamada', 'Llamada registrada')} disabled={optOut}><Phone size={15} /> Llamé</button>
+            <button className="btn" onClick={() => { const m = new Date(Date.now() + 86400000); setAgenda({ titulo: `Llamada con ${p.nombre}`, fecha: m.toLocaleDateString('en-CA'), hora: '10:00', duracion: 30 }) }} disabled={optOut}><CalendarPlus size={15} /> Agendar</button>
             <button className="btn peligro" onClick={() => cambiarEstado('no_interesado')} disabled={optOut}><Ban size={15} /> No interesado</button>
           </div>
           <button className="btn fantasma chico peligro" style={{ marginTop: 14 }} onClick={borrar}><Trash2 size={14} /> Borrar prospecto</button>
@@ -271,11 +305,18 @@ export default function Prospecto() {
           </div>
 
           <div className="envio">
-            <p>Revisá el texto. El botón abre la app con el mensaje cargado: <b>el envío lo hacés vos</b> y después lo confirmás acá.</p>
+            <p>{tab !== 'whatsapp' && correo
+              ? <>Revisá el texto. <b>Enviar email</b> lo manda desde {correo.email} y queda registrado. WhatsApp e Instagram se abren con el mensaje cargado y el envío lo hacés vos.</>
+              : <>Revisá el texto. El botón abre la app con el mensaje cargado: <b>el envío lo hacés vos</b> y después lo confirmás acá.{!correo && tab !== 'whatsapp' && <> Para mandar emails directo desde acá, <Link to="/conexiones">conectá tu email</Link>.</>}</>}</p>
             <div className="acciones">
               {tab !== 'email' && (
                 <button className="btn wa" onClick={() => abrir('whatsapp')} disabled={optOut || !tieneWA || sinCupo} title={!tieneWA ? 'No hay un celular válido' : ''}>
                   <MessageCircle size={16} /> Abrir WhatsApp
+                </button>
+              )}
+              {tab !== 'whatsapp' && correo && (
+                <button className="btn primario" onClick={enviarDesdeApp} disabled={optOut || !p.email || sinCupo || mandando} title={!p.email ? 'Cargá un email' : `Sale desde ${correo.email}`}>
+                  {mandando ? <Loader2 size={16} className="spin" /> : <Send size={16} />} Enviar email
                 </button>
               )}
               {tab !== 'whatsapp' && <>
@@ -310,6 +351,25 @@ export default function Prospecto() {
           </ul>
         )}
       </section>
+
+      {agenda && (
+        <Modal onCerrar={() => setAgenda(null)}>
+          <form onSubmit={agendar}>
+            <h3><CalendarPlus size={18} style={{ verticalAlign: -3 }} /> Agendar en Google Calendar</h3>
+            <label>Qué<input value={agenda.titulo} onChange={e => setAgenda({ ...agenda, titulo: e.target.value })} required /></label>
+            <div className="form-grid">
+              <label>Día<input type="date" value={agenda.fecha} onChange={e => setAgenda({ ...agenda, fecha: e.target.value })} required /></label>
+              <label>Hora<input type="time" value={agenda.hora} onChange={e => setAgenda({ ...agenda, hora: e.target.value })} required /></label>
+            </div>
+            <label>Duración<select value={agenda.duracion} onChange={e => setAgenda({ ...agenda, duracion: e.target.value })}><option value={15}>15 minutos</option><option value={30}>30 minutos</option><option value={60}>1 hora</option><option value={120}>2 horas</option></select></label>
+            <p className="muted chico">Se abre tu Google Calendar con el evento cargado (con teléfono, dirección y notas) y en Prospecta queda agendado el seguimiento para ese día.</p>
+            <div className="acciones fin">
+              <button type="button" className="btn" onClick={() => setAgenda(null)}>Cancelar</button>
+              <button className="btn primario"><CalendarPlus size={15} /> Abrir en Google Calendar</button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {confirmarEnvio && (
         <Modal>

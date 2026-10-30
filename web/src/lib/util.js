@@ -1,7 +1,7 @@
 import Papa from 'papaparse'
 
 export const ESTADOS = {
-  pendiente: { label: 'Pendiente', color: '#52525b', fondo: '#f1f1f4', borde: '#e2e2e7', barra: '#a1a1aa', ayuda: 'Todavía no le escribiste' },
+  pendiente: { label: 'Pendiente', color: '#52525b', fondo: '#f0ece5', borde: '#e2e2e7', barra: '#a8a196', ayuda: 'Todavía no le escribiste' },
   contactado: { label: 'Contactado', color: '#1d4ed8', fondo: '#ebf1ff', borde: '#d3e0fd', barra: '#3b82f6', ayuda: 'Ya le mandaste el primer mensaje' },
   respondio: { label: 'Respondió', color: '#b45309', fondo: '#fdf4e4', borde: '#f5ddb2', barra: '#f59e0b', ayuda: 'Hay conversación en curso' },
   cliente: { label: 'Cliente', color: '#15803d', fondo: '#e9f7ee', borde: '#c6eacf', barra: '#22c55e', ayuda: 'Cerraste el trabajo' },

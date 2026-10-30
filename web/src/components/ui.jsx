@@ -69,7 +69,7 @@ export function Modal({ children, onCerrar, ancho }) {
 }
 
 // ---------- Varios ----------
-const PALETA = ['#8b2c3c', '#b45309', '#0f766e', '#4338ca', '#be185d', '#15803d', '#7c3aed', '#0369a1', '#a16207', '#9f1239']
+const PALETA = ['#fd4a22', '#b45309', '#0f766e', '#4338ca', '#be185d', '#15803d', '#7c3aed', '#0369a1', '#a16207', '#c8320f']
 export function Avatar({ nombre = '', grande, className = '' }) {
   const limpio = nombre.replace(/[^\p{L}\p{N} ]/gu, '').trim()
   const palabras = limpio.split(/\s+/).filter(Boolean)

@@ -27,8 +27,8 @@ export async function clienteDelUsuario(req: Request) {
  * Clave de un servicio externo: primero la cargada por el super admin desde el panel
  * (tabla config_claves, sólo legible con service role), si no, el secreto de entorno.
  */
-const ENV: Record<string, string> = { anthropic: 'ANTHROPIC_API_KEY', google_places: 'GOOGLE_PLACES_API_KEY', modelo_ia: 'MODELO_IA' }
-export async function claveServicio(nombre: 'anthropic' | 'google_places' | 'modelo_ia'): Promise<string> {
+const ENV: Record<string, string> = { anthropic: 'ANTHROPIC_API_KEY', google_places: 'GOOGLE_PLACES_API_KEY', modelo_ia: 'MODELO_IA', modelo_busqueda: 'MODELO_BUSQUEDA', modelo_resumen: 'MODELO_RESUMEN' }
+export async function claveServicio(nombre: 'anthropic' | 'google_places' | 'modelo_ia' | 'modelo_busqueda' | 'modelo_resumen'): Promise<string> {
   try {
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
     const { data } = await admin.from('config_claves').select('valor').eq('nombre', nombre).maybeSingle()

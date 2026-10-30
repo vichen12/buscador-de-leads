@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2 } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2 } from 'lucide-react'
+import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
-import { Avatar } from './ui.jsx'
+import { Avatar, useToast } from './ui.jsx'
+import Logo from './Logo.jsx'
+import AsistenteFlotante from './AsistenteFlotante.jsx'
 
 export default function Layout({ children }) {
-  const { perfil, tablero, session, servicios, acceso } = useApp()
+  const { perfil, tablero, session, servicios, acceso, correo, refrescar } = useApp()
+  const toastRevision = useToast()
+  // Si el email está conectado, revisar respuestas al entrar (como mucho cada 15 minutos)
+  useEffect(() => {
+    if (!correo?.leer_respuestas) return
+    const ultima = correo.ultima_revision ? new Date(correo.ultima_revision).getTime() : 0
+    if (Date.now() - ultima < 15 * 60000 || sessionStorage.getItem('revisando')) return
+    sessionStorage.setItem('revisando', '1')
+    llamarFuncion('correo', { modo: 'revisar' }).then(r => {
+      if (r.respondieron?.length) { toastRevision(`📬 Te respondieron: ${r.respondieron.join(', ')}`); refrescar() }
+    }).catch(() => {}).finally(() => setTimeout(() => sessionStorage.removeItem('revisando'), 15 * 60000))
+  }, [correo?.owner_id])
   const limite = perfil?.limite_diario ?? 15
   const enviados = tablero?.enviados_hoy ?? 0
   const pct = Math.min(100, (enviados / limite) * 100)
@@ -21,10 +34,11 @@ export default function Layout({ children }) {
     ['/asistente', 'Asistente IA', Bot],
   ]
   const cargar = [
+    ['/negocio', 'Mi negocio', Store],
     ['/importar', 'Importar', Upload, 0, 'solo-escritorio'],
     ['/buscar', 'Buscar negocios', Search, 0, 'solo-escritorio'],
   ]
-  const cuenta = [['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : '']]
+  const cuenta = [['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : ''], ['/conexiones', 'Conexiones', Plug, 0, 'solo-escritorio']]
   if (perfil?.es_admin) cuenta.push(['/admin', 'Super admin', Crown])
 
   const enlace = ([to, label, Icono, badge, clase]) => (
@@ -37,11 +51,11 @@ export default function Layout({ children }) {
   return (
     <div className="app">
       <aside className="lateral">
-        <Link to="/" className="marca"><span className="marca-logo">P</span>Prospecta</Link>
+        <Link to="/" className="marca"><Logo size={24} /></Link>
         <nav>
           <div className="nav-titulo">Trabajo</div>
           {trabajo.map(enlace)}
-          <div className="nav-titulo">Cargar</div>
+          <div className="nav-titulo">Prospectar</div>
           {cargar.map(enlace)}
           <div className="nav-titulo">Cuenta</div>
           {cuenta.map(enlace)}
@@ -60,6 +74,7 @@ export default function Layout({ children }) {
         <main className="contenido">
           <div className="pagina" key={loc.pathname}>{children}</div>
         </main>
+        <AsistenteFlotante />
       </div>
     </div>
   )
@@ -88,7 +103,7 @@ function Topbar({ nombre, perfil, session, empresa, enviados, limite }) {
 
   return (
     <header className={'topbar' + (sombra ? ' sombra' : '')}>
-      <Link to="/" className="marca marca-movil"><span className="marca-logo">P</span>Prospecta</Link>
+      <Link to="/" className="marca marca-movil"><Logo size={20} /></Link>
       <form className="buscador" role="search" onSubmit={e => { e.preventDefault(); nav('/prospectos?q=' + encodeURIComponent(q.trim())); input.current?.blur() }}>
         <Search size={16} />
         <input ref={input} placeholder="Buscar un negocio…" value={q} onChange={e => setQ(e.target.value)} aria-label="Buscar un negocio" />

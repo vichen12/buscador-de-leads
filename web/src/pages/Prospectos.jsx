@@ -26,6 +26,8 @@ export default function Prospectos() {
   const rubro = params.get('rubro') ?? ''
   const orden = params.get('orden') ?? 'resenas'
   const vista = params.get('vista') ?? 'lista'
+  const busqueda = params.get('busqueda') ?? ''
+  const [infoBusqueda, setInfoBusqueda] = useState(null)
   const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
   async function cargar() {
@@ -35,12 +37,22 @@ export default function Prospectos() {
     setCargando(false)
   }
   useEffect(() => { cargar() }, [])
+  useEffect(() => {
+    if (!busqueda) { setInfoBusqueda(null); return }
+    supabase.from('busquedas').select('*').eq('id', busqueda).maybeSingle().then(({ data }) => setInfoBusqueda(data))
+  }, [busqueda])
+  // Viene de "Armar mensajes para estos": dejar seleccionados los de la búsqueda
+  useEffect(() => {
+    if (cargando || params.get('generar') !== '1') return
+    setSel(new Set(lista.filter(p => p.busqueda_id === busqueda && p.estado === 'pendiente').map(p => p.id)))
+    set('generar', '')
+  }, [cargando])
 
   const rubros = useMemo(() => [...new Set(lista.map(p => p.rubro).filter(Boolean))].sort(), [lista])
   const filtrados = useMemo(() => {
     const t = q.toLowerCase()
     const r = lista.filter(p =>
-      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) &&
+      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!busqueda || p.busqueda_id === busqueda) &&
       (!t || [p.nombre, p.rubro, p.direccion, p.telefono, p.instagram, p.notas].join(' ').toLowerCase().includes(t)))
     const cmp = {
       resenas: (a, b) => (b.resenas ?? 0) - (a.resenas ?? 0),
@@ -49,7 +61,7 @@ export default function Prospectos() {
       seguimiento: (a, b) => (a.proximo_seguimiento ?? '9999').localeCompare(b.proximo_seguimiento ?? '9999'),
     }[orden]
     return r.sort(cmp)
-  }, [lista, q, estado, rubro, orden, vista])
+  }, [lista, q, estado, rubro, orden, vista, busqueda])
 
   const toggle = id => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const todos = filtrados.length > 0 && filtrados.every(p => sel.has(p.id))
@@ -126,6 +138,15 @@ export default function Prospectos() {
           <option value="reciente">Cargados recientemente</option><option value="seguimiento">Próximo seguimiento</option>
         </select>
       </div>
+
+      {busqueda && (
+        <div className="aviso-filtro">
+          <Sparkles size={15} />
+          <span>Mostrando los negocios de la búsqueda <b>{infoBusqueda ? `${infoBusqueda.rubro} · ${infoBusqueda.zona.replace(/, Mendoza$/, '')}` : '…'}</b></span>
+          <span className="espacio" />
+          <button className="link" onClick={() => set('busqueda', '')}><X size={14} style={{ verticalAlign: -2 }} /> Ver todos</button>
+        </div>
+      )}
 
       {sel.size > 0 && (
         <div className="barra-sel">

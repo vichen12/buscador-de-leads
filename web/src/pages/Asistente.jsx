@@ -15,8 +15,8 @@ const SUGERENCIAS = [
   ['Resumime cómo vengo', '¿Cómo vengo? Resumime mis números, qué está funcionando y qué no.'],
   ['¿A quién le escribo hoy?', '¿A qué 5 prospectos le conviene escribirles hoy y por qué? Dame un mensaje corto para cada uno.'],
   ['Informe para PDF', 'Armame un informe completo de mi prospección (resumen, embudo, rubros que mejor responden, próximos pasos) para exportar en PDF.'],
-  ['Objeción "ya tengo Instagram"', '¿Cómo respondo cuando me dicen "no necesito web, ya tengo Instagram"? Dame 3 respuestas cortas para WhatsApp.'],
-  ['¿Cuánto cobro una web?', '¿Cuánto debería cobrar una web para un negocio chico de Mendoza? Proponé 3 paquetes con precio en pesos y qué incluye cada uno.'],
+  ['Objeción "no me interesa"', '¿Cómo respondo cuando un prospecto me dice "no me interesa" o "ya tengo proveedor"? Dame 3 respuestas cortas para WhatsApp, pensadas para lo que vendo.'],
+  ['Ideas de clientes nuevos', 'Según lo que vendo, ¿qué otros tipos de negocio o zonas me conviene buscar que todavía no estoy buscando?'],
 ]
 
 /** Abre una versión imprimible y el diálogo de "Guardar como PDF" del navegador */
@@ -66,7 +66,7 @@ export default function Asistente() {
   const confirmar = useConfirmar()
   const { servicios, perfil } = useApp()
   const [convs, setConvs] = useState([])
-  const [activa, setActiva] = useState(null)
+  const [activa, setActiva] = useState(() => new URLSearchParams(window.location.search).get('c'))
   const [mensajes, setMensajes] = useState([])
   const [texto, setTexto] = useState('')
   const [pdf, setPdf] = useState(null)

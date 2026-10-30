@@ -52,10 +52,10 @@ export default function Admin() {
       </header>
 
       <div className="resumen-admin stagger">
-        <Mini titulo="Empresas activas" valor={empresas.filter(e => e.activa).length} pie={`de ${empresas.length}`} icono={Building2} color="#8b2c3c" fondo="#fbeff1" />
+        <Mini titulo="Empresas activas" valor={empresas.filter(e => e.activa).length} pie={`de ${empresas.length}`} icono={Building2} color="#fd4a22" fondo="#fff0ea" />
         <Mini titulo="Usuarios" valor={usuarios.length} pie={`${usuarios.filter(u => !u.activo).length} suspendidos`} icono={Users} color="#1d4ed8" fondo="#ebf1ff" />
         <Mini titulo="Prospectos" valor={total('prospectos')} pie={`${total('clientes')} clientes`} icono={Ticket} color="#b45309" fondo="#fdf4e4" />
-        <Mini titulo="Claude" valor={claveIA?.configurada ? 'Activo' : 'Sin clave'} pie={claveIA?.configurada ? `termina en …${claveIA.final}` : 'cargala en Claves'} icono={Sparkles} color={claveIA?.configurada ? '#15803d' : '#71717a'} fondo={claveIA?.configurada ? '#e9f7ee' : '#f1f1f4'} />
+        <Mini titulo="Claude" valor={claveIA?.configurada ? 'Activo' : 'Sin clave'} pie={claveIA?.configurada ? `termina en …${claveIA.final}` : 'cargala en Claves'} icono={Sparkles} color={claveIA?.configurada ? '#15803d' : '#6f695f'} fondo={claveIA?.configurada ? '#e9f7ee' : '#f0ece5'} />
       </div>
 
       <div className="subtabs" role="tablist">
@@ -350,7 +350,7 @@ function LimiteGeneral({ actual, guardando, onGuardar }) {
 }
 
 const SERVICIOS = [
-  { nombre: 'anthropic', titulo: 'Claude (Anthropic)', icono: Sparkles, color: '#8b2c3c', fondo: '#fbeff1', placeholder: 'sk-ant-api03-…',
+  { nombre: 'anthropic', titulo: 'Claude (Anthropic)', icono: Sparkles, color: '#fd4a22', fondo: '#fff0ea', placeholder: 'sk-ant-api03-…',
     ayuda: <>Busca negocios, escribe los mensajes y responde en el Asistente. Creala en <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a> → API Keys.</> },
 ]
 
@@ -433,7 +433,7 @@ function Claves({ claves, recargar }) {
       <LimiteGeneral actual={Number(estado('limite_chat').final) || 30} guardando={guardando === 'limite_chat'} onGuardar={n => guardar('limite_chat', String(n), `Límite del asistente: ${n} consultas por día`)} />
 
       <div className="estado-servicio" style={{ marginTop: 10 }}>
-        <span className="punto" style={{ background: servicios.ia ? '#22c55e' : servicios.ia === false ? '#f59e0b' : '#a1a1aa', width: 10, height: 10 }} />
+        <span className="punto" style={{ background: servicios.ia ? '#22c55e' : servicios.ia === false ? '#f59e0b' : '#a8a196', width: 10, height: 10 }} />
         <div><b>Estado en vivo</b><span>Claude: {servicios.ia ? `conectado (${servicios.modelo || modeloActual})` : 'sin clave'} · lo usan el Asistente, la búsqueda de negocios y los borradores</span></div>
         <span className="espacio" />
         <button className="btn chico" onClick={async () => { await refrescarServicios(); toast('Estado actualizado', 'info') }}>Volver a verificar</button>

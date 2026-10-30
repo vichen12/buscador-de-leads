@@ -41,8 +41,11 @@ Deno.serve(async req => {
     })
     if (error) {
       const existe = /already|registered|exists/i.test(error.message)
-      return json({ error: existe ? 'Ya existe una cuenta con ese email' : error.message }, existe ? 409 : 400)
+      return json({ error: existe ? 'Ya existe una cuenta con ese email. Buscala en la lista de usuarios: con ↻ le generás una contraseña nueva.' : error.message }, existe ? 409 : 400)
     }
+    // Activar el perfil y asignarlo a la empresa sin depender del orden en que Auth guarda los metadatos
+    const { error: ep } = await admin.from('perfiles').upsert({ id: data.user.id, nombre, email_contacto: email, empresa_id: empresa, activo: true }, { onConflict: 'id' })
+    if (ep) console.error('activar perfil', ep)
     return json({ id: data.user.id, email, password })
   }
 
