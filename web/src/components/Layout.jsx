@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
-  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone, Sun, Target, MapPin, Package, AtSign,
+  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone, Sun, Target, MapPin, Package, AtSign, LifeBuoy,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
@@ -331,6 +331,7 @@ function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
               {(perfil?.modos ?? ['b2b']).length > 1
                 ? <button type="button" onClick={() => cambiarModo(modo === 'b2c' ? 'b2b' : 'b2c')}><ArrowLeftRight size={16} /> Pasar a {MODOS[modo === 'b2c' ? 'b2b' : 'b2c'].titulo} ({modo === 'b2c' ? 'B2B' : 'B2C'})</button>
                 : (perfil?.rol === 'admin' || perfil?.es_admin) && <button type="button" onClick={() => cambiarModo(modo === 'b2c' ? 'b2b' : 'b2c', true)}><ArrowLeftRight size={16} /> Activar también {modo === 'b2c' ? 'ventas a empresas (B2B)' : 'ventas a consumidores (B2C)'}</button>}
+              <Link to="/ayuda" state={{ desde: window.location.pathname }}><LifeBuoy size={16} /> Ayuda y novedades</Link>
               <Link to="/terminos"><FileText size={16} /> Términos y privacidad</Link>
               <hr />
               <button type="button" onClick={salirDeTodos}><DoorOpen size={16} /> Cerrar sesión en todos lados</button>

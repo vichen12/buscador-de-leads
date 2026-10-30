@@ -25,6 +25,8 @@ import TuDia from './pages/TuDia.jsx'
 import Metas from './pages/Metas.jsx'
 import Catalogo from './pages/Catalogo.jsx'
 import Visitas from './pages/Visitas.jsx'
+import Ayuda from './pages/Ayuda.jsx'
+import Landing from './pages/Landing.jsx'
 import Respuestas from './pages/Respuestas.jsx'
 import Secuencias from './pages/Secuencias.jsx'
 import Equipo from './pages/Equipo.jsx'
@@ -52,13 +54,14 @@ export default function App() {
 }
 
 // Páginas públicas: se ven sin iniciar sesión (link de baja de los mails, términos y privacidad)
-const PUBLICAS = /^\/(baja\/|terminos$|privacidad$)/
+const PUBLICAS = /^\/(baja\/|f\/|conoce$|terminos$|privacidad$)/
 function Raiz() {
   const { pathname } = useLocation()
   if (PUBLICAS.test(pathname)) return (
     <Routes>
       <Route path="/baja/:token" element={<Baja />} />
       <Route path="/f/:token" element={<FormularioPublico />} />
+      <Route path="/conoce" element={<Landing />} />
       <Route path="/terminos" element={<Terminos />} />
       <Route path="/privacidad" element={<Privacidad />} />
     </Routes>
@@ -135,6 +138,7 @@ function Privada() {
           <Route path="/" element={perfil?.modo === 'b2c' ? <TableroB2C /> : <Tablero />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/hoy" element={<TuDia />} />
+          <Route path="/ayuda" element={<Ayuda />} />
           <Route path="/metas" element={<Metas />} />
           <Route path="/catalogo" element={<Catalogo />} />
           <Route path="/visitas" element={<Visitas />} />

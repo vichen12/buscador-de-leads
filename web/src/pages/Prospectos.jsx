@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { usePaginado, Paginador, traerTodo } from '../components/Paginador.jsx'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot, Workflow, Merge } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
@@ -49,9 +50,8 @@ export default function Prospectos() {
   const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
   async function cargar() {
-    let consulta = supabase.from('prospectos').select('*, mensajes(tipo)').order('created_at', { ascending: false })
-    if (de !== 'todas') consulta = consulta.eq('owner_id', session.user.id)
-    const { data, error } = await consulta
+    const consulta = () => { let c = supabase.from('prospectos').select('*, mensajes(tipo)').order('created_at', { ascending: false }); return de !== 'todas' ? c.eq('owner_id', session.user.id) : c }
+    const { data, error } = await traerTodo(consulta)
     if (error) toast(mensajeError(error), 'error')
     setLista(data ?? [])
     setCargando(false)
@@ -108,6 +108,8 @@ export default function Prospectos() {
   const borrarVista = async v => { await supabase.from('vistas').delete().eq('id', v.id); setVistas(x => x.filter(y => y.id !== v.id)) }
   const hayFiltros = CLAVES_VISTA.some(k => k !== 'vista' && params.get(k))
 
+  const pag = usePaginado(filtrados, 50, [q, estado, rubro, orden, busqueda, califFiltro, etiqueta, de])
+  const [colAbierta, setColAbierta] = useState({})
   const toggle = id => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const todos = filtrados.length > 0 && filtrados.every(p => sel.has(p.id))
 
@@ -256,7 +258,7 @@ export default function Prospectos() {
                 <div className="kanban-cab"><EstadoBadge estado={k} /><span className="num">{items.length}</span></div>
                 {items.some(p => p.valor_estimado) && <div className="kanban-total">{dinero(items.reduce((a, p) => a + Number(p.valor_estimado || 0), 0))}</div>}
                 <div className="kanban-tarjetas">
-                  {items.map(p => (
+                  {items.slice(0, colAbierta[k] ? undefined : 40).map(p => (
                     <div key={p.id} className={'kcard' + (arrastrado === p.id ? ' arrastrando' : '')} draggable
                       onDragStart={() => setArrastrado(p.id)} onDragEnd={() => setArrastrado(null)}
                       onClick={() => nav(`/prospectos/${p.id}`)} role="button" tabIndex={0}
@@ -271,6 +273,7 @@ export default function Prospectos() {
                       </div>
                     </div>
                   ))}
+                  {items.length > 40 && !colAbierta[k] && <button type="button" className="btn fantasma chico ancho" onClick={() => setColAbierta(c => ({ ...c, [k]: true }))}>Ver {items.length - 40} más</button>}
                   {!items.length && <p className="muted chico centrado" style={{ padding: 12 }}>Arrastrá acá</p>}
                 </div>
               </div>
@@ -287,7 +290,7 @@ export default function Prospectos() {
                 <th>Empresa</th><th>Te sirve</th><th>Contacto</th><th>Links</th><th>Estado</th><th>Seguimiento</th>
               </tr></thead>
               <tbody>
-                {filtrados.map(p => (
+                {pag.items.map(p => (
                   <tr key={p.id} className={(p.estado === 'no_interesado' ? 'apagado ' : '') + (sel.has(p.id) ? 'seleccionada' : '')}>
                     <td><input type="checkbox" checked={sel.has(p.id)} onChange={() => toggle(p.id)} aria-label={'Seleccionar ' + p.nombre} /></td>
                     <td>
@@ -318,6 +321,7 @@ export default function Prospectos() {
                 </td></tr>}
               </tbody>
             </table>
+            <Paginador {...pag} />
           </div>
         </div>
       )}

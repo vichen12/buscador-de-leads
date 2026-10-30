@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePaginado, Paginador, traerTodo } from '../components/Paginador.jsx'
 import { Link } from 'react-router-dom'
 import { Send, Plus, Sparkles, Loader2, Mail, MessageCircle, ShieldCheck, Check, Pause, Trash2, ArrowLeft, Users } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
@@ -81,7 +82,7 @@ function EditorCampana({ inicial, onVolver }) {
   const set = (k, v) => setC(x => ({ ...x, [k]: v }))
 
   useEffect(() => {
-    supabase.from('clientes').select('*').limit(5000).then(({ data }) => setClientes(data ?? []))
+    traerTodo(() => supabase.from('clientes').select('*')).then(({ data }) => setClientes(data ?? []))
     if (inicial.id) supabase.from('campana_envios').select('cliente_id').eq('campana_id', inicial.id).then(({ data }) => setEnviados(new Set((data ?? []).map(x => x.cliente_id))))
   }, [])
 
@@ -89,6 +90,7 @@ function EditorCampana({ inicial, onVolver }) {
   const destino = useMemo(() => enSeg.filter(x => puede(x, c.canal)), [enSeg, c.canal])
   const pendientes = destino.filter(x => !enviados.has(x.id))
   const sinPermiso = enSeg.length - destino.length
+  const pagWa = usePaginado(destino, 50, [c.segmento, c.canal])
 
   async function guardar(extra = {}) {
     const fila = { nombre: c.nombre.trim() || `${TIPOS[c.tipo][0]} · ${new Date().toLocaleDateString('es-AR')}`, tipo: c.tipo, canal: c.canal, segmento: c.segmento, asunto: c.asunto, cuerpo: c.cuerpo, ...extra }
@@ -193,7 +195,7 @@ function EditorCampana({ inicial, onVolver }) {
             <>
               <p className="muted chico">WhatsApp se manda de a uno y lo mandás vos: tocá "Abrir" en cada cliente, se abre el chat con el mensaje listo, y queda marcado.</p>
               <div className="lista-wa">
-                {destino.map(cl => {
+                {pagWa.items.map(cl => {
                   const tel = String(cl.telefono_e164 || cl.telefono || '').replace(/\D/g, '')
                   const ya = enviados.has(cl.id)
                   return (
@@ -205,6 +207,7 @@ function EditorCampana({ inicial, onVolver }) {
                   )
                 })}
               </div>
+              <Paginador {...pagWa} alSubir={false} />
             </>
           )}
       </section>

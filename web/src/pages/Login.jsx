@@ -66,7 +66,7 @@ export default function Login() {
               ? <span>Te mandamos un mail a <b>{email.trim()}</b> con un link para elegir una contraseña nueva. Revisá también en spam.</span>
               : <button type="button" className="link" onClick={recuperar} disabled={cargando}>¿Olvidaste tu contraseña?</button>}
           </div>
-          <p className="login-pie">¿No tenés cuenta? Las cuentas las crea el administrador de tu empresa.<br /><Link to="/terminos">Términos de uso</Link> · <Link to="/privacidad">Privacidad</Link></p>
+          <p className="login-pie">¿No tenés cuenta? <Link to="/conoce">Conocé Prospecta y pedí acceso</Link>.<br /><Link to="/terminos">Términos de uso</Link> · <Link to="/privacidad">Privacidad</Link></p>
         </form>
       </section>
     </div>

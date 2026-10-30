@@ -1,3 +1,4 @@
+import { Paginador } from '../components/Paginador.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Inbox, Reply, Loader2, Send, Sparkles, MailOpen, ChevronDown, ExternalLink } from 'lucide-react'
@@ -25,13 +26,17 @@ export default function Respuestas() {
   const [error, setError] = useState('')
   const [abierta, setAbierta] = useState(params.get('id') || null)
 
+  const [pagina, setPagina] = useState(1)
+  const [total, setTotal] = useState(0)
+  const POR = 30
+  useEffect(() => { setPagina(1) }, [filtro])
   const cargar = useCallback(async () => {
     setError('')
-    let q = supabase.from('respuestas').select('*, prospectos(id, nombre, rubro, estado, email)').order('recibida_at', { ascending: false }).limit(300)
+    let q = supabase.from('respuestas').select('*, prospectos(id, nombre, rubro, estado, email)', { count: 'exact' }).order('recibida_at', { ascending: false }).range((pagina - 1) * POR, pagina * POR - 1)
     if (filtro === 'sin_leer') q = q.eq('leida', false); else if (filtro) q = q.eq('clasificacion', filtro)
-    const { data, error } = await q
-    if (error) { setError(mensajeError(error)); setLista([]) } else setLista(data ?? [])
-  }, [filtro])
+    const { data, error, count } = await q
+    if (error) { setError(mensajeError(error)); setLista([]) } else { setLista(data ?? []); setTotal(count ?? 0) }
+  }, [filtro, pagina])
   useEffect(() => { cargar() }, [cargar])
 
   async function abrir(r) {
@@ -61,6 +66,7 @@ export default function Respuestas() {
       ) : (
         <section className="tarjeta lista-respuestas">
           {lista.map(r => <ItemRespuesta key={r.id} r={r} abierta={abierta === r.id} onAbrir={() => abrir(r)} onCambio={cargar} />)}
+          <div style={{ padding: '0 18px' }}><Paginador pagina={pagina} paginas={Math.max(1, Math.ceil(total / POR))} total={total} porPagina={POR} setPagina={setPagina} /></div>
         </section>
       )}
     </>

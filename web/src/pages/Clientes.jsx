@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { usePaginado, Paginador, traerTodo } from '../components/Paginador.jsx'
 import { useSearchParams } from 'react-router-dom'
 import { Heart, UserPlus, Upload, Search, ShieldCheck, Mail, MessageCircle, Loader2, Trash2, Ban, Pencil, FileSpreadsheet } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
@@ -30,7 +31,7 @@ export default function Clientes() {
 
   const cargar = async () => {
     setError(null)
-    const { data, error } = await supabase.from('clientes').select('*').order('created_at', { ascending: false }).limit(2000)
+    const { data, error } = await traerTodo(() => supabase.from('clientes').select('*').order('created_at', { ascending: false }))
     if (error) setError(error); else setLista(data)
   }
   useEffect(() => { cargar() }, [])
@@ -56,6 +57,7 @@ export default function Clientes() {
     })
   }, [lista, q, filtro, hace90])
 
+  const pag = usePaginado(visibles, 50, [q, filtro])
   async function darDeBaja(c) {
     if (!(await confirmar({ titulo: `¿Dar de baja a ${c.nombre}?`, texto: 'No se le va a poder escribir más por ningún canal. Queda registrado cuándo lo pidió.', aceptar: 'Dar de baja', peligro: true }))) return
     const { error } = await supabase.from('clientes').update({ baja_at: new Date().toISOString() }).eq('id', c.id)
@@ -106,7 +108,7 @@ export default function Clientes() {
             <div className="scroll-x">
               <table className="tabla">
                 <thead><tr><th>Cliente</th><th>Contacto</th><th>Permiso</th><th>Compras</th><th>Última compra</th><th>Origen</th><th></th></tr></thead>
-                <tbody>{visibles.map(c => (
+                <tbody>{pag.items.map(c => (
                   <tr key={c.id}>
                     <td><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><Avatar nombre={c.nombre} /><div><b className="fuerte">{c.nombre}</b>{c.ciudad && <div className="muted chico">{c.ciudad}</div>}</div></div></td>
                     <td className="chico">{c.email && <div><Mail size={12} /> {c.email}</div>}{c.telefono && <div><MessageCircle size={12} /> {c.telefono}</div>}</td>
@@ -125,6 +127,7 @@ export default function Clientes() {
                 ))}</tbody>
               </table>
             </div>
+            <div style={{ padding: '0 16px' }}><Paginador {...pag} /></div>
           </section>
         )}
       </>}

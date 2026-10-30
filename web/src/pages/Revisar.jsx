@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { usePaginado, Paginador } from '../components/Paginador.jsx'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Inbox, Check, X, Download, Search, Sparkles, Undo2, Loader2, ListChecks, Ban } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
@@ -79,15 +80,16 @@ export default function Revisar() {
   const ids = [...sel]
   const nombreBusqueda = b => `${b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · ${b.zona.replace(/, Mendoza$/, '')}`
 
+  const pag = usePaginado(lista, 30, [tab, busqueda, q])
   // Atajos de teclado para revisar rápido (sólo en "Por revisar" y si no estás escribiendo)
-  useEffect(() => { setFoco(f => Math.min(f, Math.max(0, lista.length - 1))) }, [lista.length])
+  useEffect(() => { setFoco(f => Math.min(f, Math.max(0, pag.items.length - 1))) }, [pag.items.length, pag.pagina])
   useEffect(() => {
     if (tab !== 'por_revisar') return
     const onKey = e => {
       if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea|select/i.test(e.target.tagName) || e.target.isContentEditable) return
-      const h = lista[foco]
+      const h = pag.items[foco]
       const k = e.key.toLowerCase()
-      if (k === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setFoco(f => Math.min(lista.length - 1, f + 1)) }
+      if (k === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setFoco(f => Math.min(pag.items.length - 1, f + 1)) }
       else if (k === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setFoco(f => Math.max(0, f - 1)) }
       else if (k === 's' && h && !ocupados.size) { e.preventDefault(); aprobar([h.id]) }
       else if (k === 'n' && h && !ocupados.size) { e.preventDefault(); descartar([h.id]) }
@@ -141,13 +143,14 @@ export default function Revisar() {
       {tab === 'por_revisar' && lista.length > 0 && <p className="atajos-teclado muted chico">Atajos: <kbd>J</kbd>/<kbd>K</kbd> moverse · <kbd>S</kbd> sirve · <kbd>N</kbd> no sirve · <kbd>X</kbd> seleccionar</p>}
       {cargando ? <Esqueleto filas={5} /> : lista.length ? (
         <div className="lista-hallazgos">
-          {lista.map((h, i) => (
+          {pag.items.map((h, i) => (
             <div key={h.id} data-foco={tab === 'por_revisar' && i === foco ? '1' : undefined} className="hallazgo-envoltura" onMouseDown={() => setFoco(i)}>
             <TarjetaHallazgo key={h.id} h={h} sel={sel.has(h.id)} ocupado={ocupados.has(h.id)}
               onSel={() => setSel(s => { const n = new Set(s); n.has(h.id) ? n.delete(h.id) : n.add(h.id); return n })}
               onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onMotivo={m => motivoHallazgo(h.id, m).then(() => marcar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} onRecuperar={() => recuperar([h.id])} />
             </div>
           ))}
+          <Paginador {...pag} />
         </div>
       ) : (
         <div className="vacio-revisar">

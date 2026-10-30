@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw } from 'lucide-react'
+import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw, BarChart3, CreditCard, LifeBuoy } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, fechaHora, mensajeError } from '../lib/util.js'
 import { Avatar, Esqueleto, Interruptor, Modal, Aviso, Contador, useConfirmar, useToast } from '../components/ui.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import { useApp } from '../App.jsx'
+import { Metricas, Planes, Soporte } from '../components/AdminExtra.jsx'
 
 const PLANES = [
   { value: 'prueba', label: 'Prueba', limite: 100, ayuda: '100 consultas de IA por mes' },
@@ -46,9 +47,12 @@ export default function Admin() {
   const { empresas, usuarios, claves } = datos
   const claveIA = claves.find(c => c.nombre === 'anthropic')
   const tabs = [
+    ['metricas', 'Uso', BarChart3, null],
     ['empresas', 'Empresas', Building2, empresas.length],
     ['usuarios', 'Usuarios', Users, usuarios.length],
     ['claves', 'Claves y servicios', KeyRound, claveIA?.configurada ? null : '!'],
+    ['planes', 'Planes', CreditCard, null],
+    ['soporte', 'Sugerencias y errores', LifeBuoy, null],
   ]
   const total = k => empresas.reduce((s, x) => s + Number(x[k] || 0), 0)
 
@@ -80,6 +84,9 @@ export default function Admin() {
         {tab === 'empresas' && <Empresas empresas={empresas} recargar={cargar} nuevoUsuario={emp => setAlta({ empresa_id: emp.id })} />}
         {tab === 'usuarios' && <Usuarios usuarios={usuarios} empresas={empresas} recargar={cargar} nuevoUsuario={() => setAlta({ empresa_id: empresas.find(e => e.activa)?.id ?? '' })} setCredenciales={setCredenciales} />}
         {tab === 'claves' && <Claves claves={claves} recargar={cargar} />}
+        {tab === 'metricas' && <Metricas />}
+        {tab === 'planes' && <Planes />}
+        {tab === 'soporte' && <Soporte />}
       </div>
       {alta && <NuevoUsuario inicial={alta} empresas={empresas} onCerrar={() => setAlta(null)} onCreado={c => { setAlta(null); setCredenciales(c); cargar() }} />}
       {credenciales && <Credenciales {...credenciales} onCerrar={() => setCredenciales(null)} />}
