@@ -7,7 +7,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
 import { borradoresPlantilla, nombreCorto } from '../_shared/plantillas.js'
-import { cargarContexto, borradores, reescribir, responder, fijos } from '../_shared/redactar.ts'
+import { cargarContexto, borradores, reescribir, responder, fijos, textoB2C } from '../_shared/redactar.ts'
 
 const MAX_POR_LLAMADA = 25
 type Dic = Record<string, any>
@@ -30,6 +30,22 @@ Deno.serve(async req => {
     // El contexto se lee con los permisos de la persona (RLS)
     const ctx = await cargarContexto(supabase, user.id, key, modelo)
     const NO_ESCRIBIR = ['no_interesado', 'no_contactar']
+
+    // B2C: campaña a clientes propios, propuesta a un aliado o a un creador (no toca prospectos)
+    if (body.modo === 'b2c') {
+      if (!key) return json({ error: 'Para escribir con Claude falta cargar la clave de Claude (Super admin → Claves).' }, 400)
+      const tipo = ['campana', 'aliado', 'creador'].includes(body.tipo) ? body.tipo : 'campana'
+      const { data: cupo } = await admin().rpc('cupo_chat', { p_usuario: user.id })
+      if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Llegaste al límite de IA de hoy.', codigo: 'LIMITE_CHAT' }, 429)
+      let datos: Dic = {}
+      if (tipo !== 'campana' && body.id) {
+        const { data } = await supabase.from(tipo === 'aliado' ? 'aliados' : 'creadores').select('*').eq('id', body.id).maybeSingle()
+        if (data) datos = Object.fromEntries(Object.entries(data).filter(([k, v]) => v && !['id', 'owner_id', 'created_at', 'updated_at', 'notas'].includes(k)))
+      }
+      const r = await textoB2C(ctx, { tipo, subtipo: String(body.subtipo ?? ''), canal: body.canal === 'whatsapp' ? 'whatsapp' : 'email', detalle: String(body.detalle ?? '').slice(0, 600), datos })
+      await admin().from('chat_uso').insert({ owner_id: user.id, tokens_in: 0, tokens_out: 0 })
+      return json({ ok: true, ...r })
+    }
 
     if (body.modo === 'reescribir') {
       const { prospecto_id, tipo = 'whatsapp', cuerpo = '', asunto = '', instruccion = '' } = body

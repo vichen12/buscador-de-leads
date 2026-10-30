@@ -6,7 +6,7 @@
 // La contraseña vive cifrada en Vault. Supabase no deja salir por 25/587: sólo SMTP con TLS directo (465).
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
-import { PROVEEDORES, Imap, smtpSesion, enviarMail, guardarEnEnviados, archivosDe, saludDominio, explicar, revisarCasilla, enviarUno, ErrorEnvio } from '../_shared/correo.ts'
+import { PROVEEDORES, Imap, smtpSesion, enviarMail, guardarEnEnviados, archivosDe, saludDominio, explicar, revisarCasilla, enviarUno, enviarACliente, ErrorEnvio } from '../_shared/correo.ts'
 import { cargarContexto, clasificarRespuesta } from '../_shared/redactar.ts'
 import { correrTrabajador, correrColaDe, esCron } from './trabajador.ts'
 
@@ -123,6 +123,12 @@ Deno.serve(async req => {
       const err = e as ErrorEnvio
       return json({ error: err.message, codigo: err.codigo }, err.codigo === 'SMTP' ? 502 : 400)
     }
+  }
+
+  if (modo === 'cliente') {
+    // B2C: un email de campaña a un cliente propio con permiso (de a uno; la pantalla los va mandando con pausas)
+    try { return json(await enviarACliente(db, user.id, { cliente_id: String(body.cliente_id ?? ''), campana_id: String(body.campana_id ?? ''), asunto: String(body.asunto ?? ''), cuerpo: String(body.cuerpo ?? '') })) }
+    catch (e) { const err = e as ErrorEnvio; return json({ error: err.message, codigo: err.codigo }, err.codigo === 'SMTP' ? 502 : 400) }
   }
 
   if (modo === 'revisar') {

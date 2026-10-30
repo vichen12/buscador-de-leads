@@ -274,3 +274,50 @@ Respondé SOLO con JSON válido: {"asunto": "Re: ...", "cuerpo": "..."}`
   if (!x.cuerpo) throw new Error('La IA no devolvió el texto')
   return { asunto: String(x.asunto || `Re: ${String(r.asunto ?? '').replace(/^(re:\s*)+/i, '')}`), cuerpo: String(x.cuerpo) }
 }
+
+/** B2C: textos para campañas a clientes propios, propuestas a aliados y a creadores */
+const OBJETIVO_CAMPANA: Dic = {
+  recompra: 'que vuelva a comprar (ya compró antes y le fue bien): recordale qué tenés y dale una razón concreta para volver',
+  reactivacion: 'reactivar a alguien que hace tiempo no compra: saludo cálido, sin reproches, y una razón para volver',
+  referidos: 'que recomiende el negocio a amigos o familia, con un beneficio para los dos si aplica',
+  resena: 'pedirle que deje una reseña contando su experiencia, cortito y agradecido',
+  cumpleanos: 'saludarlo por su cumpleaños con un regalo o beneficio',
+  novedad: 'contarle una novedad (producto, servicio o temporada)',
+  promo: 'avisarle de una promoción concreta',
+}
+export async function textoB2C(c: Contexto, o: { tipo: 'campana' | 'aliado' | 'creador', subtipo?: string, canal?: string, detalle?: string, datos?: Dic }) {
+  const neg = (c.comercial?.respuestas ?? {}) as Dic
+  const negocio = `Negocio que escribe: ${c.perfil.estudio || neg.empresa || ''}. Vende: ${neg.que_vende || (c.comercial?.estrategia as Dic)?.resumen || 'sin datos'}. Firma: ${c.perfil.nombre || ''}.`
+  const email = o.canal !== 'whatsapp'
+  let pedido = ''
+  if (o.tipo === 'campana') {
+    pedido = `Escribí ${email ? 'un email' : 'un mensaje de WhatsApp'} para mandarle a CLIENTES PROPIOS del negocio (personas que ya le compraron y aceptaron recibir mensajes).
+Objetivo: ${OBJETIVO_CAMPANA[o.subtipo ?? 'novedad'] ?? OBJETIVO_CAMPANA.novedad}.
+${o.detalle ? `Lo que quiere contar u ofrecer la persona: ${o.detalle}` : 'Si no hay oferta concreta, no inventes descuentos ni precios.'}
+- Usá {{nombre}} donde va el nombre del cliente (sólo el nombre de pila, se reemplaza solo).
+- Cálido y cercano, como el dueño de un comercio que conoce a sus clientes. Nada de spam ni mayúsculas ni muchos emojis (como mucho 1).
+- ${email ? 'Corto: 3 a 6 líneas. Devolvé también el asunto (máx. 60 caracteres, sin clickbait).' : 'Máximo 450 caracteres.'}
+- No pongas link de baja: lo agrega el sistema.`
+  } else if (o.tipo === 'aliado') {
+    pedido = `Escribí ${email ? 'un email' : 'un mensaje de WhatsApp'} para proponerle una ALIANZA a otro negocio (que comparte clientes con el nuestro pero no compite): que nos recomienden a sus clientes y nosotros a ellos, o a cambio de una comisión.
+Negocio al que le escribimos: ${JSON.stringify(o.datos ?? {})}
+${o.detalle ? `Propuesta concreta: ${o.detalle}` : 'Proponé charlarlo, sin cerrar condiciones.'}
+- De igual a igual, breve, concreto. Explicá por qué tiene sentido para ELLOS.
+- ${email ? 'Devolvé también el asunto.' : 'Máximo 600 caracteres.'}`
+  } else {
+    pedido = `Escribí ${email ? 'un email' : 'un mensaje directo'} para proponerle una COLABORACIÓN a un creador de contenido.
+Creador: ${JSON.stringify(o.datos ?? {})}
+${o.detalle ? `Propuesta: ${o.detalle}` : 'Proponé una colaboración simple (canje o a conversar) sin inventar montos.'}
+- Mostrá que conocés su contenido sólo con lo que dicen los datos (no inventes publicaciones).
+- Respetuoso, breve, sin presionar. ${email ? 'Devolvé también el asunto.' : 'Máximo 600 caracteres.'}`
+  }
+  const prompt = `${negocio}
+
+${pedido}
+
+Español rioplatense natural${c.config.tono ? `. Tono pedido: ${String(c.config.tono).slice(0, 300)}` : ''}.
+Respondé SOLO con JSON válido: {"cuerpo": "..."${email ? ', "asunto": "..."' : ''}}`
+  const r = extraerJSON(await claude(c, prompt))
+  if (!r.cuerpo) throw new Error('La IA no devolvió el texto')
+  return { cuerpo: String(r.cuerpo), asunto: r.asunto ? String(r.asunto) : '' }
+}

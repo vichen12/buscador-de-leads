@@ -488,3 +488,50 @@ export async function enviarUno(db: any, owner: string, o: { prospecto_id: strin
   if (error) console.error('registrar envío', error)
   return { ok: true, para, en_enviados: enEnviados, message_id: messageId }
 }
+
+/**
+ * B2C: manda un email de campaña a UN cliente propio. Sólo si aceptó recibir emails, no se dio de baja ni está en
+ * "No contactar", y si queda cupo en la casilla. Lleva link de baja y queda registrado en campana_envios.
+ */
+export async function enviarACliente(db: any, owner: string, o: { cliente_id: string, campana_id: string, asunto: string, cuerpo: string, base?: string }) {
+  const [{ data: cfg }, { data: cl }, { data: perfil }] = await Promise.all([
+    db.from('conexiones_correo').select('*').eq('owner_id', owner).maybeSingle(),
+    db.from('clientes').select('*').eq('id', o.cliente_id).eq('owner_id', owner).maybeSingle(),
+    db.from('perfiles').select('nombre').eq('id', owner).maybeSingle(),
+  ])
+  if (!cfg) throw new ErrorEnvio('Todavía no conectaste tu email. Hacelo en Email.', 'SIN_CORREO')
+  if (!cl) throw new ErrorEnvio('No encontré el cliente.', 'NO_ENCONTRADO')
+  const para = String(cl.email ?? '').trim()
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)) throw new ErrorEnvio('El cliente no tiene un email válido.', 'SIN_EMAIL')
+  if (cl.baja_at || !cl.acepta_email) throw new ErrorEnvio('Este cliente no aceptó recibir emails.', 'SIN_PERMISO')
+  const [{ data: lim }, { data: bloqueo }, { data: clave }] = await Promise.all([
+    db.rpc('limite_email', { p_owner: owner }),
+    db.rpc('motivo_supresion', { p_owner: owner, p_email: para }),
+    db.rpc('correo_leer_secreto', { p_owner: owner }),
+  ])
+  if (bloqueo) throw new ErrorEnvio(`No se puede enviar: ${bloqueo}.`, 'SUPRIMIDO')
+  if (lim && lim.enviados_hoy >= lim.limite_hoy) throw new ErrorEnvio(`LIMITE_EMAIL: ya enviaste ${lim.enviados_hoy} de ${lim.limite_hoy} emails hoy`, 'LIMITE_EMAIL', true)
+  if (!clave) throw new ErrorEnvio('Falta la contraseña del email: volvé a conectarlo.', 'SIN_CORREO')
+  const { data: ya } = await db.from('campana_envios').select('id').eq('campana_id', o.campana_id).eq('cliente_id', cl.id).maybeSingle()
+  if (ya) throw new ErrorEnvio('A este cliente ya le salió esta campaña.', 'YA_ENVIADO')
+
+  const nombre = String(cl.nombre ?? '').trim().split(/\s+/)[0] || ''
+  const poner = (t: string) => t.replace(/\{\{\s*nombre\s*\}\}/gi, nombre).replace(/\s+,/g, ',')
+  const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
+  const { data: urlCfg } = await db.from('config_claves').select('valor').eq('nombre', 'url_app').maybeSingle()
+  const base = String(o.base || urlCfg?.valor || Deno.env.get('URL_APP') || 'https://web-puce-mu-10.vercel.app').replace(/\/$/, '')
+  const { error: eTok } = await db.from('bajas_tokens').insert({ token, owner_id: owner, prospecto_id: null, email: para.toLowerCase() })
+  const extra = await archivosDe(db, owner, [])
+  const messageId = `<${crypto.randomUUID()}@${String(cfg.email).split('@')[1]}>`
+  const remitente = { ...cfg, nombre_remitente: cfg.nombre_remitente || perfil?.nombre || '' }
+  let copia = ''
+  try { copia = await enviarMail(remitente, clave, para, poner(o.asunto || 'Hola'), poner(o.cuerpo), { firma: extra.firma, baja: eTok ? '' : `${base}/baja/${token}`, messageId }) }
+  catch (e) {
+    const temporal = /SMTP 4\d\d|No pude conectar|no responde|cerró/i.test((e as Error).message ?? '')
+    throw new ErrorEnvio('No se pudo enviar: ' + explicar(e, cfg), 'SMTP', temporal)
+  }
+  try { await guardarEnEnviados(cfg, clave, copia) } catch (e) { console.error('copia en Enviados', e) }
+  const { error } = await db.from('campana_envios').insert({ owner_id: owner, campana_id: o.campana_id, cliente_id: cl.id, canal: 'email', estado: 'enviado' })
+  if (error) console.error('registrar envío a cliente', error)
+  return { ok: true, para }
+}
