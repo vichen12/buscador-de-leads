@@ -22,3 +22,8 @@ export const contarPorRevisar = async () => {
   const { count } = await supabase.from('hallazgos').select('id', { count: 'exact', head: true }).eq('estado', 'por_revisar')
   return count ?? 0
 }
+
+export async function motivoHallazgo(id, motivo) {
+  const { error } = await supabase.from('hallazgos').update({ motivo }).eq('id', id)
+  if (error) throw error
+}

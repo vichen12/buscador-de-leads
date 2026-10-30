@@ -30,7 +30,7 @@ Cliente ideal: ${e.cliente_ideal || r.cliente_ideal || 's/d'}
 ${e.criterios?.length ? `Señales de buen prospecto: ${e.criterios.join('; ')}\n` : ''}${e.descartar?.length ? `Descartá: ${e.descartar.join('; ')}\n` : ''}`
 }
 
-function prompt(o: { rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief }) {
+function prompt(o: { rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string }) {
   const reglas = o.filtros.length
     ? o.filtros.map(f => `${f.titulo}${f.descripcion ? ` (${f.descripcion})` : ''}`)
     : []
@@ -43,6 +43,7 @@ ${b.incluir.length ? `Tipos de empresa que SÍ entran: ${b.incluir.join('; ')}.
 ` : ''}Términos útiles para buscar: ${b.buscar.map(t => `"${t}"`).join(', ')}.
 
 ${o.contexto || 'Objetivo: armar una lista de prospectos comerciales para contactar.'}
+${o.aprendido}
 ${o.enfoque}
 
 ${reglas.length ? `Requisitos que TIENEN que cumplir (si no podés comprobarlo con lo que ves públicamente, no lo incluyas):\n- ${reglas.join('\n- ')}\n` : ''}
@@ -67,6 +68,25 @@ function linkDe(v: unknown, patron: RegExp) {
   return patron.test(u) ? u : ''
 }
 
+/** Lo que la persona ya juzgó: qué empresas le sirvieron (sumadas y calificadas) y cuáles descartó y por qué */
+async function aprendizaje(db: any, owner: string) {
+  const [{ data: buenos }, { data: malos }] = await Promise.all([
+    db.from('prospectos').select('nombre, rubro, encaje, calificacion, estado').eq('owner_id', owner)
+      .order('calificacion', { ascending: false, nullsFirst: false }).order('updated_at', { ascending: false }).limit(60),
+    db.from('hallazgos').select('nombre, rubro, motivo').eq('owner_id', owner).eq('estado', 'descartado').order('revisado_at', { ascending: false }).limit(25),
+  ])
+  const linea = (p: Dic) => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.encaje ? ` — ${String(p.encaje).slice(0, 90)}` : ''}`
+  const muy = (buenos ?? []).filter((p: Dic) => p.calificacion === 3 || p.estado === 'cliente').slice(0, 12)
+  const si = (buenos ?? []).filter((p: Dic) => p.calificacion !== 1 && !muy.includes(p)).slice(0, 12)
+  const flojos = (buenos ?? []).filter((p: Dic) => p.calificacion === 1).slice(0, 8)
+  const no = (malos ?? []) as Dic[]
+  const total = muy.length + si.length + flojos.length + no.length
+  if (!total) return { texto: '', sirven: 0, noSirven: 0 }
+  const texto = `Lo que aprendimos de esta persona (usalo para buscar parecidas a las que le sirven y evitar las que no):
+${muy.length ? `- Le sirven MUCHO: ${muy.map(linea).join('; ')}\n` : ''}${si.length ? `- Le sirven: ${si.map(linea).join('; ')}\n` : ''}${flojos.length ? `- Le sirven poco (más o menos): ${flojos.map(linea).join('; ')}\n` : ''}${no.length ? `- NO le sirven (descartadas): ${no.map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.motivo ? ` — motivo: ${p.motivo}` : ''}`).join('; ')}\n` : ''}`
+  return { texto, sirven: muy.length + si.length, noSirven: no.length + flojos.length }
+}
+
 type Brief = { interpretacion: string, buscar: string[], incluir: string[], excluir: string[] }
 
 async function llamarClaude(key: string, modelo: string, texto: string, maxTokens = 1500) {
@@ -89,11 +109,11 @@ function extraerObjeto(t: string): Dic | null {
 const lista = (v: unknown, n = 10) => Array.isArray(v) ? v.map(x => String(x ?? '').trim()).filter(Boolean).slice(0, n) : []
 
 /** Traduce lo que escribió la persona a un pedido preciso: qué tipo de empresa entra, cómo buscarla y qué NO entra */
-async function interpretar(key: string, modelo: string, rubro: string, zona: string, contexto: string): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
+async function interpretar(key: string, modelo: string, rubro: string, zona: string, contexto: string, aprendido = ''): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
   const base: Brief = { interpretacion: rubro, buscar: [rubro], incluir: [], excluir: [] }
   try {
     const r = await llamarClaude(key, modelo, `Sos analista comercial B2B en Argentina. Una persona quiere encontrar clientes potenciales y escribió: "${rubro}" (zona: ${zona}).
-${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}
+${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}${aprendido ? `\n${aprendido}\n` : ''}
 Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende. Las palabras ambiguas se resuelven por lo que vende: por ejemplo, si vende automatización de almacenes y escribe "depósito", busca empresas que TIENEN un depósito o centro de distribución propio (distribuidoras, mayoristas, fábricas, operadores logísticos, e-commerce grandes), NO empresas de mudanzas, guardamuebles, alquiler de bauleras o self storage. Si no hay contexto, elegí la lectura comercial más probable y descartá las lecturas que se confunden.
 
 Respondé SOLO con JSON:
@@ -114,11 +134,11 @@ function briefDesde(b: unknown, rubro: string): Brief | null {
 }
 
 /** Segunda mirada: descarta los resultados que no son el tipo de empresa pedido */
-async function verificar(key: string, modelo: string, brief: Brief, items: Dic[]) {
+async function verificar(key: string, modelo: string, brief: Brief, items: Dic[], aprendido = '') {
   if (!items.length) return { quedan: new Set(items.map((_, i) => i)), usoIn: 0, usoOut: 0 }
   try {
     const r = await llamarClaude(key, modelo, `Buscamos: ${brief.interpretacion}
-${brief.incluir.length ? `Entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}
+${brief.incluir.length ? `Entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}${aprendido ? `${aprendido}\n` : ''}
 Para cada empresa decidí si entra. Ante la duda razonable, que entre. Respondé SOLO con JSON: {"no_entran": [índices]}
 
 ${items.map((n, i) => `${i}. ${n.nombre} — ${n.rubro}${n.encaje ? ` — ${n.encaje}` : ''}${n.web_actual ? ` — ${n.web_actual}` : ''}`).join('\n')}`, 600)
@@ -222,12 +242,13 @@ Deno.serve(async req => {
 
   // Paso 1: entender qué quiere (y qué NO). Con modo "interpretar" sólo devuelve esto para que la persona lo ajuste.
   let usoIn = 0, usoOut = 0
+  const apr = await aprendizaje(db, user.id)
   let brief = briefDesde(body.brief, rubro)
   if (!brief) {
-    const it = await interpretar(key, modeloRapido, rubro, zona, contexto)
+    const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto)
     brief = it.brief; usoIn += it.usoIn; usoOut += it.usoOut
   }
-  if (body.modo === 'interpretar') return json({ brief, zona }) // no descuenta cupo: es una consulta chiquita
+  if (body.modo === 'interpretar') return json({ brief, zona, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven } }) // no descuenta cupo: es una consulta chiquita
 
   // Lo que ya conoce la cuenta y su equipo (en la lista, en la bandeja o descartado): no se vuelve a traer
   const { data: yo } = await db.from('perfiles').select('empresa_id').eq('id', user.id).maybeSingle()
@@ -251,7 +272,7 @@ Deno.serve(async req => {
   const lotes = Math.min(4, Math.max(1, Math.ceil(cantidad / 10)))
   const cuantos = Math.ceil(cantidad / lotes) + 3
   const corridas = await Promise.all(ENFOQUES.slice(0, lotes).map(e =>
-    unaBusqueda(key, modelo, prompt({ rubro, zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), zona), filtros, pedido, excluir, contexto, brief: brief! }), 110_000)))
+    unaBusqueda(key, modelo, prompt({ rubro, zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000)))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
   const crudos = corridas.flatMap(c => extraerLista(c.salida))
   if (!crudos.length) {
@@ -301,7 +322,7 @@ Deno.serve(async req => {
   })
 
   // Paso 3: segunda mirada contra lo que se pidió
-  const ver = await verificar(key, modeloRapido, brief, candidatos)
+  const ver = await verificar(key, modeloRapido, brief, candidatos, apr.texto)
   usoIn += ver.usoIn; usoOut += ver.usoOut
   const noEncajan = candidatos.length - ver.quedan.size
   const resultados = candidatos.filter((_, i) => ver.quedan.has(i))

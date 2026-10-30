@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Plus, Download, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot } from 'lucide-react'
+import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fecha, mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
@@ -8,6 +8,7 @@ import { Avatar, Esqueleto, EstadoBadge, useConfirmar, useToast } from '../compo
 import NuevoProspecto from '../components/NuevoProspecto.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
+import EnvioMasivo from '../components/EnvioMasivo.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Prospectos() {
@@ -15,7 +16,8 @@ export default function Prospectos() {
   const nav = useNavigate()
   const toast = useToast()
   const confirmar = useConfirmar()
-  const { refrescar, porRevisar } = useApp()
+  const { refrescar, porRevisar, correo } = useApp()
+  const [envio, setEnvio] = useState(null)
   const [lista, setLista] = useState([])
   const [cargando, setCargando] = useState(true)
   const [sel, setSel] = useState(new Set())
@@ -30,6 +32,7 @@ export default function Prospectos() {
   const orden = params.get('orden') ?? 'resenas'
   const vista = params.get('vista') ?? 'lista'
   const busqueda = params.get('busqueda') ?? ''
+  const califFiltro = params.get('calif') ?? ''
   const [infoBusqueda, setInfoBusqueda] = useState(null)
   const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
@@ -55,16 +58,16 @@ export default function Prospectos() {
   const filtrados = useMemo(() => {
     const t = q.toLowerCase()
     const r = lista.filter(p =>
-      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!busqueda || p.busqueda_id === busqueda) &&
+      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!califFiltro || String(p.calificacion ?? '') === califFiltro) && (!busqueda || p.busqueda_id === busqueda) &&
       (!t || [p.nombre, p.rubro, p.zona, p.direccion, p.telefono, p.email, p.instagram, p.notas].join(' ').toLowerCase().includes(t)))
     const cmp = {
-      resenas: (a, b) => (b.puntaje ?? 0) - (a.puntaje ?? 0) || (b.resenas ?? 0) - (a.resenas ?? 0),
+      resenas: (a, b) => (b.calificacion ?? 0) - (a.calificacion ?? 0) || (b.puntaje ?? 0) - (a.puntaje ?? 0) || (b.resenas ?? 0) - (a.resenas ?? 0),
       nombre: (a, b) => a.nombre.localeCompare(b.nombre),
       reciente: (a, b) => b.created_at.localeCompare(a.created_at),
       seguimiento: (a, b) => (a.proximo_seguimiento ?? '9999').localeCompare(b.proximo_seguimiento ?? '9999'),
     }[orden]
     return r.sort(cmp)
-  }, [lista, q, estado, rubro, orden, vista, busqueda])
+  }, [lista, q, estado, rubro, orden, vista, busqueda, califFiltro])
 
   const toggle = id => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const todos = filtrados.length > 0 && filtrados.every(p => sel.has(p.id))
@@ -84,6 +87,13 @@ export default function Prospectos() {
       setSel(new Set()); cargar()
     } catch (e) { toast(mensajeError(e), 'error') }
     setGenerando(false)
+  }
+
+  async function calificar(p, valor) {
+    const nuevo = p.calificacion === valor ? null : valor
+    setLista(l => l.map(x => x.id === p.id ? { ...x, calificacion: nuevo } : x))
+    const { error } = await supabase.from('prospectos').update({ calificacion: nuevo }).eq('id', p.id)
+    if (error) { toast(mensajeError(error), 'error'); cargar() }
   }
 
   async function moverA(p, nuevoEstado) {
@@ -112,7 +122,7 @@ export default function Prospectos() {
   return (
     <>
       <header className="cabecera">
-        <div><h1>Prospectos</h1><p>Tu lista en limpio: las empresas que vas a contactar. {lista.length ? `${filtrados.length} de ${lista.length}.` : ''}</p></div>
+        <div><h1>Para contactar</h1><p>Las empresas que pasaste en limpio: calificalas, contactalas y seguí cada una. {lista.length ? `${filtrados.length} de ${lista.length}.` : ''}</p></div>
         <div className="acciones">
           <div className="selector-vista" role="tablist">
             <button className={vista === 'lista' ? 'activo' : ''} onClick={() => set('vista', '')}><List size={15} /> Tabla</button>
@@ -140,6 +150,8 @@ export default function Prospectos() {
           <Desplegable compacto ariaLabel="Estado" value={estado} onChange={v => set('estado', v)} anchoMenu={210}
             opciones={[{ value: '', label: 'Todos los estados', icono: <CircleDot size={14} className="muted" /> }, ...opcionesEstado]} />
         )}
+        <Desplegable compacto ariaLabel="Cuánto te sirve" value={califFiltro} onChange={v => set('calif', v)} anchoMenu={220}
+          opciones={[{ value: '', label: 'Te sirve: todas', icono: <Flame size={14} className="muted" /> }, ...CALIF.map(c => ({ value: String(c.v), label: c.label, icono: <Llamas n={c.v} /> }))]} />
         {rubros.length > 1 && (
           <Desplegable compacto ariaLabel="Tipo de empresa" value={rubro} onChange={v => set('rubro', v)} anchoMenu={240}
             opciones={[{ value: '', label: 'Todos los tipos', icono: <Tag size={14} className="muted" /> }, ...rubros.map(r => ({ value: r, label: r }))]} />
@@ -163,7 +175,9 @@ export default function Prospectos() {
           <button className="btn ia" onClick={generar} disabled={generando}>
             {generando ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}{generando ? 'Escribiendo borradores…' : 'Generar borradores'}
           </button>
-          <span className="muted chico">Se guardan como borradores; el envío es siempre uno por uno.</span>
+          {correo
+            ? <button className="btn primario" onClick={() => setEnvio(lista.filter(p => sel.has(p.id)))}><Send size={16} /> Enviar emails</button>
+            : <Link className="btn" to="/email"><Send size={16} /> Conectá tu email para enviar de a varios</Link>}
           <span className="espacio" />
           <button className="link" onClick={() => setSel(new Set())}><X size={14} style={{ verticalAlign: -2 }} /> Limpiar</button>
         </div>
@@ -206,7 +220,7 @@ export default function Prospectos() {
               <thead><tr>
                 <th style={{ width: 36 }}><input type="checkbox" checked={todos} aria-label="Seleccionar todos"
                   onChange={() => setSel(todos ? new Set() : new Set(filtrados.map(p => p.id)))} /></th>
-                <th>Empresa</th><th>Contacto</th><th>Links</th><th>Estado</th><th>Seguimiento</th>
+                <th>Empresa</th><th>Te sirve</th><th>Contacto</th><th>Links</th><th>Estado</th><th>Seguimiento</th>
               </tr></thead>
               <tbody>
                 {filtrados.map(p => (
@@ -223,6 +237,7 @@ export default function Prospectos() {
                         </div>
                       </div>
                     </td>
+                    <td><Calificador valor={p.calificacion} onCambiar={v => calificar(p, v)} /></td>
                     <td className="contacto-celda">
                       {p.telefono ? <a href={`tel:${p.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={12} /> {p.telefono}</a> : null}
                       {p.email ? <a href={`mailto:${p.email}`}><Mail size={12} /> {p.email}</a> : null}
@@ -233,7 +248,7 @@ export default function Prospectos() {
                     <td className="nowrap">{p.proximo_seguimiento ? fecha(p.proximo_seguimiento) : <span className="muted">—</span>}</td>
                   </tr>
                 ))}
-                {!filtrados.length && <tr><td colSpan={6} className="muted centrado" style={{ padding: 40 }}>
+                {!filtrados.length && <tr><td colSpan={7} className="muted centrado" style={{ padding: 40 }}>
                   {lista.length ? 'No hay empresas con esos filtros.' : <>Todavía no pasaste empresas a tu lista. <Link to={porRevisar ? '/revisar' : '/buscar'}>{porRevisar ? 'Revisá las encontradas' : 'Buscá clientes'}</Link> o importá una planilla.</>}
                 </td></tr>}
               </tbody>
@@ -241,7 +256,28 @@ export default function Prospectos() {
           </div>
         </div>
       )}
+      {envio && <EnvioMasivo prospectos={envio} onCerrar={() => { setEnvio(null); cargar() }} onListo={() => { setSel(new Set()); cargar() }} />}
       {nuevo && <NuevoProspecto onCerrar={() => setNuevo(false)} onCreado={p => { setNuevo(false); toast('Prospecto creado'); nav(`/prospectos/${p.id}`) }} />}
     </>
+  )
+}
+
+const CALIF = [
+  { v: 3, label: 'Me sirve mucho' },
+  { v: 2, label: 'Me sirve' },
+  { v: 1, label: 'Más o menos' },
+]
+function Llamas({ n }) {
+  return <span className="llamas">{[1, 2, 3].map(i => <Flame key={i} size={13} className={i <= n ? 'on' : ''} />)}</span>
+}
+/** Cuánto te sirve esta empresa: 1 a 3 llamas. Lo usa la búsqueda para aprender qué traer */
+function Calificador({ valor, onCambiar }) {
+  return (
+    <span className="calificador" role="radiogroup" aria-label="Cuánto te sirve">
+      {[1, 2, 3].map(i => (
+        <button key={i} type="button" role="radio" aria-checked={valor === i} className={i <= (valor ?? 0) ? 'on' : ''}
+          title={CALIF.find(c => c.v === i).label} onClick={() => onCambiar(i)}><Flame size={16} /></button>
+      ))}
+    </span>
   )
 }

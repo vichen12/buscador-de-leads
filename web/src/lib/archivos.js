@@ -43,5 +43,10 @@ export function useArchivos(uid) {
     if (error) throw error
     setLista(l => l.map(x => x.id === a.id ? { ...x, descripcion } : x))
   }
-  return { lista, firma: lista?.find(a => a.tipo === 'firma') ?? null, adjuntos: (lista ?? []).filter(a => a.tipo === 'adjunto'), firmaUrl, subir, borrar, describir, cargar }
+  async function siempre(a, valor) {
+    const { error } = await supabase.from('archivos').update({ siempre: valor }).eq('id', a.id)
+    if (error) throw error
+    setLista(l => l.map(x => x.id === a.id ? { ...x, siempre: valor } : x))
+  }
+  return { siempre, lista, firma: lista?.find(a => a.tipo === 'firma') ?? null, adjuntos: (lista ?? []).filter(a => a.tipo === 'adjunto'), firmaUrl, subir, borrar, describir, cargar }
 }

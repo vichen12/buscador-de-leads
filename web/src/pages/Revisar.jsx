@@ -4,7 +4,7 @@ import { Inbox, Check, X, Download, Search, Sparkles, Undo2, Loader2, ListChecks
 import { supabase } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
-import { aprobarHallazgos, descartarHallazgos, recuperarHallazgos } from '../lib/hallazgos.js'
+import { motivoHallazgo, aprobarHallazgos, descartarHallazgos, recuperarHallazgos } from '../lib/hallazgos.js'
 import { Esqueleto, useToast } from '../components/ui.jsx'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
@@ -123,7 +123,7 @@ export default function Revisar() {
           {lista.map(h => (
             <TarjetaHallazgo key={h.id} h={h} sel={sel.has(h.id)} ocupado={ocupados.has(h.id)}
               onSel={() => setSel(s => { const n = new Set(s); n.has(h.id) ? n.delete(h.id) : n.add(h.id); return n })}
-              onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onRecuperar={() => recuperar([h.id])} />
+              onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onMotivo={m => motivoHallazgo(h.id, m).then(() => marcar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} onRecuperar={() => recuperar([h.id])} />
           ))}
         </div>
       ) : (

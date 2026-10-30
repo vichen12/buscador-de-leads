@@ -4,7 +4,7 @@ import { Search, Loader2, MapPin, Sparkles, Check, SlidersHorizontal, Store, Arr
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
-import { aprobarHallazgos, descartarHallazgos } from '../lib/hallazgos.js'
+import { motivoHallazgo, aprobarHallazgos, descartarHallazgos } from '../lib/hallazgos.js'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import { RUBROS, ZONAS, zonaCompleta } from '../lib/catalogo.js'
@@ -80,7 +80,7 @@ export default function BuscarPlaces() {
     setEntendiendo(true); setError(''); setRes(null); setBrief(null)
     try {
       const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: rubro.trim(), zona: zonaCompleta(z) })
-      setBrief(r.brief)
+      setBrief({ ...r.brief, _aprendizaje: r.aprendizaje })
     } catch (err) { setError(mensajeError(err)) }
     setEntendiendo(false)
   }
@@ -91,7 +91,8 @@ export default function BuscarPlaces() {
     const t0 = Date.now()
     const timer = setInterval(() => setSeg(Math.round((Date.now() - t0) / 1000)), 500)
     try {
-      const r = await llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaCompleta(zonaNormal(zona)), cantidad, brief, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido })
+      const { _aprendizaje, ...briefLimpio } = brief
+      const r = await llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaCompleta(zonaNormal(zona)), cantidad, brief: briefLimpio, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido })
       setRes(r); setBrief(null)
       toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info')
       refrescar(); cargarHistorial()
@@ -186,6 +187,9 @@ export default function BuscarPlaces() {
             </div>
             <Pencil size={14} className="muted" />
           </div>
+          {(brief._aprendizaje?.sirven > 0 || brief._aprendizaje?.no_sirven > 0) && (
+            <span className="aprendio"><Check size={13} /> Aprendí de {brief._aprendizaje.sirven} empresas que te sirvieron y {brief._aprendizaje.no_sirven} que no</span>
+          )}
           <div className="brief-grid">
             <div><b className="ok-txt"><Check size={14} /> Sí entran</b><ChipsEditables tipo="si" items={brief.incluir} onChange={v => setBrief({ ...brief, incluir: v })} placeholder="Agregar tipo" /></div>
             <div><b className="no-txt"><X size={14} /> No entran</b><ChipsEditables tipo="no" items={brief.excluir} onChange={v => setBrief({ ...brief, excluir: v })} placeholder="Ej.: mudanzas" /></div>
@@ -256,7 +260,7 @@ export default function BuscarPlaces() {
           <div className="lista-hallazgos">
             {res.resultados.map(h => (
               <TarjetaHallazgo key={h.id ?? h.nombre} h={h} ocupado={ocupados.has(h.id)}
-                onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} />
+                onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onMotivo={m => motivoHallazgo(h.id, m).then(() => actualizar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} />
             ))}
           </div>
           {res.resultados.length > 0 && <small className="muted">Los datos salen de fuentes públicas: revisá cada empresa antes de escribirle.</small>}

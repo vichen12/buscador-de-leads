@@ -23,23 +23,31 @@ const TONO_WEB = `Reglas de tono (obligatorias):
 // Perfil comercial del usuario (qué vende y a quién). Si no lo completó, se asume un estudio de diseño web.
 let COMERCIAL: Dic | null = null
 // Archivos del usuario: los que se pueden adjuntar (con su descripción) y si tiene firma con imagen
-let ADJUNTOS: { id: string, nombre: string, descripcion: string }[] = []
+let ADJUNTOS: { id: string, nombre: string, descripcion: string, siempre?: boolean }[] = []
+// Cómo quiere la persona sus emails: { tono, largo: 'corto'|'medio'|'largo', estructura }
+let CONFIG: Dic = {}
+const fijos = () => ADJUNTOS.filter(a => a.siempre)
 let FIRMA_IMAGEN = false
 function textoAdjuntos() {
   if (!ADJUNTOS.length) return ''
-  return `\nArchivos que podés adjuntar al email (elegí 0, 1 o 2 que de verdad sumen para ESTE negocio; si adjuntás alguno, mencionalo con naturalidad en el cuerpo, ej. "te adjunto el catálogo"):
-${ADJUNTOS.map((a, i) => `[${i + 1}] ${a.nombre}${a.descripcion ? ` — ${a.descripcion}` : ''}`).join('\n')}`
+  const f = fijos(), opcionales = ADJUNTOS.map((a, i) => ({ ...a, n: i + 1 })).filter(a => !a.siempre)
+  return `${f.length ? `\nEl email lleva SIEMPRE adjunto: ${f.map(a => `${a.nombre}${a.descripcion ? ` (${a.descripcion})` : ''}`).join('; ')}. Mencionalo con naturalidad en el cuerpo (ej. "te adjunto nuestro brochure").` : ''}${opcionales.length ? `\nOtros archivos que podés sumar si de verdad aportan para ESTE negocio (0 o 1; si lo sumás, mencionalo):
+${opcionales.map(a => `[${a.n}] ${a.nombre}${a.descripcion ? ` — ${a.descripcion}` : ''}`).join('\n')}` : ''}`
+}
+function reglasEmail() {
+  const largo = CONFIG.largo === 'corto' ? '50 a 90 palabras' : CONFIG.largo === 'largo' ? '150 a 230 palabras' : '80 a 140 palabras'
+  return `- Email: asunto corto (máximo 6 palabras, sin mayúsculas sostenidas) y cuerpo de ${largo} con saludo y firma.${CONFIG.estructura ? `\n- Estructura que pidió la persona para el email (seguila en ese orden): ${String(CONFIG.estructura).slice(0, 1200)}` : ''}`
 }
 const oferta = () => (COMERCIAL?.respuestas as Dic)?.que_vende as string || 'una página web'
 function tono() {
   const e = (COMERCIAL?.estrategia ?? {}) as Dic
-  if (!COMERCIAL) return TONO_WEB
+  if (!COMERCIAL) return TONO_WEB + (CONFIG.tono ? `\n- Tono que pidió la persona (manda sobre lo anterior): ${String(CONFIG.tono).slice(0, 400)}` : '')
   return `Reglas de tono (obligatorias):
 - Español rioplatense, con "vos", natural, como lo escribiría una persona real. Nada corporativo ni de vendedor.${e.tono ? `\n- Tono pedido: ${e.tono}` : ''}
 - Entrá por el VALOR para ESE negocio: algo genuino de lo que hacen y cómo lo que ofrecemos les sirve a ellos.${e.angulo ? `\n- Ángulo de entrada recomendado: ${e.angulo}` : ''}
 - NUNCA por el miedo, la culpa o la urgencia falsa. No critiques su negocio. No prometas resultados.
 - Una sola pregunta al final, liviana y sin compromiso.
-- No inventes datos que no estén en la ficha (premios, años, precios, clientes).`
+- No inventes datos que no estén en la ficha (premios, años, precios, clientes).${CONFIG.tono ? `\n- Tono que pidió la persona (manda sobre lo anterior): ${String(CONFIG.tono).slice(0, 400)}` : ''}`
 }
 
 function ficha(p: Dic, perfil: Dic) {
@@ -109,7 +117,7 @@ ${ficha(p, perfil)}
 
 ${tono()}
 - WhatsApp: 3 a 5 oraciones, máximo 600 caracteres, sin emojis o como mucho uno.
-- Email: asunto corto (máximo 6 palabras, sin mayúsculas sostenidas) y cuerpo de 80 a 140 palabras con saludo y firma.
+${reglasEmail()}
 - Seguimiento (para quien no respondió en unos días): 1 a 3 oraciones, amable, ofrece algo concreto y deja la puerta abierta a decir que no.
 
 Respondé SOLO con JSON válido, sin texto antes ni después:
@@ -117,7 +125,7 @@ Respondé SOLO con JSON válido, sin texto antes ni después:
   const b = extraerJSON(await claude(key, prompt))
   if (!b.whatsapp || !b.email?.cuerpo || !b.seguimiento) throw new Error('JSON incompleto')
   const nums = Array.isArray(b.email.adjuntos) ? b.email.adjuntos : []
-  b.email.adjuntos = [...new Set(nums.map((n: unknown) => ADJUNTOS[Number(n) - 1]?.id).filter(Boolean))].slice(0, 3)
+  b.email.adjuntos = [...new Set([...fijos().map(a => a.id), ...nums.map((n: unknown) => ADJUNTOS[Number(n) - 1]?.id).filter(Boolean)])].slice(0, 4)
   return b
 }
 
@@ -159,8 +167,9 @@ Deno.serve(async req => {
     const { data: perfil } = await supabase.from('perfiles').select('*').eq('id', user.id).single()
     const { data: com } = await supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', user.id).maybeSingle()
     COMERCIAL = (com?.respuestas as Dic)?.que_vende ? com : null
-    const { data: archivos } = await supabase.from('archivos').select('id, tipo, nombre, descripcion').eq('owner_id', user.id)
-    ADJUNTOS = (archivos ?? []).filter(a => a.tipo === 'adjunto').map(a => ({ id: a.id, nombre: a.nombre, descripcion: a.descripcion }))
+    const { data: archivos } = await supabase.from('archivos').select('id, tipo, nombre, descripcion, siempre').eq('owner_id', user.id)
+    ADJUNTOS = (archivos ?? []).filter(a => a.tipo === 'adjunto').map(a => ({ id: a.id, nombre: a.nombre, descripcion: a.descripcion, siempre: !!a.siempre }))
+    CONFIG = ((perfil as Dic)?.config_email ?? {}) as Dic
     FIRMA_IMAGEN = (archivos ?? []).some(a => a.tipo === 'firma')
 
     if (body.modo === 'reescribir') {
@@ -173,7 +182,7 @@ Deno.serve(async req => {
       return json({ ok: true, ...(await reescribirConIA(p, perfil ?? {}, key, tipo, cuerpo, asunto, instruccion.slice(0, 500))) })
     }
 
-    const { prospecto_ids, forzar = false } = body
+    const { prospecto_ids, forzar = false, solo_email = false } = body
     if (!Array.isArray(prospecto_ids) || prospecto_ids.length === 0) return json({ error: 'Falta prospecto_ids' }, 400)
     if (prospecto_ids.length > MAX_POR_LLAMADA) return json({ error: `Máximo ${MAX_POR_LLAMADA} por vez` }, 400)
 
@@ -196,11 +205,12 @@ Deno.serve(async req => {
         b = COMERCIAL ? plantillaGenerica(p, perfil ?? {}) : borradoresPlantilla(p, perfil ?? {})
       }
 
+      if (!b.email.adjuntos?.length) b.email.adjuntos = fijos().map(a => a.id)
       const filas = [
         { tipo: 'whatsapp', asunto: '', cuerpo: b.whatsapp, adjuntos: [] as string[] },
         { tipo: 'email', asunto: b.email.asunto, cuerpo: b.email.cuerpo, adjuntos: b.email.adjuntos ?? [] },
         { tipo: 'seguimiento', asunto: `Re: ${b.email.asunto || nombreCorto(p.nombre)}`, cuerpo: b.seguimiento, adjuntos: [] as string[] },
-      ].filter(f => forzar || !editados.has(f.tipo))
+      ].filter(f => solo_email ? f.tipo === 'email' && !editados.has('email') : (forzar || !editados.has(f.tipo)))
         .map(f => ({ ...f, prospecto_id: p.id, owner_id: user.id, generado_por: origen, editado: false }))
 
       const { error: e2 } = await supabase.from('mensajes').upsert(filas, { onConflict: 'prospecto_id,tipo' })

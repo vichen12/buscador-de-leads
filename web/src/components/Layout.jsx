@@ -29,7 +29,7 @@ export default function Layout({ children }) {
 
   const trabajo = [
     ['/', 'Tablero', LayoutDashboard],
-    ['/prospectos', 'Prospectos', Users],
+    ['/prospectos', 'Para contactar', Users],
     ['/seguimientos', 'Seguimientos', CalendarClock, vencidos],
     ['/asistente', 'Asistente IA', Bot],
   ]

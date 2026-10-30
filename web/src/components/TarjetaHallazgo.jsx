@@ -3,7 +3,9 @@ import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2 } from 
 import Enlaces from './Enlaces.jsx'
 
 /** Una empresa encontrada, para revisar: sumarla a la lista o marcar que no sirve */
-export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar, onRecuperar, ocupado }) {
+const MOTIVOS = ['No es del rubro', 'Muy chica', 'Muy grande', 'Muy lejos', 'Ya es cliente', 'Es competencia', 'Datos malos']
+
+export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar, onRecuperar, onMotivo, ocupado }) {
   const dir = [h.direccion, h.zona && !h.direccion?.toLowerCase().includes(h.zona.toLowerCase()) ? h.zona : ''].filter(Boolean).join(' · ')
   return (
     <article className={'hallazgo ' + h.estado + (sel ? ' sel' : '')}>
@@ -26,7 +28,12 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
         </div>
         <Enlaces e={h} conTexto />
         {h.nota && <p className="hallazgo-nota">{h.nota}</p>}
-        {h.estado === 'descartado' && h.motivo && <p className="hallazgo-nota">No sirve: {h.motivo}</p>}
+        {h.estado === 'descartado' && onMotivo && (
+          <div className="motivos"><small>¿Por qué no sirve? Así busco mejor:</small>
+            {MOTIVOS.map(m => <button key={m} type="button" className={h.motivo === m ? 'on' : ''} onClick={() => onMotivo(h.motivo === m ? '' : m)}>{m}</button>)}
+          </div>
+        )}
+        {h.estado === 'descartado' && !onMotivo && h.motivo && <p className="hallazgo-nota">No sirve: {h.motivo}</p>}
       </div>
       <div className="hallazgo-acciones">
         {h.estado === 'por_revisar' && <>

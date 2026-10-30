@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Mail, PenLine, Paperclip, Loader2, Save } from 'lucide-react'
+import { Mail, PenLine, Paperclip, Loader2, Save, Wand2 } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { useArchivos } from '../lib/archivos.js'
@@ -15,8 +15,18 @@ export default function Email() {
   const arch = useArchivos(session?.user?.id)
   const [firma, setFirma] = useState(null)
   const [guardando, setGuardando] = useState(false)
+  const [cfg, setCfg] = useState(null)
+  const [guardandoCfg, setGuardandoCfg] = useState(false)
   useEffect(() => { if (perfil && firma === null) setFirma(perfil.firma ?? '') }, [perfil])
-  if (!perfil || firma === null) return <Cargando />
+  useEffect(() => { if (perfil && cfg === null) setCfg({ tono: '', largo: 'medio', estructura: '', ...(perfil.config_email ?? {}) }) }, [perfil])
+  if (!perfil || firma === null || cfg === null) return <Cargando />
+  const cfgCambio = JSON.stringify(cfg) !== JSON.stringify({ tono: '', largo: 'medio', estructura: '', ...(perfil.config_email ?? {}) })
+  async function guardarCfg() {
+    setGuardandoCfg(true)
+    const { error } = await supabase.from('perfiles').update({ config_email: cfg }).eq('id', perfil.id)
+    setGuardandoCfg(false)
+    if (error) toast(mensajeError(error), 'error'); else { toast('Listo: Claude va a escribir tus emails así'); refrescar() }
+  }
 
   const empresa = perfil.estudio || comercial?.respuestas?.empresa || ''
   const firmaVista = firma.trim() || [perfil.nombre, empresa, perfil.email_contacto].filter(Boolean).join('\n')
@@ -71,11 +81,44 @@ export default function Email() {
         </div>
       </section>
 
-      <div className="email-paso"><span>3</span><h2><Paperclip size={17} /> Archivos para adjuntar</h2></div>
+      <div className="email-paso"><span>3</span><h2><Wand2 size={17} /> Cómo escribe Claude tus emails</h2></div>
+      <section className="tarjeta config-email">
+        <p className="muted chico ayuda" style={{ marginTop: 0 }}>Se usa cada vez que Claude escribe un email, uno por uno o cuando enviás a varias empresas juntas. Cada email igual sale personalizado para esa empresa.</p>
+        <div className="campo">Tono
+          <div className="chips-sel">
+            {TONOS.map(t => <button key={t} type="button" className={'chip-sel' + (cfg.tono === t ? ' on' : '')} onClick={() => setCfg({ ...cfg, tono: cfg.tono === t ? '' : t })}>{t}</button>)}
+          </div>
+          <input value={TONOS.includes(cfg.tono) ? '' : cfg.tono} onChange={e => setCfg({ ...cfg, tono: e.target.value })} placeholder="O escribilo con tus palabras. Ej.: cercano pero serio, de vos, sin exagerar" style={{ marginTop: 8 }} />
+        </div>
+        <div className="campo">Largo
+          <div className="segmentado">
+            {[['corto', 'Corto', '≈ 70 palabras'], ['medio', 'Medio', '≈ 110 palabras'], ['largo', 'Largo', '≈ 190 palabras']].map(([v, l, a]) => (
+              <button key={v} type="button" className={cfg.largo === v ? 'on' : ''} onClick={() => setCfg({ ...cfg, largo: v })}><b>{l}</b><small>{a}</small></button>
+            ))}
+          </div>
+        </div>
+        <div className="campo">Estructura del email <span className="muted">(opcional)</span>
+          <textarea rows={6} value={cfg.estructura} onChange={e => setCfg({ ...cfg, estructura: e.target.value })} placeholder={EJEMPLO_ESTRUCTURA} />
+          {!cfg.estructura && <button type="button" className="link chico" onClick={() => setCfg({ ...cfg, estructura: EJEMPLO_ESTRUCTURA })}>Usar este ejemplo y editarlo</button>}
+        </div>
+        <div className="acciones">
+          {cfgCambio && <button type="button" className="btn fantasma" onClick={() => setCfg({ tono: '', largo: 'medio', estructura: '', ...(perfil.config_email ?? {}) })}>Descartar</button>}
+          <button type="button" className="btn primario" onClick={guardarCfg} disabled={!cfgCambio || guardandoCfg}>{guardandoCfg ? <Loader2 size={15} className="spin" /> : <Save size={15} />} Guardar</button>
+        </div>
+      </section>
+
+      <div className="email-paso"><span>4</span><h2><Paperclip size={17} /> Archivos para adjuntar</h2></div>
       <section className="tarjeta">
-        <p className="muted chico ayuda" style={{ marginTop: 0 }}>Subí tus PDF, brochures o presentaciones (hasta 20 MB) y contá de qué se tratan. Claude los adjunta en el email cuando suman, y antes de enviar podés sacarlos o sumar otro.</p>
+        <p className="muted chico ayuda" style={{ marginTop: 0 }}>Subí tus PDF, brochures o presentaciones (hasta 20 MB) y contá de qué se tratan. Marcá <b>Va siempre</b> en los que tienen que ir en todos los emails (por ejemplo, el brochure). Con <b>Claude decide</b>, Claude lo adjunta cuando suma.</p>
         {arch.lista ? <ArchivosAdjuntos arch={arch} /> : <Cargando />}
       </section>
     </div>
   )
 }
+
+const TONOS = ['Cercano', 'Profesional', 'Formal', 'Directo y corto', 'Técnico']
+const EJEMPLO_ESTRUCTURA = `1. Saludo con el nombre de la empresa
+2. Quiénes somos, en una línea
+3. Algo concreto de ellos y por qué les puede servir lo nuestro
+4. Mencionar el brochure adjunto
+5. Cerrar proponiendo una llamada corta de 15 minutos`

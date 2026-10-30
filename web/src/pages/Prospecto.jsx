@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, AtSign, Globe, MapPin, Star, Clock, CalendarClock, MessageCircle, Send, Sparkles, Wand2, Loader2,
@@ -60,6 +60,13 @@ export default function Prospecto() {
     setHist(hs ?? [])
   }
   useEffect(() => { cargar() }, [id])
+  // Si todavía no hay borradores, Claude los escribe solo al abrir la ficha (con tu negocio, tu firma y tus archivos)
+  const autoGenerado = useRef(new Set())
+  useEffect(() => {
+    if (!p || p.id !== id || Object.keys(msgs).length || !servicios.ia || p.estado === 'no_interesado' || autoGenerado.current.has(id)) return
+    autoGenerado.current.add(id)
+    generar()
+  }, [p, msgs, servicios.ia])
 
   if (!p) return <Cargando />
   const optOut = p.estado === 'no_interesado'
@@ -80,7 +87,7 @@ export default function Prospecto() {
     setGenerando(true); setAviso('')
     try {
       const r = await llamarFuncion('generar-mensajes', { prospecto_ids: [id], forzar: hay })
-      toast(r.ia ? 'Claude escribió los borradores' : 'Borradores listos (plantillas)')
+      toast(r.ia ? (hay ? 'Claude escribió los borradores de nuevo' : 'Claude te dejó los borradores listos para esta empresa') : 'Borradores listos (plantillas)')
       if (r.error_ia) toast('Claude no respondió y se usaron plantillas: ' + r.error_ia, 'error')
       await cargar()
     } catch (e) { toast(mensajeError(e), 'error') }

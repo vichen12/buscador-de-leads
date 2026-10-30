@@ -129,6 +129,10 @@ export function ArchivosAdjuntos({ arch }) {
                 </button>
               )}
             </div>
+            <div className="archivo-modo" role="radiogroup" aria-label={'Cuándo se adjunta ' + a.nombre}>
+              <button type="button" className={a.siempre ? 'on' : ''} onClick={() => arch.siempre(a, true).catch(err => toast(mensajeError(err), 'error'))}>Va siempre</button>
+              <button type="button" className={!a.siempre ? 'on' : ''} onClick={() => arch.siempre(a, false).catch(err => toast(mensajeError(err), 'error'))}>Claude decide</button>
+            </div>
             <button type="button" className="btn chico fantasma peligro" aria-label={'Borrar ' + a.nombre}
               onClick={async () => { try { await arch.borrar(a); toast('Archivo borrado') } catch (err) { toast(mensajeError(err), 'error') } }}><Trash2 size={14} /></button>
           </div>
