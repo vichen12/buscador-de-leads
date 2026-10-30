@@ -1441,3 +1441,18 @@ label.check > input { width: auto; margin: 0; accent-color: var(--acc); }
 .lista-actividad { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
 .lista-actividad li { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 .texto-alerta { color: var(--warn); font-weight: 600; }
+
+.hallazgo-envoltura { border-radius: 16px; transition: box-shadow .15s; }
+.hallazgo-envoltura[data-foco="1"] { box-shadow: 0 0 0 2px var(--acc); }
+.atajos-teclado { margin: -4px 0 10px; }
+.atajos-teclado kbd, kbd { font: 600 11px/1 Inter, system-ui, sans-serif; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; padding: 2px 5px; background: #fff; color: var(--ink-2); }
+
+.pasos-lista { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.pasos-lista li { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.pasos-lista li > div { flex: 1; min-width: 140px; }
+.pasos-lista li b { display: block; font-size: 13.5px; }
+.pasos-lista li small { display: block; font-size: 12px; margin-top: 2px; }
+.pasos-lista li.hecho { background: var(--ok-soft); border-color: transparent; }
+.pasos-lista li.hecho b { text-decoration: line-through; color: var(--mut); }
+.paso-num { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--acc-soft); color: var(--acc-ink); }
+.pasos-lista li.hecho .paso-num { background: var(--ok); color: #fff; }

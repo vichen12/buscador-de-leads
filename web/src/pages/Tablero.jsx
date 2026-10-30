@@ -61,13 +61,7 @@ export default function Tablero() {
         </div>
       </header>
 
-      {comercial === null && (
-        <div className="aviso-negocio">
-          <Store size={22} />
-          <div style={{ flex: 1 }}><b>Empezá por contarnos de tu negocio</b><p>Qué vendés, a quién y dónde. Claude arma tu estrategia (rubros, zonas y filtros) y la usa para buscar clientes y escribir los mensajes.</p></div>
-          <Link className="btn primario" to="/negocio">Completar mi negocio <ArrowRight size={15} /></Link>
-        </div>
-      )}
+      <PrimerosPasos />
 
       {porRevisar > 0 && (
         <Link to="/revisar" className="aviso-revisar">
@@ -186,6 +180,35 @@ export default function Tablero() {
         </section>
       </>}
     </>
+  )
+}
+
+const PASOS_KEY = 'prospecta-primeros-pasos-oculto'
+function PrimerosPasos() {
+  const { comercial, correo, tablero: t, porRevisar } = useApp()
+  const [oculto, setOculto] = useState(() => { try { return localStorage.getItem(PASOS_KEY) === '1' } catch { return false } })
+  const pasos = [
+    ['Contanos de tu negocio', 'Qué vendés, a quién y dónde: Claude arma tu estrategia.', '/negocio', comercial != null],
+    ['Conectá tu email', 'Para mandar desde tu casilla y que las respuestas lleguen solas.', '/email', !!correo],
+    ['Buscá tus primeros clientes', 'Claude encuentra empresas que encajan con lo que vendés.', '/buscar', (t?.total ?? 0) > 0 || porRevisar > 0],
+    ['Mandá tu primer mensaje', 'Revisá el borrador de Claude y envialo.', '/prospectos?estado=pendiente', (t?.contactados ?? 0) > 0],
+  ]
+  const hechos = pasos.filter(p => p[3]).length
+  if (comercial === undefined || oculto || hechos === pasos.length) return null
+  return (
+    <section className="tarjeta primeros-pasos">
+      <div className="tarjeta-titulo"><h3>Primeros pasos <span className="chip">{hechos} de {pasos.length}</span></h3><button type="button" className="btn fantasma chico" onClick={() => { try { localStorage.setItem(PASOS_KEY, '1') } catch {} setOculto(true) }}>Ocultar</button></div>
+      <div className="cupo-barra" style={{ marginBottom: 12 }}><span style={{ width: (hechos / pasos.length) * 100 + '%' }} /></div>
+      <ol className="pasos-lista">
+        {pasos.map(([titulo, sub, to, ok], i) => (
+          <li key={to} className={ok ? 'hecho' : ''}>
+            <span className="paso-num">{ok ? '✓' : i + 1}</span>
+            <div><b>{titulo}</b><small className="muted">{sub}</small></div>
+            {!ok && <Link to={to} className="btn chico primario">Hacerlo <ArrowRight size={13} /></Link>}
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }
 

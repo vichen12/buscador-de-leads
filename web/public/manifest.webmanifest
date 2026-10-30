@@ -1,0 +1,16 @@
+{
+  "name": "Prospecta",
+  "short_name": "Prospecta",
+  "description": "Conseguí clientes para tu negocio con Claude: buscá, escribí y seguí cada contacto.",
+  "lang": "es-AR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#fd4a22",
+  "icons": [
+    { "src": "/icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -28,6 +28,7 @@ export default function Revisar() {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(new Set())
   const [ocupados, setOcupados] = useState(new Set())
+  const [foco, setFoco] = useState(0)
   const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
   async function cargar() {
@@ -78,6 +79,25 @@ export default function Revisar() {
   const ids = [...sel]
   const nombreBusqueda = b => `${b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · ${b.zona.replace(/, Mendoza$/, '')}`
 
+  // Atajos de teclado para revisar rápido (sólo en "Por revisar" y si no estás escribiendo)
+  useEffect(() => { setFoco(f => Math.min(f, Math.max(0, lista.length - 1))) }, [lista.length])
+  useEffect(() => {
+    if (tab !== 'por_revisar') return
+    const onKey = e => {
+      if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea|select/i.test(e.target.tagName) || e.target.isContentEditable) return
+      const h = lista[foco]
+      const k = e.key.toLowerCase()
+      if (k === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setFoco(f => Math.min(lista.length - 1, f + 1)) }
+      else if (k === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setFoco(f => Math.max(0, f - 1)) }
+      else if (k === 's' && h && !ocupados.size) { e.preventDefault(); aprobar([h.id]) }
+      else if (k === 'n' && h && !ocupados.size) { e.preventDefault(); descartar([h.id]) }
+      else if (k === 'x' && h) { e.preventDefault(); setSel(s => { const n = new Set(s); n.has(h.id) ? n.delete(h.id) : n.add(h.id); return n }) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+  useEffect(() => { document.querySelector('[data-foco="1"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [foco])
+
   return (
     <>
       <header className="cabecera">
@@ -118,12 +138,15 @@ export default function Revisar() {
         </div>
       )}
 
+      {tab === 'por_revisar' && lista.length > 0 && <p className="atajos-teclado muted chico">Atajos: <kbd>J</kbd>/<kbd>K</kbd> moverse · <kbd>S</kbd> sirve · <kbd>N</kbd> no sirve · <kbd>X</kbd> seleccionar</p>}
       {cargando ? <Esqueleto filas={5} /> : lista.length ? (
         <div className="lista-hallazgos">
-          {lista.map(h => (
+          {lista.map((h, i) => (
+            <div key={h.id} data-foco={tab === 'por_revisar' && i === foco ? '1' : undefined} className="hallazgo-envoltura" onMouseDown={() => setFoco(i)}>
             <TarjetaHallazgo key={h.id} h={h} sel={sel.has(h.id)} ocupado={ocupados.has(h.id)}
               onSel={() => setSel(s => { const n = new Set(s); n.has(h.id) ? n.delete(h.id) : n.add(h.id); return n })}
               onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onMotivo={m => motivoHallazgo(h.id, m).then(() => marcar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} onRecuperar={() => recuperar([h.id])} />
+            </div>
           ))}
         </div>
       ) : (
