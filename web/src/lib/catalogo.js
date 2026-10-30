@@ -23,3 +23,28 @@ export const ZONAS = [
 // Sólo los departamentos de Mendoza llevan ", Mendoza"; cualquier otra zona se busca tal cual (Neuquén, Córdoba, todo el país…)
 const MENDOZA = new Set(ZONAS.flatMap(g => g.items).map(z => z.toLowerCase()))
 export const zonaCompleta = z => (/,/.test(z) || !MENDOZA.has(z.trim().toLowerCase()) ? z.trim() : `${z.trim()}, Mendoza`)
+
+// Países para buscar fuera de Argentina (código ISO para ubicar la búsqueda web)
+export const PAISES = [
+  ['Argentina', 'AR'], ['Chile', 'CL'], ['Uruguay', 'UY'], ['Paraguay', 'PY'], ['Bolivia', 'BO'], ['Perú', 'PE'],
+  ['Colombia', 'CO'], ['Ecuador', 'EC'], ['México', 'MX'], ['Brasil', 'BR'], ['Venezuela', 'VE'], ['Costa Rica', 'CR'],
+  ['Panamá', 'PA'], ['Guatemala', 'GT'], ['República Dominicana', 'DO'], ['España', 'ES'], ['Estados Unidos', 'US'],
+].map(([nombre, code]) => ({ nombre, code }))
+
+// Para empresas que trabajan en varios países a la vez
+export const REGIONES = ['Latinoamérica', 'Sudamérica', 'Cono Sur (Argentina, Chile, Uruguay, Paraguay)', 'Centroamérica', 'Argentina, Chile y Uruguay', 'México y Centroamérica']
+
+export const PROVINCIAS_AR = ['Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 'San Juan', 'San Luis', 'Neuquén', 'Río Negro',
+  'Chubut', 'Santa Cruz', 'Tierra del Fuego', 'La Pampa', 'Entre Ríos', 'Corrientes', 'Misiones', 'Chaco', 'Formosa',
+  'Santiago del Estero', 'Tucumán', 'Salta', 'Jujuy', 'Catamarca', 'La Rioja']
+
+export const CIUDADES = [
+  { pais: 'Argentina', items: ['Rosario', 'Mar del Plata', 'Bahía Blanca', 'La Plata', 'Gran Buenos Aires', 'Gran Mendoza', 'San Rafael', 'Rafaela', 'Villa María', 'Río Cuarto', 'Comodoro Rivadavia', 'Bariloche', 'Paraná'] },
+  { pais: 'Chile', items: ['Santiago de Chile', 'Valparaíso', 'Concepción', 'Antofagasta', 'Puerto Montt'] },
+  { pais: 'Uruguay', items: ['Montevideo', 'Canelones', 'Maldonado'] },
+  { pais: 'Perú', items: ['Lima', 'Arequipa', 'Trujillo'] },
+  { pais: 'Colombia', items: ['Bogotá', 'Medellín', 'Cali', 'Barranquilla'] },
+  { pais: 'México', items: ['Ciudad de México', 'Monterrey', 'Guadalajara', 'Querétaro'] },
+  { pais: 'Paraguay', items: ['Asunción', 'Ciudad del Este'] },
+  { pais: 'Bolivia', items: ['Santa Cruz de la Sierra', 'La Paz', 'Cochabamba'] },
+]

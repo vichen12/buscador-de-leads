@@ -14,6 +14,29 @@ const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SU
 const clave = (s: string) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 
 // Lo que busca puede ser un rubro ("barbería") o una descripción libre ("empresas grandes con depósito", "locales que venden iPhone")
+// País de la búsqueda según lo que escribió en "Dónde" (por defecto Argentina)
+const PAISES: [string, string, string][] = [
+  ['argentina', 'AR', 'America/Argentina/Buenos_Aires'],
+  ['chile', 'CL', 'America/Santiago'], ['uruguay', 'UY', 'America/Montevideo'], ['paraguay', 'PY', 'America/Asuncion'],
+  ['bolivia', 'BO', 'America/La_Paz'], ['peru', 'PE', 'America/Lima'], ['colombia', 'CO', 'America/Bogota'],
+  ['ecuador', 'EC', 'America/Guayaquil'], ['mexico', 'MX', 'America/Mexico_City'], ['brasil', 'BR', 'America/Sao_Paulo'],
+  ['venezuela', 'VE', 'America/Caracas'], ['costa rica', 'CR', 'America/Costa_Rica'], ['panama', 'PA', 'America/Panama'],
+  ['guatemala', 'GT', 'America/Guatemala'], ['republica dominicana', 'DO', 'America/Santo_Domingo'], ['espana', 'ES', 'Europe/Madrid'],
+  ['estados unidos', 'US', 'America/New_York'],
+]
+const NOMBRE_PAIS: Record<string, string> = { AR: 'Argentina', CL: 'Chile', UY: 'Uruguay', PY: 'Paraguay', BO: 'Bolivia', PE: 'Perú', CO: 'Colombia', EC: 'Ecuador', MX: 'México', BR: 'Brasil', VE: 'Venezuela', CR: 'Costa Rica', PA: 'Panamá', GT: 'Guatemala', DO: 'República Dominicana', ES: 'España', US: 'Estados Unidos' }
+const REGIONES = ['latinoamerica', 'latam', 'sudamerica', 'america latina', 'america del sur', 'cono sur', 'centroamerica', 'hispanoamerica', 'iberoamerica', 'mercosur', 'andinos', 'internacional']
+type Ubic = { code: string, tz: string, nombre: string, multi: boolean }
+// Un país (ubica la búsqueda web ahí) o varios / una región como Latinoamérica (busca sin ubicar en un país).
+function paisDe(zona: string): Ubic {
+  const z = ' ' + zona.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + ' '
+  const hits = PAISES.filter(([n]) => z.includes(n))
+  const region = REGIONES.some(r => z.includes(r))
+  if (region || hits.length > 1) return { code: '', tz: '', nombre: region ? zona : hits.map(h => NOMBRE_PAIS[h[1]]).join(', '), multi: true }
+  const p = hits[0]
+  return p ? { code: p[1], tz: p[2], nombre: NOMBRE_PAIS[p[1]], multi: false } : { code: 'AR', tz: 'America/Argentina/Buenos_Aires', nombre: 'Argentina', multi: false }
+}
+
 const ENFOQUES = [
   { nombre: 'mapas', texto: (r: string, z: string) => `Enfoque: Google Maps y fichas de negocios. Buscá cada término útil + "${z}" (ej. "${r} ${z}").` },
   { nombre: 'directorios', texto: (r: string, z: string) => `Enfoque: directorios de empresas, parques industriales, cámaras empresariales y del sector, guías comerciales y listados ("${r} ${z}", "empresas de <rubro> ${z}", "parque industrial ${z}", "cámara de <rubro> ${z}").` },
@@ -30,13 +53,13 @@ Cliente ideal: ${e.cliente_ideal || r.cliente_ideal || 's/d'}
 ${e.criterios?.length ? `Señales de buen prospecto: ${e.criterios.join('; ')}\n` : ''}${e.descartar?.length ? `Descartá: ${e.descartar.join('; ')}\n` : ''}`
 }
 
-function prompt(o: { rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string }) {
+function prompt(o: { pais: string, multi?: boolean, rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string }) {
   const reglas = o.filtros.length
     ? o.filtros.map(f => `${f.titulo}${f.descripcion ? ` (${f.descripcion})` : ''}`)
     : []
   const b = o.brief
-  return `Buscá en la web empresas reales y activas en "${o.zona}" (Argentina) que sean clientes potenciales: empresas que COMPRARÍAN lo que vende quien busca, nunca competencia, integradores ni proveedores de lo mismo.
-Pedido original: "${o.rubro}".
+  return `Buscá en la web empresas reales y activas en "${o.zona}"${o.zona.toLowerCase().includes(o.pais.toLowerCase()) ? '' : ` (${o.pais})`} que sean clientes potenciales: empresas que COMPRARÍAN lo que vende quien busca, nunca competencia, integradores ni proveedores de lo mismo.
+${o.multi ? `La zona abarca varios países: repartí los resultados entre los principales mercados de esa zona (no todos del mismo país) y poné el país en la dirección.\n` : ''}Pedido original: "${o.rubro}".
 Qué buscamos exactamente: ${b.interpretacion}
 ${b.incluir.length ? `Tipos de empresa que SÍ entran: ${b.incluir.join('; ')}.
 ` : ''}${b.excluir.length ? `NO incluyas (aunque aparezcan con palabras parecidas): ${b.excluir.join('; ')}.
@@ -109,12 +132,14 @@ function extraerObjeto(t: string): Dic | null {
 const lista = (v: unknown, n = 10) => Array.isArray(v) ? v.map(x => String(x ?? '').trim()).filter(Boolean).slice(0, n) : []
 
 /** Traduce lo que escribió la persona a un pedido preciso: qué tipo de empresa entra, cómo buscarla y qué NO entra */
-async function interpretar(key: string, modelo: string, rubro: string, zona: string, contexto: string, aprendido = ''): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
+async function interpretar(key: string, modelo: string, rubro: string, zona: string, contexto: string, aprendido = '', pais = 'Argentina', multi = false): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
   const base: Brief = { interpretacion: rubro, buscar: [rubro], incluir: [], excluir: [] }
   try {
-    const r = await llamarClaude(key, modelo, `Sos analista comercial B2B en Argentina. Una persona quiere encontrar clientes potenciales y escribió: "${rubro}" (zona: ${zona}).
+    const r = await llamarClaude(key, modelo, `Sos analista comercial B2B ${multi ? 'en Latinoamérica' : `en ${pais}`}. Una persona quiere encontrar clientes potenciales y escribió: "${rubro}" (zona: ${zona}).
 ${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}${aprendido ? `\n${aprendido}\n` : ''}
 Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende. Las palabras ambiguas se resuelven por lo que vende: por ejemplo, si vende automatización de almacenes y escribe "depósito", busca empresas que TIENEN un depósito o centro de distribución propio (distribuidoras, mayoristas, fábricas, operadores logísticos, e-commerce grandes), NO empresas de mudanzas, guardamuebles, alquiler de bauleras o self storage. Si no hay contexto, elegí la lectura comercial más probable y descartá las lecturas que se confunden. Nunca incluyas como clientes a empresas que venden o instalan lo mismo que quien busca (competencia, integradores, revendedores) ni a sus proveedores: van siempre en "excluir".
+
+${multi ? `La zona abarca varios países (${pais}): incluí términos con las variantes de vocabulario de cada país (ej.: "depósito" en Argentina, "bodega" en Chile, "almacén" en México).` : `Los términos de búsqueda tienen que estar en el vocabulario de ${pais} (ej.: en Chile "bodega" es depósito; en México "almacén").`}
 
 Respondé SOLO con JSON:
 {"interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["5 a 8 términos concretos como aparecen en Google Maps o directorios"], "incluir": ["3 a 6 tipos de empresa que sí entran"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
@@ -157,7 +182,7 @@ function extraerLista(texto: string): Dic[] {
   try { const v = JSON.parse(bloque); return Array.isArray(v) ? v : [] } catch { return [] }
 }
 
-async function unaBusqueda(key: string, modelo: string, texto: string, limiteMs: number) {
+async function unaBusqueda(key: string, modelo: string, texto: string, limiteMs: number, ubic: { code: string, tz: string } = { code: 'AR', tz: 'America/Argentina/Buenos_Aires' }) {
   const messages: Dic[] = [{ role: 'user', content: texto }]
   let salida = '', usoIn = 0, usoOut = 0, busquedas = 0
   const fin = Date.now() + limiteMs
@@ -172,7 +197,7 @@ async function unaBusqueda(key: string, modelo: string, texto: string, limiteMs:
         body: JSON.stringify({
           model: modelo, max_tokens: 8000, messages,
           tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8,
-                    user_location: { type: 'approximate', country: 'AR', timezone: 'America/Argentina/Buenos_Aires' } }],
+                    ...(ubic.code ? { user_location: { type: 'approximate', country: ubic.code, timezone: ubic.tz } } : {}) }],
         }),
       })
     } catch { clearTimeout(t); return { salida, usoIn, usoOut, busquedas, error: salida ? '' : 'timeout' } }
@@ -218,6 +243,7 @@ Deno.serve(async req => {
   const zona = zonaCruda === zonaCruda.toLowerCase()
     ? zonaCruda.replace(/(^|[\s,(])([a-záéíóúñ])([a-záéíóúñ]*)/g, (m, a, b, c) => ['de', 'del', 'la', 'las', 'los', 'el', 'y'].includes(b + c) && a !== '' ? m : a + b.toUpperCase() + c)
     : zonaCruda
+  const pais = paisDe(zona)
   const pedido = String(body.pedido ?? '').trim().slice(0, 400)
   const cantidad = Math.min(Math.max(Number(body.cantidad) || 10, 5), 40)
   // Filtros elegidos: [{id, titulo, descripcion}]. Compatibilidad con la versión anterior ({requisitos: {sin_web, ...}}).
@@ -245,10 +271,10 @@ Deno.serve(async req => {
   const apr = await aprendizaje(db, user.id)
   let brief = briefDesde(body.brief, rubro)
   if (!brief) {
-    const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto)
+    const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto, pais.nombre, pais.multi)
     brief = it.brief; usoIn += it.usoIn; usoOut += it.usoOut
   }
-  if (body.modo === 'interpretar') return json({ brief, zona, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven } }) // no descuenta cupo: es una consulta chiquita
+  if (body.modo === 'interpretar') return json({ brief, zona, pais: pais.nombre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven } }) // no descuenta cupo: es una consulta chiquita
 
   // Lo que ya conoce la cuenta y su equipo (en la lista, en la bandeja o descartado): no se vuelve a traer
   const { data: yo } = await db.from('perfiles').select('empresa_id').eq('id', user.id).maybeSingle()
@@ -272,7 +298,7 @@ Deno.serve(async req => {
   const lotes = Math.min(4, Math.max(1, Math.ceil(cantidad / 10)))
   const cuantos = Math.ceil(cantidad / lotes) + 3
   const corridas = await Promise.all(ENFOQUES.slice(0, lotes).map(e =>
-    unaBusqueda(key, modelo, prompt({ rubro, zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000)))
+    unaBusqueda(key, modelo, prompt({ pais: pais.nombre, multi: pais.multi, rubro, zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, pais)))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
   const crudos = corridas.flatMap(c => extraerLista(c.salida))
   if (!crudos.length) {

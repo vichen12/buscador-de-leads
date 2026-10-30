@@ -10,6 +10,7 @@ import Desplegable from '../components/Desplegable.jsx'
 import { RUBROS, ZONAS, zonaCompleta } from '../lib/catalogo.js'
 import { Aviso, useToast } from '../components/ui.jsx'
 import Autocompletar from '../components/Autocompletar.jsx'
+import SelectorZona from '../components/SelectorZona.jsx'
 import { useApp } from '../App.jsx'
 
 const FILTROS_DEFECTO = [
@@ -127,7 +128,7 @@ export default function BuscarPlaces() {
       <header className="cabecera">
         <div>
           <h1>Buscar clientes</h1>
-          <p>Escribí con tus palabras qué empresas querés encontrar y dónde, en cualquier lugar del país. Claude busca en Google, redes y directorios y te guarda las que sirven.</p>
+          <p>Escribí con tus palabras qué empresas querés encontrar y dónde: una ciudad, una provincia o un país entero, en Argentina o afuera. Claude busca en Google, redes y directorios y te guarda las que sirven.</p>
         </div>
       </header>
 
@@ -148,7 +149,7 @@ export default function BuscarPlaces() {
         </label>
         <label className="bb-campo">
           <span><MapPin size={14} /> Dónde</span>
-          <Autocompletar opciones={todasZonas} value={zona} onChange={setZona} placeholder="Ciudad, provincia o todo el país" disabled={cargando} />
+          <SelectorZona value={zona} onChange={v => { setZona(v); setBrief(null) }} sugeridas={sugZonas} disabled={cargando} />
         </label>
         <label className="bb-campo bb-chico">
           <span>Cuántos</span>
@@ -169,7 +170,7 @@ export default function BuscarPlaces() {
             {['empresas grandes con depósito', 'locales que venden celulares', 'constructoras medianas', 'clínicas privadas', 'distribuidoras de alimentos'].map(r => <button key={r} type="button" className={'chip-sel' + (rubro === r ? ' on' : '')} onClick={() => setRubro(r)}>{r}</button>)}
           </div>
           <div className="sug-fila"><small>Zonas</small>
-            {[...sugZonas.slice(0, 6), ...['Gran Mendoza', 'Neuquén', 'Córdoba', 'Buenos Aires', 'Todo el país'].filter(z => !sugZonas.includes(z))].map(z => <button key={z} type="button" className={'chip-sel' + (zona === z ? ' on' : '')} onClick={() => setZona(z)}>{z}</button>)}
+            {[...sugZonas.slice(0, 5), ...['Argentina', 'Chile', 'Uruguay', 'Perú', 'México'].filter(z => !sugZonas.includes(z))].map(z => <button key={z} type="button" className={'chip-sel' + (zona === z ? ' on' : '')} onClick={() => setZona(z)}>{z}</button>)}
           </div>
         </div>
       )}

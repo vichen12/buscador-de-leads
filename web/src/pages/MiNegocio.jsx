@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Sparkles, Loader2, Plus, X, Check, Pencil, RotateCcw, Target, MapPin, SlidersHorizontal, ThumbsUp, Ban, MessageSquareText, ArrowRight, Store, Trash2 } from 'lucide-react'
+import { Sparkles, Loader2, Plus, X, Check, Pencil, RotateCcw, Target, MapPin, SlidersHorizontal, ThumbsUp, Ban, MessageSquareText, ArrowRight, Store, Trash2, Globe } from 'lucide-react'
+import SelectorZona from '../components/SelectorZona.jsx'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { Aviso, Cargando, useToast } from '../components/ui.jsx'
@@ -27,26 +28,27 @@ const EJEMPLOS = [
   'Distribuyo artículos de limpieza a restaurantes, hoteles y oficinas',
   'Vendo seguros para empresas con flotas de camiones',
 ]
-const ZONAS_RAPIDAS = ['Gran Mendoza', 'Valle de Uco', 'Este de Mendoza', 'Sur de Mendoza', 'Todo Mendoza', 'San Juan', 'Todo el país']
+const ZONAS_RAPIDAS = ['Gran Mendoza', 'Todo Mendoza', 'Argentina', 'Chile', 'Uruguay', 'Latinoamérica']
+const webValida = v => /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(String(v ?? '').trim())
 
 function Formulario({ inicial, volver, onListo }) {
   const toast = useToast()
   const { session } = useApp()
   const [texto, setTexto] = useState(inicial.que_vende ? [inicial.que_vende, inicial.cliente_ideal].filter(Boolean).join('. ') : '')
   const [zonas, setZonas] = useState(inicial.zonas?.length ? inicial.zonas : ['Gran Mendoza'])
-  const [zonaLibre, setZonaLibre] = useState('')
+  const [web, setWeb] = useState(inicial.web || '')
   const [masDatos, setMasDatos] = useState(false)
   const [extra, setExtra] = useState({ empresa: inicial.empresa || '', diferencial: inicial.diferencial || '', no_quiere: inicial.no_quiere || '' })
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
   const alternar = z => setZonas(x => x.includes(z) ? x.filter(y => y !== z) : [...x, z])
-  const listo = texto.trim().length >= 10
+  const listo = texto.trim().length >= 10 || webValida(web)
 
   async function armar(e) {
     e?.preventDefault()
     if (!listo) return
     setCargando(true); setError('')
-    const respuestas = { que_vende: texto.trim(), cliente_ideal: '', zonas, ...extra }
+    const respuestas = { que_vende: texto.trim(), cliente_ideal: '', zonas, web: webValida(web) ? web.trim() : '', ...extra }
     try {
       const { estrategia } = await llamarFuncion('estrategia', { respuestas })
       onListo({ owner_id: session.user.id, respuestas, estrategia })
@@ -61,7 +63,7 @@ function Formulario({ inicial, volver, onListo }) {
       {volver && <button type="button" className="btn fantasma volver" onClick={volver}>← Volver a mi estrategia</button>}
       <div className="onb-icono"><Sparkles size={22} /></div>
       <h1>¿Qué vendés y a quién?</h1>
-      <p className="muted">Contalo como se lo dirías a un amigo. Claude arma el resto: qué rubros buscar, dónde y cómo escribirles.</p>
+      <p className="muted">Contalo como se lo dirías a un amigo, o pegá tu página web. Claude arma el resto: qué rubros buscar, dónde y cómo escribirles.</p>
 
       <textarea className="onb-texto" rows={3} autoFocus value={texto} onChange={e => setTexto(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) armar() }}
@@ -73,11 +75,19 @@ function Formulario({ inicial, volver, onListo }) {
         </div>
       )}
 
-      <div className="etiqueta onb-label">¿Dónde?</div>
+      <div className="onb-web">
+        <Globe size={17} />
+        <input value={web} onChange={e => setWeb(e.target.value)} placeholder="¿Tenés página web? Pegala y Claude la lee (ej.: tuempresa.com)" inputMode="url" spellCheck={false} />
+        {webValida(web) && <span className="onb-web-ok"><Check size={13} strokeWidth={3} /> La va a leer</span>}
+      </div>
+
+      <div className="etiqueta onb-label">¿Dónde vendés?</div>
+      <small className="muted onb-sub">Elegí todos los que quieras: ciudades, provincias, países o toda Latinoamérica.</small>
       <div className="chips-sel" style={{ marginTop: 0, justifyContent: 'center' }}>
         {[...new Set([...ZONAS_RAPIDAS, ...zonas])].map(z => <button type="button" key={z} className={'chip-sel' + (zonas.includes(z) ? ' on' : '')} onClick={() => alternar(z)}>{zonas.includes(z) && <Check size={13} />}{z}</button>)}
-        <input className="onb-zona" value={zonaLibre} onChange={e => setZonaLibre(e.target.value)} placeholder="+ otra"
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (zonaLibre.trim()) { alternar(zonaLibre.trim()); setZonaLibre('') } } }} />
+      </div>
+      <div className="onb-zona">
+        <SelectorZona multi seleccionadas={zonas} onChange={z => alternar(z)} placeholder="+ Sumar otro país, provincia o ciudad" />
       </div>
 
       {masDatos ? (
@@ -163,7 +173,9 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
           <div className="chips-sel" style={{ marginTop: 0 }}>
             {e.zonas.map(z => <span key={z} className="chip-sel on chip-quitar">{z}<button type="button" aria-label={'Quitar ' + z} onClick={() => set('zonas', e.zonas.filter(x => x !== z))}><X size={12} /></button></span>)}
           </div>
-          <Agregar placeholder="Agregar una zona" onAgregar={v => !e.zonas.includes(v) && set('zonas', [...e.zonas, v])} />
+          <div className="fila-agregar zona-agregar">
+            <SelectorZona multi seleccionadas={e.zonas} onChange={v => set('zonas', e.zonas.includes(v) ? e.zonas.filter(x => x !== v) : [...e.zonas, v])} placeholder="Agregar país, provincia, ciudad o Latinoamérica" />
+          </div>
         </section>
       </div>
 
