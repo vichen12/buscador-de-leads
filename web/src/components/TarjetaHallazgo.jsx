@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2 } from 'lucide-react'
+import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound } from 'lucide-react'
 import Enlaces from './Enlaces.jsx'
+import PorQue from './PorQue.jsx'
 
 /** Una empresa encontrada, para revisar: sumarla a la lista o marcar que no sirve */
 const MOTIVOS = ['No es del rubro', 'Muy chica', 'Muy grande', 'Muy lejos', 'Ya es cliente', 'Es competencia', 'Datos malos']
@@ -16,12 +17,15 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
         <div className="hallazgo-cab">
           <h3>{h.prospecto_id ? <Link to={`/prospectos/${h.prospecto_id}`}>{h.nombre}</Link> : h.nombre}</h3>
           {h.puntaje > 0 && <span className="puntaje" title={`Encaje ${h.puntaje} de 5`}>{[1, 2, 3, 4, 5].map(n => <Star key={n} size={12} fill="currentColor" className={n > h.puntaje ? 'off' : ''} />)}</span>}
+          <PorQue razones={h.razones} />
         </div>
         <div className="hallazgo-sub">
           {h.rubro && <span className="tipo">{h.rubro}</span>}
           {dir && <span><MapPin size={12} /> {dir}</span>}
         </div>
         {h.encaje && <p className="hallazgo-encaje">{h.encaje}</p>}
+        {h.senales && <p className="hallazgo-senal"><Megaphone size={13} /> {h.senales}</p>}
+        {h.decisor?.nombre && <p className="hallazgo-decisor"><UserRound size={13} style={{ verticalAlign: -2 }} /> Decide: <b>{h.decisor.nombre}</b>{h.decisor.cargo ? `, ${h.decisor.cargo}` : ''}{h.decisor.fuente && <> · <a href={h.decisor.fuente} target="_blank" rel="noreferrer">fuente</a></>}</p>}
         <div className="hallazgo-contacto">
           {h.telefono ? <a href={`tel:${h.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={13} /> {h.telefono}</a> : <span className="muted"><Phone size={13} /> Sin teléfono</span>}
           {h.email && <a href={`mailto:${h.email}`}><Mail size={13} /> {h.email}</a>}

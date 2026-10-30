@@ -12,6 +12,7 @@ import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
 import { useArchivos } from '../lib/archivos.js'
 import { AdjuntarEnEmail } from '../components/ArchivosCorreo.jsx'
+import PorQue from '../components/PorQue.jsx'
 import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEmpresa } from '../components/FichaExtras.jsx'
 import { useApp } from '../App.jsx'
 
@@ -91,7 +92,7 @@ export default function Prospecto() {
   const sucio = actual.cuerpo !== (msgs[tab]?.cuerpo ?? '') || actual.asunto !== (msgs[tab]?.asunto ?? '')
   const limite = perfil?.limite_diario ?? 15
   const sinCupo = enviadosHoy >= limite
-  const tieneWA = Boolean(numeroWhatsApp(p.telefono))
+  const tieneWA = Boolean(numeroWhatsApp(p.telefono)) && p.telefono_tipo !== 'fijo'
   const editar = (campo, valor) => setBorrador(b => ({ ...b, [tab]: { ...actual, [campo]: valor } }))
 
   async function generar() {
@@ -248,7 +249,7 @@ export default function Prospecto() {
             <Avatar nombre={p.nombre} grande />
             <div style={{ minWidth: 0 }}>
               <h3>{p.nombre}</h3>
-              <div className="muted chico">{[p.rubro, p.zona].filter(Boolean).join(' · ') || 'Sin rubro'}</div>
+              <div className="muted chico">{[p.rubro, p.zona].filter(Boolean).join(' · ') || 'Sin rubro'} <PorQue razones={p.razones} senales={p.senales} encaje={p.encaje} /></div>
             </div>
           </div>
           <SelectorEstado valor={p.estado} onCambiar={cambiarEstado} />
@@ -262,7 +263,7 @@ export default function Prospecto() {
             </form>
           ) : (
             <div className="datos">
-              <Phone size={16} /><div>{p.telefono || '—'}{p.telefono && !tieneWA && <small>Parece fijo: sin WhatsApp</small>}</div>
+              <Phone size={16} /><div>{p.telefono || '—'}{p.telefono && <small>{p.telefono_e164 ? `${p.telefono_e164} · ` : ''}{!tieneWA ? 'Fijo: sin WhatsApp' : p.telefono_tipo === 'celular' ? 'Celular' : 'Puede ser celular'}</small>}</div>
               <Mail size={16} /><div>{p.email ? <><a href={`mailto:${p.email}`}>{p.email}</a> <EstadoEmail estado={p.email_estado} motivo={p.email_motivo} conTexto /></> : '—'}
                 {p.email && p.email_estado && p.email_estado !== 'valido' && <small className={p.email_estado === 'invalido' ? 'texto-error' : ''}>{p.email_motivo}</small>}
                 {bloqueo && <small className="texto-error">{bloqueo}</small>}</div>
@@ -270,6 +271,7 @@ export default function Prospecto() {
               <Globe size={16} /><div><Enlaces e={p} conTexto /></div>
               {(p.resenas || p.rating) && <><Star size={16} /><div>{p.resenas ?? '—'} reseñas{p.rating ? ` · ${p.rating}★` : ''}</div></>}
               {p.encaje && <><Target size={16} /><div><small>Por qué encaja</small>{p.encaje}</div></>}
+              {p.senales && <><Sparkles size={16} /><div><small>Novedades (motivo para escribir ahora)</small>{p.senales}</div></>}
               <Clock size={16} /><div><small>Último contacto</small>{fechaHora(p.ultimo_contacto)}</div>
               <CalendarClock size={16} /><div><small>Próximo seguimiento</small>{p.proximo_seguimiento ? fecha(p.proximo_seguimiento) : '—'}</div>
             </div>
@@ -337,7 +339,7 @@ export default function Prospecto() {
 
             <div>
               {tab === 'email' ? (
-                <div className="preview-mail"><div className="mail-cab"><span className="muted chico">Para: {p.email || 'sin email'}</span><b>{actual.asunto || 'Sin asunto'}</b></div><div className="mail-cuerpo">{actual.cuerpo || <span className="muted">Vista previa del email</span>}{arch.firmaUrl && actual.cuerpo && <img className="mail-firma-img" src={arch.firmaUrl} alt="Imagen de tu firma" />}</div>
+                <div className="preview-mail"><div className="mail-cab"><span className="muted chico">Para: {p.email || 'sin email'}</span><b>{actual.asunto || 'Sin asunto'}</b></div><div className="mail-cuerpo">{actual.cuerpo ? <Resaltado texto={actual.cuerpo} frases={msgs.email?.personalizado} /> : <span className="muted">Vista previa del email</span>}{arch.firmaUrl && actual.cuerpo && <img className="mail-firma-img" src={arch.firmaUrl} alt="Imagen de tu firma" />}</div>
                   {adjElegidos.length > 0 && <div className="mail-adjuntos">{adjElegidos.map(id => arch.adjuntos.find(a => a.id === id)).filter(Boolean).map(a => <span key={a.id} className="chip"><Paperclip size={11} /> {a.nombre}</span>)}</div>}</div>
               ) : (
                 <div className="preview">
@@ -459,4 +461,20 @@ function NotasEditor({ p, onGuardado }) {
         }} />
     </label>
   )
+}
+
+/** Marca suavemente las frases que usan un dato de la empresa y muestra de dónde salió al pasar el mouse */
+function Resaltado({ texto, frases }) {
+  const lista = (Array.isArray(frases) ? frases : []).filter(f => f.frase && texto.includes(f.frase))
+  if (!lista.length) return texto
+  const partes = []
+  let resto = texto
+  while (resto) {
+    const hit = lista.map(f => ({ f, i: resto.indexOf(f.frase) })).filter(x => x.i >= 0).sort((a, b) => a.i - b.i)[0]
+    if (!hit) { partes.push(resto); break }
+    if (hit.i) partes.push(resto.slice(0, hit.i))
+    partes.push(<mark key={partes.length} className="personalizado" title={`Dato: ${hit.f.dato || '—'}\nDe dónde sale: ${hit.f.fuente || 'ficha de la empresa'}`}>{hit.f.frase}</mark>)
+    resto = resto.slice(hit.i + hit.f.frase.length)
+  }
+  return <>{partes}</>
 }

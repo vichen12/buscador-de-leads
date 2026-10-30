@@ -1272,3 +1272,17 @@ body:has(.barra-envio) .flotante-boton { bottom: 100px; }
 .secuencia-ficha > svg { color: var(--acc); }
 .grilla-ficha-extra { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 900px) { .grilla-ficha-extra { grid-template-columns: 1fr; } }
+.porque { position: relative; display: inline-flex; vertical-align: middle; }
+.porque-boton { border: 0; background: none; color: var(--mut); font-size: 11.5px; cursor: pointer; padding: 1px 4px; border-radius: 6px; display: inline-flex; gap: 3px; align-items: center; }
+.porque-boton:hover { color: var(--acc-ink); background: var(--acc-soft); }
+.porque-panel { position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; width: 280px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sh-lg); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--ink-2); font-weight: 400; text-align: left; white-space: normal; }
+.porque-fila { display: flex; gap: 7px; align-items: flex-start; line-height: 1.4; }
+.porque-fila svg { flex: none; margin-top: 2px; color: #15803d; }
+.porque-fila.contra svg { color: var(--err, #c0262d); }
+.porque-fila.senal svg { color: var(--acc); }
+.hallazgo-senal { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: var(--acc-ink); background: var(--acc-soft); border-radius: 10px; padding: 6px 10px; margin: 4px 0; }
+.hallazgo-decisor { font-size: 12.5px; color: var(--ink-2); }
+mark.personalizado { background: #fff1c2; border-radius: 3px; padding: 0 1px; cursor: help; color: inherit; }
+.lista-duplicados { list-style: none; padding: 0; margin: 0; max-height: 60vh; overflow: auto; }
+.lista-duplicados li { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.lista-duplicados .par { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 260px; }

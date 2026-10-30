@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot, Workflow } from 'lucide-react'
+import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot, Workflow, Merge } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fecha, mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
@@ -10,6 +10,8 @@ import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
 import EnvioMasivo from '../components/EnvioMasivo.jsx'
 import { InscribirEnSecuencia } from './Secuencias.jsx'
+import PorQue from '../components/PorQue.jsx'
+import Duplicados from '../components/Duplicados.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Prospectos() {
@@ -20,6 +22,7 @@ export default function Prospectos() {
   const { refrescar, porRevisar, correo } = useApp()
   const [envio, setEnvio] = useState(null)
   const [inscribir, setInscribir] = useState(null)
+  const [duplicados, setDuplicados] = useState(null) // true = buscar todos; { a, b, ... } = dos elegidas
   const [lista, setLista] = useState([])
   const [cargando, setCargando] = useState(true)
   const [sel, setSel] = useState(new Set())
@@ -154,6 +157,7 @@ export default function Prospectos() {
             <button className={vista === 'pipeline' ? 'activo' : ''} onClick={() => set('vista', 'pipeline')}><Columns3 size={15} /> Pipeline</button>
           </div>
           <Link className="btn" to="/envios"><Send size={16} /> Envío masivo</Link>
+          <button className="btn" onClick={() => setDuplicados(true)}><Merge size={16} /> Unir duplicados</button>
           <button className="btn" onClick={() => exportar()} disabled={!filtrados.length}><Download size={16} /> Descargar Excel</button>
           <button className="btn primario" onClick={() => setNuevo(true)}><Plus size={16} /> Agregar</button>
         </div>
@@ -207,6 +211,7 @@ export default function Prospectos() {
           <button className="btn" onClick={() => setInscribir([...sel])}><Workflow size={16} /> Secuencia</button>
           <Desplegable compacto ariaLabel="Cambiar estado de los seleccionados" value="" placeholder="Cambiar estado" onChange={v => estadoEnLote(v)} anchoMenu={210} opciones={opcionesEstado} />
           <button className="btn" onClick={() => exportar([...sel])}><Download size={16} /> Exportar</button>
+          {sel.size === 2 && <button className="btn" onClick={() => { const [a, b] = lista.filter(p => sel.has(p.id)); setDuplicados({ a: a.id, b: b.id, nombre_a: a.nombre, nombre_b: b.nombre, motivo: 'Elegidas por vos' }) }}><Merge size={16} /> Unir estas dos</button>}
           <span className="espacio" />
           <button className="link" onClick={() => setSel(new Set())}><X size={14} style={{ verticalAlign: -2 }} /> Limpiar</button>
         </div>
@@ -262,6 +267,7 @@ export default function Prospectos() {
                           <Link to={`/prospectos/${p.id}`} className="fuerte nombre-empresa">{p.nombre}</Link>
                           <div className="muted chico">{[p.rubro, p.zona].filter(Boolean).join(' · ')}
                             {p.puntaje > 0 && <> · <span className="puntaje mini" title={`Encaje ${p.puntaje} de 5`}><Star size={10} fill="currentColor" /> {p.puntaje}</span></>}
+                            <PorQue razones={p.razones} senales={p.senales} encaje={p.encaje} />
                             {p.mensajes?.length > 0 && <> · <span style={{ color: 'var(--acc)' }}><Sparkles size={11} style={{ verticalAlign: -1 }} /> borrador</span></>}</div>
                         </div>
                       </div>
@@ -285,6 +291,7 @@ export default function Prospectos() {
           </div>
         </div>
       )}
+      {duplicados && <Duplicados par={duplicados === true ? null : duplicados} onCerrar={() => setDuplicados(null)} onListo={() => { setSel(new Set()); cargar() }} />}
       {inscribir && <InscribirEnSecuencia ids={inscribir} onCerrar={() => setInscribir(null)} onListo={() => { setSel(new Set()); cargar() }} />}
       {envio && <EnvioMasivo prospectos={envio} onCerrar={() => { setEnvio(null); cargar() }} onListo={() => { setSel(new Set()); cargar() }} />}
       {nuevo && <NuevoProspecto onCerrar={() => setNuevo(false)} onCreado={p => { setNuevo(false); toast('Prospecto creado'); nav(`/prospectos/${p.id}`) }} />}
