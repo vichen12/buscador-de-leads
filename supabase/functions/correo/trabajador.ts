@@ -7,6 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { claveServicio } from '../_shared/supabase.ts'
 import { enviarUno, revisarCasilla, ErrorEnvio, explicar } from '../_shared/correo.ts'
 import { cargarContexto, pasoSecuencia, aplicarPlantilla, clasificarRespuesta, type Contexto } from '../_shared/redactar.ts'
+import { resumenSemanal } from '../_shared/resumen.ts'
 
 type Dic = Record<string, any>
 const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
@@ -181,7 +182,13 @@ export async function correrTrabajador() {
   const db = admin()
   const [enviados, pasos] = await Promise.all([procesarCola(db, null, fin), procesarSecuencias(db, fin - 20000)])
   const casillas = await revisarCasillas(db, fin)
-  return { ok: true, enviados, pasos, casillas }
+  // Los lunes a la mañana, una vez por semana y por persona
+  let resumenes = 0
+  if (new Date().getUTCDay() === 1 && Date.now() < fin - 30000) {
+    const { data: u } = await db.from('config_claves').select('valor').eq('nombre', 'url_app').maybeSingle()
+    try { resumenes = await resumenSemanal(db, fin - 10000, String(u?.valor || Deno.env.get('URL_APP') || 'https://web-puce-mu-10.vercel.app').replace(/\/$/, '')) } catch (e) { console.error('resumen', e) }
+  }
+  return { ok: true, enviados, pasos, casillas, resumenes }
 }
 
 /** Una persona destraba sólo su propia cola (el envío masivo lo usa para que el primero salga enseguida) */

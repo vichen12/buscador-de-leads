@@ -103,6 +103,7 @@ export default function Email() {
           <textarea rows={6} value={cfg.estructura} onChange={e => setCfg({ ...cfg, estructura: e.target.value })} placeholder={EJEMPLO_ESTRUCTURA} />
           {!cfg.estructura && <button type="button" className="link chico" onClick={() => setCfg({ ...cfg, estructura: EJEMPLO_ESTRUCTURA })}>Usar este ejemplo y editarlo</button>}
         </div>
+        <label className="check"><input type="checkbox" checked={cfg.resumen_semanal !== false} onChange={e => setCfg({ ...cfg, resumen_semanal: e.target.checked })} /> Mandarme un resumen de la semana los lunes a la mañana (desde mi casilla, a mí mismo)</label>
         <div className="acciones">
           {cfgCambio && <button type="button" className="btn fantasma" onClick={() => setCfg({ tono: '', largo: 'medio', estructura: '', ...(perfil.config_email ?? {}) })}>Descartar</button>}
           <button type="button" className="btn primario" onClick={guardarCfg} disabled={!cfgCambio || guardandoCfg}>{guardandoCfg ? <Loader2 size={15} className="spin" /> : <Save size={15} />} Guardar</button>
