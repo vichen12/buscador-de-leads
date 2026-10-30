@@ -29,7 +29,7 @@ export default function Prospecto() {
   const toast = useToast()
   const confirmar = useConfirmar()
   const { perfil, enviadosHoy, refrescar, servicios, correo, session } = useApp()
-  const arch = useArchivos(correo ? session?.user?.id : null)
+  const arch = useArchivos(session?.user?.id)
   const [adj, setAdj] = useState(null) // ids de archivos a adjuntar; null = lo que eligió Claude
   const [mandando, setMandando] = useState(false)
   const [agenda, setAgenda] = useState(null)
@@ -174,13 +174,21 @@ export default function Prospecto() {
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titulo)}&dates=${f(ini)}/${f(fin)}&details=${encodeURIComponent(detalles)}&location=${encodeURIComponent(p.direccion || p.zona || '')}`
     window.open(url, '_blank', 'noopener')
     await supabase.from('interacciones').insert({ prospecto_id: id, tipo: 'nota', detalle: `Agendado: ${titulo} (${ini.toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })})` })
+    // Agendar una reunión o llamada = hay conversación en curso
+    if (p.estado === 'pendiente' || p.estado === 'contactado') {
+      await supabase.from('prospectos').update({ estado: 'respondio', ultimo_contacto: new Date().toISOString() }).eq('id', id)
+      await supabase.from('interacciones').insert({ prospecto_id: id, tipo: 'cambio_estado', detalle: `${ESTADOS[p.estado].label} → ${ESTADOS.respondio.label}` })
+    }
     await supabase.from('prospectos').update({ proximo_seguimiento: dia }).eq('id', id)
-    setAgenda(null); toast('Abrimos tu Google Calendar con el evento cargado'); cargar()
+    setAgenda(null); toast(`Agendado y pasado a "${ESTADOS.respondio.label}". Se abrió tu Google Calendar con el evento.`); cargar(); refrescar()
   }
 
   async function registrar(tipo, detalle = '') {
+    const antes = p.estado
     const { error } = await supabase.from('interacciones').insert({ prospecto_id: id, tipo, detalle })
     if (error) toast(mensajeError(error), 'error')
+    else if (tipo === 'llamada') toast(antes === 'pendiente' ? 'Llamada registrada: pasó a "Contactado"' : 'Llamada registrada')
+    else if (tipo === 'respuesta') toast('Pasó a "Respondió"')
     await cargar(); refrescar()
   }
 
@@ -310,7 +318,8 @@ export default function Prospecto() {
 
             <div>
               {tab === 'email' ? (
-                <div className="preview-mail"><div className="mail-cab"><span className="muted chico">Para: {p.email || 'sin email'}</span><b>{actual.asunto || 'Sin asunto'}</b></div><div className="mail-cuerpo">{actual.cuerpo || <span className="muted">Vista previa del email</span>}</div></div>
+                <div className="preview-mail"><div className="mail-cab"><span className="muted chico">Para: {p.email || 'sin email'}</span><b>{actual.asunto || 'Sin asunto'}</b></div><div className="mail-cuerpo">{actual.cuerpo || <span className="muted">Vista previa del email</span>}{arch.firmaUrl && actual.cuerpo && <img className="mail-firma-img" src={arch.firmaUrl} alt="Imagen de tu firma" />}</div>
+                  {adjElegidos.length > 0 && <div className="mail-adjuntos">{adjElegidos.map(id => arch.adjuntos.find(a => a.id === id)).filter(Boolean).map(a => <span key={a.id} className="chip"><Paperclip size={11} /> {a.nombre}</span>)}</div>}</div>
               ) : (
                 <div className="preview">
                   <div className="preview-cab"><Avatar nombre={p.nombre} /><div><span>{p.nombre}</span><small>WhatsApp · vista previa</small></div></div>

@@ -136,7 +136,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
                             })}
                           </div>
                         )}
-                        {arch.firma && <small className="muted">Lleva tu firma con imagen al final.</small>}
+                        {arch.firmaUrl && <div className="envio-firma"><small className="muted">Al final va tu firma con imagen:</small><img src={arch.firmaUrl} alt="Imagen de tu firma" /></div>}
                       </div>
                     )}
                     {!ab && it.adjuntos.length > 0 && <div className="envio-adj muted chico"><Paperclip size={11} /> {it.adjuntos.map(nombreArch).filter(Boolean).join(', ')}</div>}
