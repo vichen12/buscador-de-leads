@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { mensajeError } from '../lib/util.js'
 import { Avatar, Cargando, useToast } from '../components/ui.jsx'
+import { SeguridadCuenta } from '../components/Seguridad.jsx'
 
 const CAMPOS = ['nombre', 'estudio', 'firma', 'email_contacto', 'portfolio_url', 'limite_diario', 'dias_seguimiento', 'instrucciones_ia']
 const IDEAS_IA = ['Tuteá siempre', 'No hables de precios en el primer mensaje', 'Mencioná que respondemos en el día', 'Mensajes bien cortos', 'Ofrecé una visita o llamada sin compromiso']
@@ -131,6 +132,8 @@ export default function Cuenta() {
             <div><Globe size={13} /> Zona horaria: {f.zona_horaria}</div>
           </div>
         </section>
+
+        <SeguridadCuenta session={session} perfil={perfil} />
       </div>
 
       {cambios && (

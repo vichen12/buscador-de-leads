@@ -26,6 +26,7 @@ import Secuencias from './pages/Secuencias.jsx'
 import Equipo from './pages/Equipo.jsx'
 import Reportes from './pages/Reportes.jsx'
 import Clientes from './pages/Clientes.jsx'
+import { NuevaClave, DosPasos } from './components/Seguridad.jsx'
 import TableroB2C from './pages/TableroB2C.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
@@ -60,6 +61,8 @@ function Raiz() {
 
 function Privada() {
   const [session, setSession] = useState(undefined)
+  const [recuperando, setRecuperando] = useState(() => /type=recovery/.test(window.location.hash))
+  const [nivel, setNivel] = useState(null) // verificación en dos pasos: null = revisando, 'ok' o 'falta'
   const [perfil, setPerfil] = useState(null)
   const [tablero, setTablero] = useState(null)
   const [servicios, setServicios] = useState({ ia: null, places: null })
@@ -72,7 +75,7 @@ function Privada() {
   useEffect(() => {
     if (!configurado) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data } = supabase.auth.onAuthStateChange((e, s) => { setSession(s); if (e === 'PASSWORD_RECOVERY') setRecuperando(true) })
     return () => data.subscription.unsubscribe()
   }, [])
 
@@ -97,6 +100,11 @@ function Privada() {
     llamarFuncion('generar-mensajes', { modo: 'estado' }).then(setServicios).catch(() => setServicios({ ia: false, places: false })), [])
 
   useEffect(() => { refrescar() }, [refrescar])
+  // Si la cuenta tiene verificación en dos pasos y esta sesión todavía no la pasó, se pide el código
+  useEffect(() => {
+    if (!session) return
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => setNivel(data?.nextLevel === 'aal2' && data?.currentLevel !== 'aal2' ? 'falta' : 'ok')).catch(() => setNivel('ok'))
+  }, [session?.access_token])
   useEffect(() => {
     if (!session) return
     refrescarServicios()
@@ -105,6 +113,9 @@ function Privada() {
   if (!configurado) return <SinConfigurar />
   if (session === undefined) return <div className="centro-pantalla"><Cargando /></div>
   if (!session) return <Login />
+  if (recuperando) return <NuevaClave onListo={() => { setRecuperando(false); window.history.replaceState(null, '', '/') }} />
+  if (nivel === null) return <div className="centro-pantalla"><Cargando /></div>
+  if (nivel === 'falta') return <DosPasos onListo={() => setNivel('ok')} />
 
   if (!acceso) return <div className="centro-pantalla"><Cargando /></div>
   if (acceso.habilitado === false) return <Suspendido acceso={acceso} email={session.user.email} />

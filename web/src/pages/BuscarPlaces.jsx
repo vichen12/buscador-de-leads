@@ -38,6 +38,9 @@ export default function BuscarPlaces() {
   const nav = useNavigate()
   const { servicios, refrescar, perfil, comercial } = useApp()
   const [brief, setBrief] = useState(null)
+  const [cupo, setCupo] = useState(null)
+  useEffect(() => { if (brief) supabase.rpc('mi_cupo_chat').then(({ data }) => setCupo(data ?? null)) }, [brief])
+  const quedan = cupo ? Math.max(0, cupo.limite - cupo.usados) : null
   const [entendiendo, setEntendiendo] = useState(false)
   const [ocupados, setOcupados] = useState(new Set())
   const est = comercial?.estrategia?.rubros?.length ? comercial.estrategia : null
@@ -199,7 +202,8 @@ export default function BuscarPlaces() {
             <span className="muted chico"><MapPin size={12} style={{ verticalAlign: -2 }} /> {zona} · hasta {cantidad} empresas · no trae las que ya tenés ni las que descartaste</span>
             <span className="espacio" />
             <button className="btn fantasma" onClick={() => { setBrief(null); rubroRef.current?.focus() }}>Cambiar el pedido</button>
-            <button className="btn ia" onClick={buscar} disabled={!brief.interpretacion.trim()}><Search size={16} /> Buscar así</button>
+            {quedan !== null && <span className={'chico ' + (quedan <= Math.ceil(cupo.limite * 0.2) ? 'texto-alerta' : 'muted')} title="Cada búsqueda usa una consulta de IA de tu cupo diario">{quedan === 0 ? 'No te quedan consultas de IA hoy' : `Usa 1 consulta de IA · te quedan ${quedan} hoy`}</span>}
+            <button className="btn ia" onClick={buscar} disabled={!brief.interpretacion.trim() || quedan === 0}><Search size={16} /> Buscar así</button>
           </div>
         </section>
       )}

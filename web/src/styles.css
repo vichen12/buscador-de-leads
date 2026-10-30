@@ -1436,3 +1436,8 @@ mark.personalizado { background: #fff1c2; border-radius: 3px; padding: 0 1px; cu
 .aviso-legal svg { color: #7c3aed; flex: none; margin-top: 1px; }
 label.check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
 label.check > input { width: auto; margin: 0; accent-color: var(--acc); }
+.fila-ajuste { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.fila-ajuste:last-of-type { border-bottom: 0; }
+.lista-actividad { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+.lista-actividad li { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.texto-alerta { color: var(--warn); font-weight: 600; }

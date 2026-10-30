@@ -20,6 +20,27 @@ Deno.serve(async req => {
   const { data: esAdmin } = await usuario.supabase.rpc('es_admin')
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   const body = await req.json().catch(() => ({}))
+
+  // Cualquier persona puede borrar SU cuenta (con todos sus datos), confirmando con su email
+  if (body.modo === 'borrar_mi_cuenta') {
+    const yo = usuario.user
+    if (String(body.confirmar ?? '').trim().toLowerCase() !== String(yo.email ?? '').toLowerCase()) return json({ error: 'Para confirmar, escribí tu email tal cual.' }, 400)
+    const { data: p } = await admin.from('perfiles').select('rol, empresa_id, es_admin').eq('id', yo.id).maybeSingle()
+    if (p?.es_admin) return json({ error: 'La cuenta de super admin no se borra desde acá.' }, 400)
+    if (p?.empresa_id && p.rol === 'admin') {
+      const { count: otrosAdmins } = await admin.from('perfiles').select('id', { count: 'exact', head: true }).eq('empresa_id', p.empresa_id).eq('rol', 'admin').eq('activo', true).neq('id', yo.id)
+      const { count: otros } = await admin.from('perfiles').select('id', { count: 'exact', head: true }).eq('empresa_id', p.empresa_id).eq('activo', true).neq('id', yo.id)
+      if ((otros ?? 0) > 0 && !(otrosAdmins ?? 0)) return json({ error: 'Sos el único admin de tu empresa: primero dale el rol de admin a otra persona del equipo en Equipo.' }, 400)
+    }
+    await admin.rpc('correo_borrar', { p_owner: yo.id }).then(() => {}, () => {})
+    // Archivos subidos (firma, adjuntos)
+    const { data: archivos } = await admin.from('archivos').select('path').eq('owner_id', yo.id)
+    if (archivos?.length) await admin.storage.from('archivos').remove(archivos.map((a: { path: string }) => a.path)).then(() => {}, () => {})
+    await admin.from('auditoria').insert({ owner_id: null, tenant_id: p?.empresa_id ?? null, accion: 'cuenta_borrada', detalle: yo.email ?? '' })
+    const { error } = await admin.auth.admin.deleteUser(yo.id)
+    if (error) return json({ error: 'No se pudo borrar la cuenta: ' + error.message }, 500)
+    return json({ ok: true })
+  }
   // Admin de una empresa cliente: sólo gestiona su propio equipo
   let empresaPropia: string | null = null
   if (!esAdmin) {

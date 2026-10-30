@@ -10,7 +10,16 @@ export default function Login() {
   const [ver, setVer] = useState(false)
   const [msg, setMsg] = useState('')
   const [cargando, setCargando] = useState(false)
-  const [olvido, setOlvido] = useState(false)
+  const [mandado, setMandado] = useState(false)
+
+  async function recuperar() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setMsg('Escribí tu email arriba y volvé a tocar "¿Olvidaste tu contraseña?".'); return }
+    setCargando(true); setMsg('')
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin + '/' })
+    setCargando(false)
+    if (error) setMsg(/rate|seconds/i.test(error.message) ? 'Ya te mandamos un mail hace un ratito. Esperá un minuto y probá de nuevo.' : error.message)
+    else setMandado(true)
+  }
 
   async function enviar(e) {
     e.preventDefault()
@@ -53,9 +62,9 @@ export default function Login() {
             {cargando ? <Loader2 size={16} className="spin" /> : null} Entrar {!cargando && <ArrowRight size={16} />}
           </button>
           <div className="alternar">
-            {olvido
-              ? <span>Pedile al administrador que te genere una contraseña nueva desde su panel.</span>
-              : <button type="button" className="link" onClick={() => setOlvido(true)}>¿Olvidaste tu contraseña?</button>}
+            {mandado
+              ? <span>Te mandamos un mail a <b>{email.trim()}</b> con un link para elegir una contraseña nueva. Revisá también en spam.</span>
+              : <button type="button" className="link" onClick={recuperar} disabled={cargando}>¿Olvidaste tu contraseña?</button>}
           </div>
           <p className="login-pie">¿No tenés cuenta? Las cuentas las crea el administrador de tu empresa.<br /><Link to="/terminos">Términos de uso</Link> · <Link to="/privacidad">Privacidad</Link></p>
         </form>
