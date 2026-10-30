@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, Inbox, Mail } from 'lucide-react'
+import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, Inbox, Mail, Send } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { Avatar, useToast } from './ui.jsx'
@@ -30,6 +30,7 @@ export default function Layout({ children }) {
   const trabajo = [
     ['/', 'Tablero', LayoutDashboard],
     ['/prospectos', 'Para contactar', Users],
+    ['/envios', 'Envío masivo', Send],
     ['/seguimientos', 'Seguimientos', CalendarClock, vencidos],
     ['/asistente', 'Asistente IA', Bot],
   ]

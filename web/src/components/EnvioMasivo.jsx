@@ -88,7 +88,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
           <div>
             <h2><Mail size={19} /> Enviar emails personalizados</h2>
             <p className="muted">{fase === 'preparando' ? 'Claude escribe un email distinto para cada empresa, con tu negocio, tu firma y los archivos que sumen.'
-              : fase === 'listo' ? `Listo: ${ok} enviados${fallaron ? `, ${fallaron} con problemas` : ''}. Quedan registrados y con seguimiento agendado.`
+              : fase === 'listo' ? `Listo: ${ok} enviados${fallaron ? `, ${fallaron} con problemas` : ''}. Están en tu carpeta Enviados y quedan registrados con el seguimiento agendado.`
                 : `Salen desde ${correo?.email}. Revisalos y tocá enviar: cada uno es distinto.`}</p>
           </div>
           <button className="btn fantasma chico" onClick={onCerrar} disabled={fase === 'enviando'} aria-label="Cerrar"><X size={17} /></button>

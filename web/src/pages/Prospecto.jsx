@@ -157,8 +157,8 @@ export default function Prospecto() {
     if (!(await confirmar({ titulo: `¿Enviar el email a ${p.email}?`, texto: `Sale desde ${correo.email} con el asunto "${m.asunto || 'Hola'}"${tab === 'email' && adjElegidos.length ? ` y ${adjElegidos.length === 1 ? '1 archivo adjunto' : adjElegidos.length + ' archivos adjuntos'}` : ''}. Queda registrado y se agenda el seguimiento.`, aceptar: 'Enviar' }))) return
     setMandando(true)
     try {
-      await llamarFuncion('correo', { modo: 'enviar', mensaje_id: m.id, adjuntos: tab === 'email' ? adjElegidos.filter(id => arch.adjuntos.some(a => a.id === id)) : [] })
-      toast(`Email enviado a ${p.email}`)
+      const r = await llamarFuncion('correo', { modo: 'enviar', mensaje_id: m.id, adjuntos: tab === 'email' ? adjElegidos.filter(id => arch.adjuntos.some(a => a.id === id)) : [] })
+      toast(`Email enviado a ${p.email}${r.en_enviados ? '. Lo vas a ver en tu carpeta Enviados' : ''}`)
       await Promise.all([cargar(), refrescar()])
     } catch (e) { setAviso(mensajeError(e)) }
     setMandando(false)

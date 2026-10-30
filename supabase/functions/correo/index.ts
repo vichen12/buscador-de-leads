@@ -114,14 +114,31 @@ function armarMail(o: { de: string, nombre: string, para: string, asunto: string
     `--${bMix}--`, ''].join('\r\n')
 }
 async function enviarMail(cfg: Dic, clave: string, para: string, asunto: string, cuerpo: string, extra: { firma?: Archivo | null, adjuntos?: Archivo[] } = {}) {
+  const msg = armarMail({ de: cfg.email, nombre: cfg.nombre_remitente, para, asunto, cuerpo, ...extra })
   await smtpSesion(cfg, clave, async l => {
     await smtpCmd(l, `MAIL FROM:<${cfg.email}>`, [250])
     await smtpCmd(l, `RCPT TO:<${para}>`, [250, 251])
     await smtpCmd(l, 'DATA', [354])
-    const msg = armarMail({ de: cfg.email, nombre: cfg.nombre_remitente, para, asunto, cuerpo, ...extra }).replace(/\r\n\./g, '\r\n..')
-    await l.escribir(msg + '\r\n.\r\n')
+    await l.escribir(msg.replace(/\r\n\./g, '\r\n..') + '\r\n.\r\n')
     const r = await smtpRespuesta(l); if (r.codigo !== 250) throw new Error(`SMTP ${r.codigo}: ${r.texto.slice(0, 200)}`)
   })
+  return msg
+}
+
+/** Guarda una copia en la carpeta Enviados (Gmail lo hace solo; Private Email, Zoho, Hostinger, etc. no) */
+async function guardarEnEnviados(cfg: Dic, clave: string, msg: string) {
+  if (/gmail/i.test(cfg.smtp_host ?? '') || !cfg.imap_host) return
+  const im = await Imap.abrir(cfg, clave)
+  try {
+    const lista = await im.cmd('LIST "" "*"')
+    const carpetas = lista.map(l => {
+      const m = l.match(/^\* LIST \(([^)]*)\) (?:"[^"]*"|NIL) (.+)$/i)
+      return m ? { flags: m[1], nombre: m[2].trim().replace(/^"|"$/g, '') } : null
+    }).filter(Boolean) as { flags: string, nombre: string }[]
+    const enviados = carpetas.find(c => /\\Sent/i.test(c.flags))?.nombre
+      ?? carpetas.find(c => /(^|[./])(sent|sent items|sent messages|enviados|elementos enviados)$/i.test(c.nombre))?.nombre ?? 'Sent'
+    await im.append(enviados, msg)
+  } finally { im.cerrar() }
 }
 
 /** Firma con imagen y adjuntos elegidos, leídos del storage (sólo los del propio usuario) */
@@ -167,6 +184,18 @@ class Imap {
         return out
       }
       out.push(linea)
+    }
+  }
+  async append(carpeta: string, msg: string) {
+    const tag = 'a' + (++this.n)
+    const bytes = enc.encode(msg)
+    await this.l.escribir(`${tag} APPEND "${carpeta.replace(/"/g, '\\"')}" (\\Seen) {${bytes.length}}\r\n`)
+    const cont = await this.l.linea()
+    if (!cont.startsWith('+')) throw new Error('IMAP APPEND: ' + cont.slice(0, 160))
+    await this.l.escribir(msg + '\r\n')
+    while (true) {
+      const linea = await this.l.linea()
+      if (linea.startsWith(tag + ' ')) { if (!/^\S+ OK/i.test(linea)) throw new Error('IMAP APPEND: ' + linea.slice(0, 160)); return }
     }
   }
   cerrar() { this.cmd('LOGOUT').catch(() => {}).finally(() => this.l.cerrar()) }
@@ -276,14 +305,15 @@ Deno.serve(async req => {
     return json({ ok: true, conexion: sinSecreto(listo), aviso: avisoImap })
   }
 
-  if (!cfg) return json({ error: 'Todavía no conectaste tu email. Hacelo en Conexiones.', codigo: 'SIN_CORREO' }, 400)
+  if (!cfg) return json({ error: 'Todavía no conectaste tu email. Hacelo en Email.', codigo: 'SIN_CORREO' }, 400)
   const { data: clave } = await db.rpc('correo_leer_secreto', { p_owner: user.id })
   if (!clave) return json({ error: 'Falta la contraseña del email: volvé a conectarlo.', codigo: 'SIN_CORREO' }, 400)
 
   if (modo === 'probar') {
     try {
       const { firma } = await archivosDe(db, user.id, [])
-      await enviarMail(cfg, clave, cfg.email, 'Prueba de Prospecta ✓', `¡Hola!\n\nSi te llegó este mail, tu cuenta ${cfg.email} quedó conectada a Prospecta y ya podés enviar emails a tus prospectos desde la app.${firma ? '\n\nAbajo vas a ver tu firma tal como la reciben tus clientes.' : ''}\n\nProspecta`, { firma })
+      const copia = await enviarMail(cfg, clave, cfg.email, 'Prueba de Prospecta ✓', `¡Hola!\n\nSi te llegó este mail, tu cuenta ${cfg.email} quedó conectada a Prospecta y ya podés enviar emails a tus prospectos desde la app.${firma ? '\n\nAbajo vas a ver tu firma tal como la reciben tus clientes.' : ''}\n\nProspecta`, { firma })
+      try { await guardarEnEnviados(cfg, clave, copia) } catch (e) { console.error('copia en Enviados', e) }
       return json({ ok: true })
     } catch (e) { return json({ error: explicar(e, cfg) }, 400) }
   }
@@ -307,11 +337,14 @@ Deno.serve(async req => {
     const ids: string[] = Array.isArray(body.adjuntos) ? body.adjuntos.map(String) : (m.adjuntos ?? [])
     const extra = await archivosDe(db, user.id, ids)
     if (Array.isArray(body.adjuntos)) await supabase.from('mensajes').update({ adjuntos: ids }).eq('id', m.id)
-    try { await enviarMail(remitente, clave, para, m.asunto || 'Hola', m.cuerpo, extra) }
+    let copia = ''
+    try { copia = await enviarMail(remitente, clave, para, m.asunto || 'Hola', m.cuerpo, extra) }
     catch (e) { return json({ error: 'No se pudo enviar: ' + explicar(e, cfg) }, 502) }
-    const { error } = await supabase.from('interacciones').insert({ prospecto_id: p.id, mensaje_id: m.id, tipo: 'enviado', canal: 'email', detalle: `Email enviado desde ${cfg.email}${extra.adjuntos.length ? ` con ${extra.adjuntos.map(a => a.nombre).join(', ')}` : ''}` })
+    let enEnviados = true
+    try { await guardarEnEnviados(cfg, clave, copia) } catch (e) { enEnviados = false; console.error('copia en Enviados', e) }
+    const { error } = await supabase.from('interacciones').insert({ prospecto_id: p.id, mensaje_id: m.id, tipo: 'enviado', canal: 'email', detalle: `Email enviado desde ${cfg.email} a ${para}${extra.adjuntos.length ? ` con ${extra.adjuntos.map(a => a.nombre).join(', ')}` : ''}` })
     if (error) console.error('registrar envío', error)
-    return json({ ok: true, para })
+    return json({ ok: true, para, en_enviados: enEnviados })
   }
 
   if (modo === 'revisar') {

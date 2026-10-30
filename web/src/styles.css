@@ -1079,3 +1079,33 @@ body:has(.barra-guardar, .barra-armar) .flotante-panel { bottom: 166px; height: 
 .mail-adjuntos { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); }
 .envio-firma { margin-top: 8px; }
 .envio-firma img { display: block; max-width: 100%; max-height: 110px; margin-top: 6px; object-fit: contain; object-position: left; }
+
+/* ---------- Envío masivo ---------- */
+.envios-sin-correo { display: flex; align-items: center; gap: 16px; border-color: #ffd6c8; background: var(--acc-soft); }
+.envios-sin-correo > svg { color: var(--acc); flex-shrink: 0; }
+.envios-sin-correo h3 { margin: 0 0 2px; }
+.envios-sin-correo p { margin: 0; }
+.envios-config { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 10px 16px; background: #f8f6f2; border-radius: 14px; margin-bottom: 16px; font-size: 13px; }
+.envios-config > * { display: inline-flex; align-items: center; gap: 6px; }
+.envios-config a { color: var(--ink-2); font-weight: 500; }
+.envios-config a:hover { color: var(--acc-ink); }
+.calif-filtro { display: inline-flex; padding: 3px; background: #f3efe8; border-radius: 10px; gap: 2px; }
+.calif-filtro button { display: inline-flex; align-items: center; gap: 1px; border: 0; background: none; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; cursor: pointer; color: var(--mut); font-weight: 500; }
+.calif-filtro button svg { color: var(--acc); }
+.calif-filtro button.on { background: #fff; color: var(--ink); box-shadow: var(--sh-md); }
+.envios-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: #faf8f4; }
+.envio-fila { display: grid; grid-template-columns: auto auto minmax(180px, 1.4fr) minmax(160px, 1fr) auto auto 110px; align-items: center; gap: 14px; padding: 11px 18px; border-bottom: 1px solid var(--line); margin: 0; cursor: pointer; font-weight: 400; transition: background .12s; }
+.envio-fila:last-child { border-bottom: 0; }
+.envio-fila:hover { background: #faf8f4; }
+.envio-fila.sel { background: #fff4ef; }
+.envio-fila.sin-email { opacity: .55; cursor: default; }
+.envio-fila .avatar { width: 34px; height: 34px; border-radius: 10px; }
+.envio-fila-txt { min-width: 0; } .envio-fila-txt b { display: block; font-size: 14px; color: var(--ink); } .envio-fila-txt small { font-size: 12px; }
+.envio-fila-email { font-size: 13px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.envio-fila-fecha { font-size: 12px; text-align: right; }
+.barra-envio { position: sticky; bottom: 16px; display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px 12px 20px; background: #1b1b1f; color: #fff; border-radius: 16px; box-shadow: var(--sh-lg); z-index: 20; animation: subir .3s var(--ease); flex-wrap: wrap; }
+.barra-envio b { display: block; font-size: 15px; } .barra-envio small { font-size: 12.5px; } .barra-envio .muted { color: #b9b4ab; }
+.barra-envio .btn.fantasma { color: #fff; }
+.btn.grande { padding: 11px 18px; font-size: 14.5px; }
+body:has(.barra-envio) .flotante-boton { bottom: 100px; }
+@media (max-width: 1000px) { .envio-fila { grid-template-columns: auto auto 1fr auto; } .envio-fila-email, .envio-fila-fecha, .envio-fila .llamas { display: none; } }

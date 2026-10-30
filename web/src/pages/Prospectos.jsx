@@ -128,6 +128,7 @@ export default function Prospectos() {
             <button className={vista === 'lista' ? 'activo' : ''} onClick={() => set('vista', '')}><List size={15} /> Tabla</button>
             <button className={vista === 'pipeline' ? 'activo' : ''} onClick={() => set('vista', 'pipeline')}><Columns3 size={15} /> Pipeline</button>
           </div>
+          <Link className="btn" to="/envios"><Send size={16} /> Envío masivo</Link>
           <button className="btn" onClick={exportar} disabled={!filtrados.length}><Download size={16} /> Descargar Excel</button>
           <button className="btn primario" onClick={() => setNuevo(true)}><Plus size={16} /> Agregar</button>
         </div>
