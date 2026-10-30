@@ -1,7 +1,7 @@
 -- Firma con imagen y archivos para adjuntar en los emails (catálogo, presentación, lista de precios…).
 -- Cada archivo tiene una descripción: Claude la lee para decidir cuándo adjuntarlo y mencionarlo.
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('archivos', 'archivos', false, 10485760)
+values ('archivos', 'archivos', false, 20971520)
 on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 -- Cada usuario sólo toca su carpeta: archivos/<su id>/...

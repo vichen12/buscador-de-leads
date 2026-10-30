@@ -54,7 +54,7 @@ ${p.encaje ? `- Por qué es buen prospecto: ${p.encaje}` : ''}
 - Notas del vendedor: ${p.notas || '—'}
 
 Quien escribe: ${perfil.nombre || '[tu nombre]'}, de ${(COMERCIAL?.respuestas as Dic)?.empresa || perfil.estudio || '[tu empresa]'}${COMERCIAL ? `. Qué ofrecemos: ${oferta()}${(COMERCIAL.respuestas as Dic)?.diferencial ? `. Diferencial: ${(COMERCIAL.respuestas as Dic).diferencial}` : ''}` : ' (estudio de diseño web de Mendoza)'}.
-${FIRMA_IMAGEN ? `Firma: el email ya lleva al final la firma con logo y datos de contacto (como imagen). Cerrá sólo con un saludo y tu nombre, sin repetir teléfono, web ni cargo.` : `Firma de email: ${perfil.firma || perfil.nombre || ''}`}${textoAdjuntos()}
+Firma de email (cerrá el email con esta firma, tal cual): ${perfil.firma || perfil.nombre || ''}${FIRMA_IMAGEN ? `\nDebajo de la firma el email lleva sola una imagen (logo): no la menciones.` : ''}${textoAdjuntos()}
 ${perfil.portfolio_url ? `Portfolio (mencionalo sólo si suma): ${perfil.portfolio_url}` : ''}
 ${perfil.instrucciones_ia ? `Indicaciones del usuario para todos sus mensajes: ${perfil.instrucciones_ia}` : ''}`
 }

@@ -939,12 +939,17 @@ tr:hover .desplegable.estado-celda .chev { opacity: 1; }
 .uso-ia small { display: block; margin-top: 6px; }
 
 /* ---------- Proveedor de correo ---------- */
-.proveedores { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 4px 0 16px; }
-.proveedor { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 10px 13px; border: 1.5px solid var(--line-2); border-radius: 12px; background: #fff; cursor: pointer; text-align: left; transition: border-color .15s, background .15s, box-shadow .15s; }
-.proveedor b { font-size: 14px; }
-.proveedor small { font-size: 11.5px; color: var(--mut); }
-.proveedor:hover { border-color: #cfc8bc; }
-.proveedor.on { border-color: var(--acc); background: var(--acc-soft); box-shadow: 0 0 0 3px rgba(253,74,34,.10); }
+.proveedores-titulo { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 6px 0 10px; }
+.proveedores { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin: 0 0 18px; }
+.proveedor { position: relative; display: flex; align-items: center; gap: 11px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; cursor: pointer; text-align: left; color: var(--ink); box-shadow: var(--sh); transition: border-color .18s, box-shadow .18s, transform .18s var(--ease), background .18s; }
+.proveedor:hover { border-color: #d6cfc3; box-shadow: var(--sh-md); transform: translateY(-1px); }
+.proveedor.on { border-color: var(--acc); background: linear-gradient(180deg, #fff 0%, #fff7f3 100%); box-shadow: 0 0 0 4px rgba(253,74,34,.10), var(--sh-md); }
+.proveedor-marca { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; font-family: Archivo, Inter, sans-serif; font-weight: 800; font-size: 16px; color: var(--marca); background: color-mix(in srgb, var(--marca) 12%, #fff); border: 1px solid color-mix(in srgb, var(--marca) 22%, #fff); }
+.proveedor-txt { display: flex; flex-direction: column; min-width: 0; }
+.proveedor-txt b { font-size: 14px; line-height: 1.25; }
+.proveedor-txt small { font-size: 11.5px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proveedor-tilde { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; border-radius: 99px; display: grid; place-items: center; background: var(--acc); color: #fff; opacity: 0; transform: scale(.6); transition: opacity .18s, transform .18s var(--ease); }
+.proveedor.on .proveedor-tilde { opacity: 1; transform: scale(1); }
 
 /* ---------- Firma con imagen y adjuntos ---------- */
 .subir-caja { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border: 1.5px dashed var(--line-2); border-radius: 14px; background: #fcfbf9; cursor: pointer; text-align: left; color: var(--ink); transition: border-color .15s, background .15s; }
@@ -975,3 +980,43 @@ tr:hover .desplegable.estado-celda .chev { opacity: 1; }
 .chip-adj { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1.5px solid var(--line-2); border-radius: 99px; background: #fff; font-size: 13px; cursor: pointer; color: var(--ink-2); transition: border-color .15s, background .15s; }
 .chip-adj.on { border-color: var(--acc); background: var(--acc-soft); color: var(--acc-ink); font-weight: 600; }
 .chip-adj .muted { font-weight: 400; font-size: 11.5px; }
+.campo-pass input { padding-right: 46px; width: 100%; }
+
+/* ---------- Editor de firma y adjuntar en el email ---------- */
+.editor-firma { margin-top: 6px; border: 1px solid var(--line-2); border-radius: 12px; background: #fff; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.editor-firma:focus-within { border-color: var(--acc-2); box-shadow: 0 0 0 4px rgba(253,74,34,.10); }
+.editor-firma textarea { border: 0; border-radius: 0; box-shadow: none !important; resize: vertical; margin: 0; }
+.editor-firma-img { position: relative; margin: 0 12px 8px; display: inline-block; }
+.editor-firma-img img { display: block; max-width: 100%; max-height: 90px; border-radius: 6px; }
+.editor-firma-img .quitar { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 99px; border: 1px solid var(--line-2); background: #fff; display: grid; place-items: center; cursor: pointer; color: var(--ink-2); box-shadow: var(--sh-md); }
+.editor-firma-img .quitar:hover { color: var(--err); }
+.editor-firma-barra { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-top: 1px solid var(--line); background: #fcfbf9; font-size: 12px; }
+.adjuntar-bloque { display: grid; gap: 8px; margin: 0 0 12px; }
+.adjuntar-titulo { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--ink-2); font-size: 12.5px; }
+.chip-adj { display: inline-flex; align-items: center; border: 1.5px solid var(--line-2); border-radius: 99px; background: #fff; overflow: hidden; padding: 0; }
+.chip-adj > button:first-child { display: inline-flex; align-items: center; gap: 6px; padding: 6px 4px 6px 11px; border: 0; background: none; font-size: 13px; cursor: pointer; color: inherit; }
+.chip-adj-x { border: 0; background: none; padding: 6px 9px 6px 5px; cursor: pointer; color: var(--mut); display: grid; place-items: center; }
+.chip-adj-x:hover { color: var(--err); }
+.chip-subir { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1.5px dashed var(--line-2); border-radius: 99px; background: #fcfbf9; font-size: 13px; cursor: pointer; color: var(--ink-2); }
+.chip-subir:hover { border-color: var(--acc-2); color: var(--acc-ink); background: var(--acc-soft); }
+.adjuntar-nuevo { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #ffc9b8; background: #fffbf9; border-radius: 12px; flex-wrap: wrap; }
+.adjuntar-nuevo > svg { color: var(--acc); }
+.adjuntar-nuevo input { margin-top: 6px; font-size: 13px; padding: 7px 10px; }
+
+/* ---------- Vista previa del email ---------- */
+.mail-vista { border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--sh-md); overflow: hidden; }
+.mail-vista-cab { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: #fbfaf8; }
+.mail-vista-avatar { width: 32px; height: 32px; border-radius: 99px; display: grid; place-items: center; background: var(--grad); color: #fff; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.mail-vista-cab b { display: block; font-size: 13px; }
+.mail-vista-cab b span { font-weight: 500; color: var(--mut); }
+.mail-vista-cab small { display: block; font-size: 11.5px; color: var(--mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-vista-asunto { padding: 10px 14px 0; font-weight: 700; font-size: 14px; font-family: Archivo, Inter, sans-serif; }
+.mail-vista-cuerpo { padding: 8px 14px 16px; font: 13px/1.55 Arial, Helvetica, sans-serif; color: #222; }
+.mail-vista-cuerpo p { margin: 0 0 8px; }
+.mail-vista-gris { color: #9a948a; }
+.mail-vista-firma { white-space: pre-wrap; color: #222; }
+.mail-vista-cuerpo img { display: block; max-width: 100%; max-height: 120px; margin-top: 10px; object-fit: contain; object-position: left; }
+/* Si hay una barra de "Guardar cambios" abajo, el botón de Claude sube para no taparla */
+body:has(.barra-guardar, .barra-armar) .flotante-boton { bottom: 100px; }
+.barra-guardar, .barra-armar { scroll-margin-bottom: 90px; }
+body:has(.barra-guardar, .barra-armar) .flotante-panel { bottom: 166px; height: min(620px, calc(100vh - 200px)); }

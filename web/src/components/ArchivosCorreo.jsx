@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
-import { ImagePlus, Paperclip, Trash2, Loader2, FileText, FileImage, File, Upload, Check } from 'lucide-react'
+import { ImagePlus, Paperclip, Trash2, Loader2, FileText, FileImage, File, Upload, Check, X } from 'lucide-react'
 import { tamanoLegible, MAX_MB } from '../lib/archivos.js'
 import { mensajeError } from '../lib/util.js'
 import { useToast } from './ui.jsx'
 
 const icono = mime => /^image\//.test(mime) ? FileImage : /pdf|word|text|sheet|presentation/.test(mime) ? FileText : File
 
-/** Subir / cambiar la imagen de la firma (logo, banner con datos) */
-export function FirmaImagen({ arch }) {
+/** Firma de email: texto + una imagen al final (logo, banner), todo en el mismo cuadro */
+export function EditorFirma({ arch, valor, onChange, placeholder }) {
   const toast = useToast()
   const input = useRef(null)
   const [subiendo, setSubiendo] = useState(false)
@@ -15,25 +15,75 @@ export function FirmaImagen({ arch }) {
     const a = e.target.files?.[0]; e.target.value = ''
     if (!a) return
     setSubiendo(true)
-    try { await arch.subir(a, 'firma'); toast('Firma con imagen guardada: va al final de cada email') } catch (err) { toast(mensajeError(err), 'error') }
+    try { await arch.subir(a, 'firma'); toast('Imagen agregada al final de tu firma') } catch (err) { toast(mensajeError(err), 'error') }
     setSubiendo(false)
   }
   return (
-    <div className="firma-imagen">
-      <input ref={input} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={elegir} />
-      {arch.firma ? (
-        <div className="firma-imagen-cargada">
-          {arch.firmaUrl ? <img src={arch.firmaUrl} alt="Tu firma" /> : <FileImage size={22} />}
-          <div><b>{arch.firma.nombre}</b><small>{tamanoLegible(arch.firma.tamano)} · va abajo de cada email</small></div>
-          <span className="espacio" />
-          <button type="button" className="btn chico" onClick={() => input.current?.click()} disabled={subiendo}>{subiendo ? <Loader2 size={14} className="spin" /> : <Upload size={14} />} Cambiar</button>
-          <button type="button" className="btn chico fantasma peligro" onClick={async () => { try { await arch.borrar(arch.firma); toast('Firma con imagen quitada') } catch (err) { toast(mensajeError(err), 'error') } }} aria-label="Quitar la imagen de la firma"><Trash2 size={14} /></button>
+    <div className="editor-firma">
+      <textarea rows={4} value={valor} onChange={onChange} placeholder={placeholder} aria-label="Firma de email" />
+      {arch.firma && (
+        <div className="editor-firma-img">
+          {arch.firmaUrl ? <img src={arch.firmaUrl} alt="Imagen de tu firma" /> : <FileImage size={20} />}
+          <button type="button" className="quitar" aria-label="Quitar la imagen" title="Quitar la imagen"
+            onClick={async () => { try { await arch.borrar(arch.firma); toast('Imagen quitada de la firma') } catch (err) { toast(mensajeError(err), 'error') } }}><X size={13} /></button>
         </div>
-      ) : (
-        <button type="button" className="subir-caja" onClick={() => input.current?.click()} disabled={subiendo}>
-          {subiendo ? <Loader2 size={20} className="spin" /> : <ImagePlus size={20} />}
-          <span><b>Subí tu firma con imagen</b><small>Tu logo o la firma que usás en el mail (PNG o JPG). Se agrega sola al final de cada email.</small></span>
+      )}
+      <div className="editor-firma-barra">
+        <input ref={input} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={elegir} />
+        <button type="button" className="btn chico fantasma" onClick={() => input.current?.click()} disabled={subiendo}>
+          {subiendo ? <Loader2 size={14} className="spin" /> : <ImagePlus size={14} />} {arch.firma ? 'Cambiar imagen' : 'Agregar imagen al final'}
         </button>
+        <span className="muted">Logo o firma en PNG/JPG</span>
+      </div>
+    </div>
+  )
+}
+
+/** Adjuntar desde donde escribís el email: elegís archivos ya subidos o subís uno nuevo (PDF, brochure…) */
+export function AdjuntarEnEmail({ arch, elegidos, onAlternar, onSubido }) {
+  const toast = useToast()
+  const input = useRef(null)
+  const [nuevo, setNuevo] = useState(null)
+  const [subiendo, setSubiendo] = useState(false)
+  async function subir() {
+    setSubiendo(true)
+    try {
+      const fila = await arch.subir(nuevo.archivo, 'adjunto', nuevo.descripcion.trim())
+      onSubido?.(fila.id); setNuevo(null)
+      toast('Adjuntado. Queda guardado para tus próximos emails')
+    } catch (err) { toast(mensajeError(err), 'error') }
+    setSubiendo(false)
+  }
+  return (
+    <div className="adjuntar">
+      <input ref={input} type="file" hidden accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,application/pdf,image/*"
+        onChange={e => { const a = e.target.files?.[0]; e.target.value = ''; if (a) setNuevo({ archivo: a, descripcion: '' }) }} />
+      <div className="adjuntar-lista">
+        {arch.adjuntos.map(a => {
+          const on = elegidos.includes(a.id)
+          return (
+            <span key={a.id} className={'chip-adj' + (on ? ' on' : '')}>
+              <button type="button" onClick={() => onAlternar(a.id)} title={a.descripcion || 'Tocá para adjuntarlo o sacarlo'}>
+                {on ? <Check size={13} /> : <Paperclip size={13} />} {a.nombre} <span className="muted">{tamanoLegible(a.tamano)}</span>
+              </button>
+              <button type="button" className="chip-adj-x" aria-label={'Borrar ' + a.nombre} title="Borrar de tus archivos"
+                onClick={async () => { if (!confirm(`¿Borrar "${a.nombre}" de tus archivos?`)) return; try { await arch.borrar(a); toast('Archivo borrado') } catch (err) { toast(mensajeError(err), 'error') } }}><X size={12} /></button>
+            </span>
+          )
+        })}
+        {!nuevo && <button type="button" className="chip-subir" onClick={() => input.current?.click()}><Paperclip size={13} /> Adjuntar PDF o archivo</button>}
+      </div>
+      {nuevo && (
+        <div className="adjuntar-nuevo">
+          <FileText size={16} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>{nuevo.archivo.name}</b> <span className="muted chico">{tamanoLegible(nuevo.archivo.size)}</span>
+            <input value={nuevo.descripcion} onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })} autoFocus
+              placeholder="¿De qué se trata? (opcional) Ej.: brochure de servicios; así Claude sabe cuándo sugerirlo" />
+          </div>
+          <button type="button" className="btn chico" onClick={() => setNuevo(null)}>Cancelar</button>
+          <button type="button" className="btn chico primario" onClick={subir} disabled={subiendo}>{subiendo ? <Loader2 size={14} className="spin" /> : <Upload size={14} />} Adjuntar</button>
+        </div>
       )}
     </div>
   )

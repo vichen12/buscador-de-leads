@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { KeyRound, Sparkles, Loader2, IdCard, Store, Gauge, ShieldCheck, Plus, ArrowRight, Mail, Globe, Eye, EyeOff, LogOut, Paperclip } from 'lucide-react'
 import { useArchivos } from '../lib/archivos.js'
-import { FirmaImagen, ArchivosAdjuntos } from '../components/ArchivosCorreo.jsx'
+import { EditorFirma } from '../components/ArchivosCorreo.jsx'
 import { supabase } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { mensajeError } from '../lib/util.js'
@@ -73,17 +73,30 @@ export default function Cuenta() {
             <label>Web o portfolio <span className="muted">(opcional)</span><input value={f.portfolio_url} onChange={c('portfolio_url')} placeholder="tuempresa.com" /></label>
           </div>
           <div className="firma-grid">
-            <label style={{ marginBottom: 0 }}>Firma de email<textarea rows={4} value={f.firma} onChange={c('firma')} placeholder={'Vincenzo\nBombas Cuyo\n261 555-1234'} /></label>
+            <div className="campo" style={{ marginBottom: 0 }}>Firma de email
+              <EditorFirma arch={arch} valor={f.firma} onChange={c('firma')} placeholder={'Vincenzo\nBombas Cuyo\n261 555-1234'} />
+            </div>
             <div>
-              <div className="etiqueta">Así se ve</div>
-              <div className="firma-vista">
-                <span className="muted chico">…y quedo atento. Saludos,</span>
-                <pre>{firmaVista || 'Tu nombre'}</pre>
-                {arch.firmaUrl && <img className="firma-vista-img" src={arch.firmaUrl} alt="Firma" />}
+              <div className="etiqueta">Así lo recibe tu cliente</div>
+              <div className="mail-vista">
+                <div className="mail-vista-cab">
+                  <span className="mail-vista-avatar">{(f.nombre || 'T').trim().charAt(0).toUpperCase()}</span>
+                  <div>
+                    <b>{f.nombre || 'Tu nombre'}{empresa ? <span> · {empresa}</span> : null}</b>
+                    <small>{f.email_contacto || session?.user?.email} → cliente@empresa.com</small>
+                  </div>
+                </div>
+                <div className="mail-vista-asunto">Una propuesta para su empresa</div>
+                <div className="mail-vista-cuerpo">
+                  <p>Hola, ¿cómo están?</p>
+                  <p className="mail-vista-gris">…y quedo atento a lo que necesiten.</p>
+                  <p>Saludos,</p>
+                  <div className="mail-vista-firma">{firmaVista || 'Tu nombre'}</div>
+                  {arch.firmaUrl && <img src={arch.firmaUrl} alt="Imagen de tu firma" />}
+                </div>
               </div>
             </div>
           </div>
-          <FirmaImagen arch={arch} />
         </section>
 
         <div className="cuenta-col">
@@ -115,12 +128,6 @@ export default function Cuenta() {
           </section>
         </div>
       </div>
-
-      <section className="tarjeta">
-        <div className="tarjeta-titulo"><h3><Paperclip size={16} /> Archivos para tus emails</h3>{arch.adjuntos.length > 0 && <span className="chip">{arch.adjuntos.length}</span>}</div>
-        <p className="muted chico ayuda">Subí lo que solés mandar y contá de qué se trata. Cuando Claude escribe un email, elige si conviene adjuntar alguno, lo menciona en el texto y antes de enviar vos podés sacarlo o sumar otro.</p>
-        {arch.lista ? <ArchivosAdjuntos arch={arch} /> : <Cargando />}
-      </section>
 
       <div className="cuenta-grid">
         <section className="tarjeta">

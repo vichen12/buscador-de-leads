@@ -10,7 +10,8 @@ import { linkWhatsApp, linkEmail, linkGmail, numeroWhatsApp } from '@shared/clas
 import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, useConfirmar, useToast } from '../components/ui.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
-import { useArchivos, tamanoLegible } from '../lib/archivos.js'
+import { useArchivos } from '../lib/archivos.js'
+import { AdjuntarEnEmail } from '../components/ArchivosCorreo.jsx'
 import { useApp } from '../App.jsx'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
@@ -316,19 +317,11 @@ export default function Prospecto() {
             <p>{tab !== 'whatsapp' && correo
               ? <>Revisá el texto. <b>Enviar email</b> lo manda desde {correo.email} y queda registrado. WhatsApp e Instagram se abren con el mensaje cargado y el envío lo hacés vos.</>
               : <>Revisá el texto. El botón abre la app con el mensaje cargado: <b>el envío lo hacés vos</b> y después lo confirmás acá.{!correo && tab !== 'whatsapp' && <> Para mandar emails directo desde acá, <Link to="/conexiones">conectá tu email</Link>.</>}</>}</p>
-            {tab === 'email' && correo && (arch.adjuntos.length > 0 || arch.firma) && (
-              <div className="adjuntar">
-                {arch.adjuntos.length > 0 && <>
-                  <small><Paperclip size={13} /> Adjuntar{msgs.email?.adjuntos?.length && adj === null ? ' · Claude eligió los marcados' : ''}</small>
-                  <div className="adjuntar-lista">
-                    {arch.adjuntos.map(a => (
-                      <button key={a.id} type="button" className={'chip-adj' + (adjElegidos.includes(a.id) ? ' on' : '')} onClick={() => alternarAdj(a.id)} title={a.descripcion}>
-                        {adjElegidos.includes(a.id) ? <CheckCircle2 size={13} /> : <Paperclip size={13} />} {a.nombre} <span className="muted">{tamanoLegible(a.tamano)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>}
-                {arch.firma && <small className="muted">Lleva tu firma con imagen al final. <Link to="/cuenta">Cambiarla</Link></small>}
+            {tab === 'email' && correo && (
+              <div className="adjuntar-bloque">
+                <small className="adjuntar-titulo"><Paperclip size={13} /> Adjuntos{msgs.email?.adjuntos?.length && adj === null ? ' · Claude eligió los marcados' : ''}</small>
+                <AdjuntarEnEmail arch={arch} elegidos={adjElegidos} onAlternar={alternarAdj} onSubido={id => setAdj([...new Set([...adjElegidos, id])])} />
+                {arch.firma && <small className="muted">Tu firma lleva la imagen al final. <Link to="/cuenta">Cambiarla</Link></small>}
               </div>
             )}
             <div className="acciones">

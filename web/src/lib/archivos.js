@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase.js'
 
-export const MAX_MB = 10
+export const MAX_MB = 20
 const limpio = n => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(-80)
 export const tamanoLegible = b => b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`
 
@@ -27,9 +27,10 @@ export function useArchivos(uid) {
       const vieja = lista?.find(a => a.tipo === 'firma')
       if (vieja) await borrar(vieja, false)
     }
-    const { error: e2 } = await supabase.from('archivos').insert({ tipo, nombre: archivo.name, path, mime: archivo.type || 'application/octet-stream', tamano: archivo.size, descripcion })
+    const { data: fila, error: e2 } = await supabase.from('archivos').insert({ tipo, nombre: archivo.name, path, mime: archivo.type || 'application/octet-stream', tamano: archivo.size, descripcion }).select().single()
     if (e2) { await supabase.storage.from('archivos').remove([path]); throw e2 }
     await cargar()
+    return fila
   }
   async function borrar(a, recargar = true) {
     await supabase.storage.from('archivos').remove([a.path])
