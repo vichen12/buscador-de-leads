@@ -658,7 +658,7 @@ span.editable.fuerte, span.editable.muted { display: block; }
 .lista-editable { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .lista-editable li { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: #faf8f4; line-height: 1.5; }
 .lista-editable li > :first-child { flex: 1; }
-.aviso-negocio { display: flex; gap: 14px; align-items: center; border: 1px solid #ffc9b8; background: linear-gradient(135deg, #fff5f0, #fff); border-radius: 16px; padding: 16px 18px; margin-bottom: 18px; }
+.aviso-negocio { display: flex; gap: 14px; align-items: center; border: 1px solid color-mix(in srgb, var(--acc) 30%, #fff); background: linear-gradient(135deg, var(--acc-soft), #fff); border-radius: 16px; padding: 16px 18px; margin-bottom: 18px; }
 .aviso-negocio > svg { color: var(--acc); }
 .aviso-negocio p { margin: 2px 0 0; color: var(--ink-2); }
 .encaje { margin: 0; font-size: 12.5px; color: var(--ink-2); background: #fff7f3; border-radius: 9px; padding: 7px 9px; line-height: 1.5; }
@@ -1406,3 +1406,33 @@ mark.personalizado { background: #fff1c2; border-radius: 3px; padding: 0 1px; cu
 .dos-col > * { min-width: 0; }
 .tabla td:has(> .tasa) { white-space: nowrap; }
 .filtros-reporte label select, .filtros-reporte label input { margin-top: 0; }
+
+/* ---------- B2B / B2C: dos espacios separados ---------- */
+.app.modo-b2c {
+  --acc: #7c3aed; --acc-2: #9b5cf6; --acc-soft: #f3edff; --acc-ink: #6025c9;
+  --grad: linear-gradient(135deg, #7c3aed 0%, #b05cf6 100%);
+}
+.app.modo-b2c .lateral { background: linear-gradient(180deg, #faf7ff 0%, #fff 220px); }
+.selector-modo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 4px 0 14px; background: #f4f1ec; border-radius: 12px; }
+.opcion-modo { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--mut); cursor: pointer; text-align: left; transition: background .15s, color .15s, box-shadow .15s; }
+.opcion-modo span { display: flex; flex-direction: column; line-height: 1.15; }
+.opcion-modo b { font-size: 12.5px; font-weight: 600; }
+.opcion-modo small { font-size: 10.5px; letter-spacing: .04em; opacity: .8; }
+.opcion-modo:hover { color: var(--ink); }
+.opcion-modo.activo { background: #fff; color: var(--ink); box-shadow: var(--sh-md); }
+.opcion-modo.b2b.activo svg { color: #fd4a22; }
+.opcion-modo.b2c.activo svg { color: #7c3aed; }
+.modo-fijo { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 11.5px; font-weight: 600; color: var(--acc-ink); background: var(--acc-soft); border-radius: 999px; padding: 4px 10px; margin: 2px 0 12px; }
+.app.modo-b2c .topbar::after { content: 'Consumidores · B2C'; position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 10.5px; font-weight: 600; letter-spacing: .05em; color: #fff; background: var(--grad); padding: 2px 10px; border-radius: 0 0 8px 8px; }
+.topbar { position: sticky; }
+.consent { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.consent.si { color: var(--ok); background: var(--ok-soft); }
+.consent.no { color: var(--mut); background: #f2eee8; }
+.consent.baja { color: var(--err); background: var(--err-soft); }
+.chips-filtro { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips-filtro button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.chips-filtro button.activo { background: var(--acc-soft); border-color: transparent; color: var(--acc-ink); font-weight: 600; }
+.aviso-legal { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--ink-2); background: #f7f4ff; border: 1px solid #e6dcff; border-radius: 12px; padding: 10px 12px; }
+.aviso-legal svg { color: #7c3aed; flex: none; margin-top: 1px; }
+label.check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
+label.check > input { width: auto; margin: 0; accent-color: var(--acc); }

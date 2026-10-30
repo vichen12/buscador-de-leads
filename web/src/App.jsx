@@ -25,6 +25,8 @@ import Respuestas from './pages/Respuestas.jsx'
 import Secuencias from './pages/Secuencias.jsx'
 import Equipo from './pages/Equipo.jsx'
 import Reportes from './pages/Reportes.jsx'
+import Clientes from './pages/Clientes.jsx'
+import TableroB2C from './pages/TableroB2C.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -112,7 +114,8 @@ function Privada() {
     <Ctx.Provider value={valor}>
       <Layout>
         <Routes>
-          <Route path="/" element={<Tablero />} />
+          <Route path="/" element={perfil?.modo === 'b2c' ? <TableroB2C /> : <Tablero />} />
+          <Route path="/clientes" element={<Clientes />} />
           <Route path="/prospectos" element={<Prospectos />} />
           <Route path="/prospectos/:id" element={<Prospecto />} />
           <Route path="/seguimientos" element={<Seguimientos />} />

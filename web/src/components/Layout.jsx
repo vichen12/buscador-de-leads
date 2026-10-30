@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
-  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen,
+  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
@@ -47,9 +47,24 @@ export default function Layout({ children }) {
   const sinLeer = contadores?.respuestas_sin_leer ?? 0
   const nombre = perfil?.nombre || session.user.email
   const esAdminEquipo = perfil?.rol === 'admin' || perfil?.es_admin
+  const modo = perfil?.modo === 'b2c' ? 'b2c' : 'b2b'
 
   // [ruta, texto, ícono, contador, en el celular va en la barra de abajo]
-  const secciones = [
+  const config = ['Configuración', [
+    ['/negocio', 'Mi negocio', Store],
+    ['/email', 'Email', Mail],
+    ...(esAdminEquipo && perfil?.empresa_id ? [['/equipo', 'Equipo', UsersRound]] : []),
+    ['/conexiones', 'Conexiones', Plug],
+    ...(perfil?.es_admin ? [['/admin', 'Super admin', Crown]] : []),
+  ]]
+  const secciones = modo === 'b2c' ? [
+    ['Inicio', [['/', 'Tablero', LayoutDashboard, 0, true]]],
+    ['Mis clientes', [
+      ['/clientes', 'Clientes', Heart, 0, true],
+      ['/asistente', 'Asistente IA', Bot, 0, true],
+    ]],
+    config,
+  ] : [
     ['Inicio', [['/', 'Tablero', LayoutDashboard, 0, true], ['/reportes', 'Reportes', BarChart3]]],
     ['Prospectar', [
       ['/negocio', 'Mi negocio', Store],
@@ -84,10 +99,11 @@ export default function Layout({ children }) {
   const hayMas = enMas.some(x => x[3] > 0)
 
   return (
-    <div className="app">
+    <div className={'app modo-' + modo}>
       <aside className="lateral">
         <Link to="/" className="marca"><Logo size={24} /></Link>
         {(acceso?.empresa || perfil?.estudio) && <div className="espacio-trabajo"><Building2 size={13} /> <span>{acceso?.empresa || perfil?.estudio}</span></div>}
+        <SelectorModo perfil={perfil} />
         <nav aria-label="Secciones">
           {secciones.map(([titulo, items]) => (
             <div key={titulo} className="nav-grupo">
@@ -117,14 +133,52 @@ export default function Layout({ children }) {
       )}
 
       <div style={{ minWidth: 0 }}>
-        <Topbar nombre={nombre} perfil={perfil} session={session} empresa={acceso?.empresa} onBuscar={() => setPaleta(true)} onNuevo={() => setNuevo(true)} />
+        <Topbar modo={modo} nombre={nombre} perfil={perfil} session={session} empresa={acceso?.empresa} onBuscar={() => setPaleta(true)} onNuevo={() => setNuevo(true)} />
         <main className="contenido">
           <div className="pagina" key={loc.pathname}>{children}</div>
         </main>
         <AsistenteFlotante />
       </div>
-      {paleta && <Paleta onCerrar={() => setPaleta(false)} />}
+      {paleta && <Paleta modo={modo} onCerrar={() => setPaleta(false)} />}
       {nuevo && <NuevoProspecto onCerrar={() => setNuevo(false)} onCreado={p => { setNuevo(false); refrescar(); if (p?.id) navegar(`/prospectos/${p.id}`) }} />}
+    </div>
+  )
+}
+
+/** B2B y B2C son dos espacios de trabajo separados: cada uno con su menú, sus datos y su color */
+export const MODOS = {
+  b2b: { corto: 'B2B', titulo: 'Empresas', sub: 'Vendés a empresas', icono: Building2 },
+  b2c: { corto: 'B2C', titulo: 'Consumidores', sub: 'Vendés a personas', icono: Heart },
+}
+export function useCambiarModo() {
+  const { refrescar } = useApp()
+  const toast = useToast()
+  const nav = useNavigate()
+  return async (m, habilitar = false) => {
+    const { error } = await supabase.rpc(habilitar ? 'habilitar_modo' : 'cambiar_modo', { p_modo: m })
+    if (error) return toast(error.message, 'error')
+    await refrescar(); nav('/')
+    toast(`Estás en ${MODOS[m].titulo} (${MODOS[m].corto})`, 'ok')
+  }
+}
+function SelectorModo({ perfil }) {
+  const cambiar = useCambiarModo()
+  const modos = perfil?.modos ?? ['b2b']
+  const actual = perfil?.modo === 'b2c' ? 'b2c' : 'b2b'
+  if (modos.length < 2) {
+    const M = MODOS[actual]
+    return <div className="modo-fijo" title={M.sub}><M.icono size={13} /> {M.titulo} · {M.corto}</div>
+  }
+  return (
+    <div className="selector-modo" role="radiogroup" aria-label="Espacio de trabajo">
+      {['b2b', 'b2c'].map(m => {
+        const M = MODOS[m]
+        return (
+          <button key={m} type="button" role="radio" aria-checked={actual === m} className={'opcion-modo ' + m + (actual === m ? ' activo' : '')} onClick={() => actual !== m && cambiar(m)}>
+            <M.icono size={14} /><span><b>{M.titulo}</b><small>{M.corto}</small></span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -162,7 +216,8 @@ function TarjetaHoy({ compacta }) {
   )
 }
 
-function Topbar({ nombre, perfil, session, empresa, onBuscar, onNuevo }) {
+function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
+  const cambiarModo = useCambiarModo()
   const nav = useNavigate()
   const confirmar = useConfirmar()
   const { tablero, contadores, porRevisar } = useApp()
@@ -187,13 +242,13 @@ function Topbar({ nombre, perfil, session, empresa, onBuscar, onNuevo }) {
   const sinLeer = contadores?.respuestas_sin_leer ?? 0
   const tareas = (contadores?.tareas_hoy ?? 0) + (tablero?.seguimientos_vencidos ?? 0)
   const cola = contadores?.cola ?? 0
-  const avisos = [
+  const avisos = modo === 'b2c' ? [] : [
     sinLeer > 0 && { to: '/respuestas?clase=sin_leer', icono: MessageSquareReply, texto: `${sinLeer} ${sinLeer === 1 ? 'respuesta nueva' : 'respuestas nuevas'}`, sub: 'Claude ya las clasificó' },
     tareas > 0 && { to: '/seguimientos', icono: ListTodo, texto: `${tareas} ${tareas === 1 ? 'cosa' : 'cosas'} para hacer hoy`, sub: 'Tareas y seguimientos vencidos' },
     porRevisar > 0 && { to: '/revisar', icono: Inbox, texto: `${porRevisar} ${porRevisar === 1 ? 'empresa' : 'empresas'} por revisar`, sub: 'Lo que encontró la búsqueda' },
     cola > 0 && { to: '/envios', icono: Send, texto: `${cola} ${cola === 1 ? 'mail' : 'mails'} saliendo`, sub: 'Se envían solos, con pausas' },
   ].filter(Boolean)
-  const totalAvisos = sinLeer + tareas + porRevisar
+  const totalAvisos = modo === 'b2c' ? 0 : sinLeer + tareas + porRevisar
 
   async function salirDeTodos() {
     if (!(await confirmar({ titulo: '¿Cerrar sesión en todos los dispositivos?', texto: 'Se cierra en esta computadora, en el celular y en cualquier otro lugar donde hayas entrado.', aceptar: 'Cerrar en todos' }))) return
@@ -204,7 +259,7 @@ function Topbar({ nombre, perfil, session, empresa, onBuscar, onNuevo }) {
     <header className={'topbar' + (sombra ? ' sombra' : '')} ref={ref}>
       <Link to="/" className="marca marca-movil"><Logo size={20} /></Link>
       <button type="button" className="buscador-boton" onClick={onBuscar} aria-label="Buscar una empresa o contacto (Ctrl+K)">
-        <Search size={16} /><span>Buscar empresa, contacto, web o teléfono…</span><kbd>⌘K</kbd>
+        <Search size={16} /><span>{modo === 'b2c' ? 'Buscar cliente por nombre, email o teléfono…' : 'Buscar empresa, contacto, web o teléfono…'}</span><kbd>⌘K</kbd>
       </button>
       <span className="espacio" />
 
@@ -213,12 +268,17 @@ function Topbar({ nombre, perfil, session, empresa, onBuscar, onNuevo }) {
           <button type="button" className="btn primario chico boton-nuevo" aria-expanded={abierto === 'nuevo'} onClick={() => alternar('nuevo')}><Plus size={15} /> <span>Nuevo</span></button>
           {abierto === 'nuevo' && (
             <div className="menu menu-derecha" onClick={() => setAbierto('')}>
+              {modo === 'b2c' ? <>
+              <Link to="/clientes?nuevo=1"><UserPlus size={16} /> Cliente a mano</Link>
+              <Link to="/clientes?importar=1"><Upload size={16} /> Importar clientes</Link>
+              </> : <>
               <button type="button" onClick={onNuevo}><Building2 size={16} /> Empresa a mano</button>
               <Link to="/buscar"><Search size={16} /> Buscar clientes con IA</Link>
               <Link to="/importar"><Upload size={16} /> Importar Excel o CSV</Link>
               <Link to="/seguimientos"><ListTodo size={16} /> Tarea</Link>
               <Link to="/envios"><Send size={16} /> Envío masivo</Link>
               <Link to="/secuencias"><Workflow size={16} /> Secuencia</Link>
+              </>}
             </div>
           )}
         </div>
@@ -251,6 +311,9 @@ function Topbar({ nombre, perfil, session, empresa, onBuscar, onNuevo }) {
               <Link to="/email"><Mail size={16} /> Email y firma</Link>
               {(perfil?.rol === 'admin' || perfil?.es_admin) && perfil?.empresa_id && <Link to="/equipo"><UsersRound size={16} /> Equipo</Link>}
               {perfil?.es_admin && <Link to="/admin"><Crown size={16} /> Super admin</Link>}
+              {(perfil?.modos ?? ['b2b']).length > 1
+                ? <button type="button" onClick={() => cambiarModo(modo === 'b2c' ? 'b2b' : 'b2c')}><ArrowLeftRight size={16} /> Pasar a {MODOS[modo === 'b2c' ? 'b2b' : 'b2c'].titulo} ({modo === 'b2c' ? 'B2B' : 'B2C'})</button>
+                : (perfil?.rol === 'admin' || perfil?.es_admin) && <button type="button" onClick={() => cambiarModo(modo === 'b2c' ? 'b2b' : 'b2c', true)}><ArrowLeftRight size={16} /> Activar también {modo === 'b2c' ? 'ventas a empresas (B2B)' : 'ventas a consumidores (B2C)'}</button>}
               <Link to="/terminos"><FileText size={16} /> Términos y privacidad</Link>
               <hr />
               <button type="button" onClick={salirDeTodos}><DoorOpen size={16} /> Cerrar sesión en todos lados</button>
