@@ -4,10 +4,16 @@ export const ESTADOS = {
   pendiente: { label: 'Pendiente', color: '#52525b', fondo: '#f0ece5', borde: '#e2e2e7', barra: '#a8a196', ayuda: 'Todavía no le escribiste' },
   contactado: { label: 'Contactado', color: '#1d4ed8', fondo: '#ebf1ff', borde: '#d3e0fd', barra: '#3b82f6', ayuda: 'Ya le mandaste el primer mensaje' },
   respondio: { label: 'Respondió', color: '#b45309', fondo: '#fdf4e4', borde: '#f5ddb2', barra: '#f59e0b', ayuda: 'Hay conversación en curso' },
-  cliente: { label: 'Cliente', color: '#15803d', fondo: '#e9f7ee', borde: '#c6eacf', barra: '#22c55e', ayuda: 'Cerraste el trabajo' },
-  no_interesado: { label: 'No interesado', color: '#c0262d', fondo: '#fdeceb', borde: '#f6cac6', barra: '#ef4444', ayuda: 'No se le escribe más (opt-out)' },
+  reunion: { label: 'Reunión agendada', color: '#7c3aed', fondo: '#f1ebff', borde: '#e0d3fb', barra: '#8b5cf6', ayuda: 'Tienen una reunión o llamada pactada' },
+  propuesta: { label: 'Propuesta enviada', color: '#0e7490', fondo: '#e6f6f9', borde: '#c3e8ef', barra: '#06b6d4', ayuda: 'Le mandaste la propuesta o cotización' },
+  cliente: { label: 'Cliente', color: '#15803d', fondo: '#e9f7ee', borde: '#c6eacf', barra: '#22c55e', ayuda: 'Cerraste la venta' },
+  perdido: { label: 'Perdido', color: '#c0262d', fondo: '#fdeceb', borde: '#f6cac6', barra: '#ef4444', ayuda: 'No se dio (con el motivo)' },
   no_contactar: { label: 'No contactar', color: '#7f1d1d', fondo: '#f6e9e9', borde: '#e7c9c9', barra: '#991b1b', ayuda: 'Pidió la baja o está en tu lista de "No contactar": no se le puede escribir' },
+  no_interesado: { label: 'No interesado', color: '#c0262d', fondo: '#fdeceb', borde: '#f6cac6', barra: '#ef4444', ayuda: 'No se le escribe más', oculto: true },
 }
+export const ESTADOS_VISIBLES = Object.fromEntries(Object.entries(ESTADOS).filter(([, v]) => !v.oculto))
+export const MOTIVOS_PERDIDO = { precio: 'Precio', timing: 'No es el momento', ya_tiene_proveedor: 'Ya tiene proveedor', no_responde: 'No responde', no_interesado: 'No interesado', otro: 'Otro' }
+export const NO_CONTACTAR = ['no_interesado', 'no_contactar']
 
 // Estado del email del prospecto (verificación antes de enviar)
 export const ESTADO_EMAIL = {
@@ -23,6 +29,7 @@ export function mensajeError(e) {
   if (m.includes('OPT_OUT')) return 'Este negocio pidió no ser contactado ("No interesado" o "No contactar"): no se le puede escribir más.'
   if (m.includes('SUPRIMIDO')) return m.replace(/^.*SUPRIMIDO:\s*/, 'No se puede enviar: ') + (m.includes('No contactar') ? '' : '. Está en tu lista de "No contactar".')
   if (m.includes('LIMITE_EMAIL')) return 'Llegaste al límite de emails de hoy para tu casilla. Es para cuidar que tus mails no caigan en spam. Seguí mañana.'
+  if (m.includes('MOTIVO_PERDIDO')) return 'Para marcar como Perdido elegí un motivo.'
   if (m.includes('EMAIL_INVALIDO')) return m.replace(/^.*EMAIL_INVALIDO:\s*/, '')
   if (m.includes('TEXTO_REPETIDO')) return 'Ese texto es idéntico a uno que ya enviaste a otro negocio. Personalizalo un poco antes de enviarlo.'
   if (m.includes('duplicate key')) return 'Ya existe un prospecto con ese teléfono o con ese nombre y dirección.'

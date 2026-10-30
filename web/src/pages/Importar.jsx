@@ -20,7 +20,7 @@ const TODAS_ZONAS = ZONAS.flatMap(g => g.items)
 
 export default function Importar() {
   const toast = useToast()
-  const { refrescar } = useApp()
+  const { refrescar, session } = useApp()
   const [modo, setModo] = useState('archivo')
   const [archivo, setArchivo] = useState(null)
   const [pegado, setPegado] = useState('')
@@ -58,7 +58,7 @@ export default function Importar() {
 
   async function revisar() {
     setCargando(true)
-    const { data: existentes } = await supabase.from('prospectos').select('nombre, direccion, telefono')
+    const { data: existentes } = await supabase.from('prospectos').select('nombre, direccion, telefono').eq('owner_id', session.user.id)
     const filas = aplicarMapeo(datos.filas, mapeo).map(p => ({
       ...p,
       rubro: p.rubro || fijos.rubro,

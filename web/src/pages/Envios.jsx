@@ -15,7 +15,7 @@ const GRUPOS = [
 
 /** Envío masivo: elegís a quién, Claude escribe un email distinto para cada empresa y salen todos juntos */
 export default function Envios() {
-  const { correo, perfil, tablero } = useApp()
+  const { correo, perfil, tablero, session } = useApp()
   const toast = useToast()
   const [lista, setLista] = useState(null)
   const [grupo, setGrupo] = useState('pendiente')
@@ -25,7 +25,7 @@ export default function Envios() {
   const [envio, setEnvio] = useState(null)
 
   async function cargar() {
-    const { data, error } = await supabase.from('prospectos').select('id, nombre, rubro, zona, email, estado, calificacion, ultimo_contacto, puntaje, email_estado, email_motivo, email_verificado_at').not('estado', 'in', '(no_interesado,no_contactar)').order('calificacion', { ascending: false, nullsFirst: false }).order('puntaje', { ascending: false, nullsFirst: false })
+    const { data, error } = await supabase.from('prospectos').select('id, nombre, rubro, zona, email, estado, calificacion, ultimo_contacto, puntaje, email_estado, email_motivo, email_verificado_at').eq('owner_id', session.user.id).not('estado', 'in', '(no_interesado,no_contactar,perdido,cliente)').order('calificacion', { ascending: false, nullsFirst: false }).order('puntaje', { ascending: false, nullsFirst: false })
     if (error) toast(mensajeError(error), 'error')
     setLista(data ?? [])
   }

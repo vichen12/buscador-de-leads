@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot, Workflow, Merge } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
-import { ESTADOS, fecha, mensajeError } from '../lib/util.js'
+import { ESTADOS, ESTADOS_VISIBLES, fecha, mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
 import { Avatar, Esqueleto, EstadoBadge, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
 import NuevoProspecto from '../components/NuevoProspecto.jsx'
@@ -12,6 +12,7 @@ import EnvioMasivo from '../components/EnvioMasivo.jsx'
 import { InscribirEnSecuencia } from './Secuencias.jsx'
 import PorQue from '../components/PorQue.jsx'
 import Duplicados from '../components/Duplicados.jsx'
+import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Prospectos() {
@@ -19,7 +20,9 @@ export default function Prospectos() {
   const nav = useNavigate()
   const toast = useToast()
   const confirmar = useConfirmar()
-  const { refrescar, porRevisar, correo } = useApp()
+  const { refrescar, porRevisar, correo, session } = useApp()
+  const cambiarEstado = useCambiarEstado()
+  const [nombres, setNombres] = useState({})
   const [envio, setEnvio] = useState(null)
   const [inscribir, setInscribir] = useState(null)
   const [duplicados, setDuplicados] = useState(null) // true = buscar todos; { a, b, ... } = dos elegidas
@@ -38,16 +41,25 @@ export default function Prospectos() {
   const vista = params.get('vista') ?? 'lista'
   const busqueda = params.get('busqueda') ?? ''
   const califFiltro = params.get('calif') ?? ''
+  const de = params.get('de') ?? 'mias' // mias | todas (del equipo)
   const [infoBusqueda, setInfoBusqueda] = useState(null)
   const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
   async function cargar() {
-    const { data, error } = await supabase.from('prospectos').select('*, mensajes(tipo)').order('created_at', { ascending: false })
+    let consulta = supabase.from('prospectos').select('*, mensajes(tipo)').order('created_at', { ascending: false })
+    if (de !== 'todas') consulta = consulta.eq('owner_id', session.user.id)
+    const { data, error } = await consulta
     if (error) toast(mensajeError(error), 'error')
     setLista(data ?? [])
     setCargando(false)
   }
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [de])
+  useEffect(() => {
+    supabase.rpc('responsables').then(({ data }) => setNombres(Object.fromEntries((data ?? []).map(r => [r.id, r.nombre]))))
+    const f = () => cargar(); window.addEventListener('prospectos-cambiaron', f)
+    return () => window.removeEventListener('prospectos-cambiaron', f)
+  }, [])
+  const hayEquipo = Object.keys(nombres).length > 1
   // Verificar en segundo plano los emails que todavía no se revisaron (de a 60)
   const [verificando, setVerificando] = useState(false)
   useEffect(() => {
@@ -109,31 +121,14 @@ export default function Prospectos() {
   }
 
   async function moverA(p, nuevoEstado) {
-    if (!p || p.estado === nuevoEstado) return
-    if (nuevoEstado === 'no_interesado' && !(await confirmar({
-      titulo: `¿Marcar "${p.nombre}" como no interesado?`, texto: 'No se le podrá escribir más y sale de todos los seguimientos.', aceptar: 'Sí, marcar', peligro: true,
-    }))) return
-    setLista(l => l.map(x => x.id === p.id ? { ...x, estado: nuevoEstado } : x))
-    const { error } = await supabase.from('prospectos').update({ estado: nuevoEstado }).eq('id', p.id)
-    if (error) { toast(mensajeError(error), 'error'); cargar(); return }
-    await supabase.from('interacciones').insert({ prospecto_id: p.id, tipo: 'cambio_estado', detalle: `${ESTADOS[p.estado].label} → ${ESTADOS[nuevoEstado].label}` })
-    toast(`${p.nombre}: ${ESTADOS[nuevoEstado].label}`)
-    refrescar()
+    if (!p) return
+    if (p.owner_id !== session.user.id) { toast(`La está trabajando ${nombres[p.owner_id] ?? 'otra persona'}: abrí la ficha para tomarla.`, 'info'); return }
+    if (await cambiarEstado([p], nuevoEstado)) { cargar(); refrescar() }
   }
 
   async function estadoEnLote(nuevo) {
-    const elegidos = lista.filter(p => sel.has(p.id) && p.estado !== nuevo)
-    if (!nuevo || !elegidos.length) return
-    if (!(await confirmar({ titulo: `¿Pasar ${elegidos.length} ${elegidos.length === 1 ? 'empresa' : 'empresas'} a "${ESTADOS[nuevo].label}"?`, texto: ESTADOS[nuevo].ayuda, aceptar: 'Cambiar' }))) return
-    const antes = elegidos.map(p => ({ id: p.id, estado: p.estado }))
-    const { error } = await supabase.from('prospectos').update({ estado: nuevo }).in('id', elegidos.map(p => p.id))
-    if (error) { toast(mensajeError(error), 'error'); return }
-    await supabase.from('interacciones').insert(elegidos.map(p => ({ prospecto_id: p.id, tipo: 'cambio_estado', detalle: `${ESTADOS[p.estado].label} → ${ESTADOS[nuevo].label}` })))
-    toast(`${elegidos.length} pasaron a "${ESTADOS[nuevo].label}"`, 'ok', { deshacer: async () => {
-      for (const a of antes) await supabase.from('prospectos').update({ estado: a.estado }).eq('id', a.id)
-      cargar(); refrescar()
-    } })
-    setSel(new Set()); cargar(); refrescar()
+    const elegidos = lista.filter(p => sel.has(p.id) && p.owner_id === session.user.id)
+    if (await cambiarEstado(elegidos, nuevo)) { setSel(new Set()); cargar(); refrescar() }
   }
 
   async function exportar(ids) {
@@ -145,13 +140,19 @@ export default function Prospectos() {
     toast(`Descargaste ${base.length} empresas en Excel`)
   }
 
-  const opcionesEstado = Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.label, nodo: <EstadoBadge estado={k} /> }))
+  const opcionesEstado = Object.entries(ESTADOS_VISIBLES).map(([k, v]) => ({ value: k, label: v.label, nodo: <EstadoBadge estado={k} /> }))
 
   return (
     <>
       <header className="cabecera">
-        <div><h1>Para contactar</h1><p>Las empresas que pasaste en limpio: calificalas, contactalas y seguí cada una. {lista.length ? `${filtrados.length} de ${lista.length}.` : ''}</p></div>
+        <div><h1>Pipeline</h1><p>Las empresas que pasaste en limpio: calificalas, contactalas y seguí cada una. {lista.length ? `${filtrados.length} de ${lista.length}.` : ''}</p></div>
         <div className="acciones">
+          {hayEquipo && (
+            <div className="selector-vista" role="tablist" aria-label="De quién">
+              <button className={de !== 'todas' ? 'activo' : ''} onClick={() => set('de', '')}>Mis empresas</button>
+              <button className={de === 'todas' ? 'activo' : ''} onClick={() => set('de', 'todas')}>Todas</button>
+            </div>
+          )}
           <div className="selector-vista" role="tablist">
             <button className={vista === 'lista' ? 'activo' : ''} onClick={() => set('vista', '')}><List size={15} /> Tabla</button>
             <button className={vista === 'pipeline' ? 'activo' : ''} onClick={() => set('vista', 'pipeline')}><Columns3 size={15} /> Pipeline</button>
@@ -219,13 +220,14 @@ export default function Prospectos() {
 
       {cargando ? <Esqueleto filas={6} /> : vista === 'pipeline' ? (
         <div className="kanban">
-          {Object.entries(ESTADOS).map(([k, e]) => {
+          {Object.entries(ESTADOS_VISIBLES).map(([k, e]) => {
             const items = filtrados.filter(p => p.estado === k)
             return (
               <div key={k} className={'kanban-col' + (sobre === k ? ' sobre' : '')} style={{ '--col': e.barra }}
                 onDragOver={ev => { ev.preventDefault(); setSobre(k) }} onDragLeave={() => setSobre(null)}
                 onDrop={ev => { ev.preventDefault(); setSobre(null); const p = lista.find(x => x.id === arrastrado); setArrastrado(null); moverA(p, k) }}>
                 <div className="kanban-cab"><EstadoBadge estado={k} /><span className="num">{items.length}</span></div>
+                {items.some(p => p.valor_estimado) && <div className="kanban-total">{dinero(items.reduce((a, p) => a + Number(p.valor_estimado || 0), 0))}</div>}
                 <div className="kanban-tarjetas">
                   {items.map(p => (
                     <div key={p.id} className={'kcard' + (arrastrado === p.id ? ' arrastrando' : '')} draggable
@@ -233,6 +235,7 @@ export default function Prospectos() {
                       onClick={() => nav(`/prospectos/${p.id}`)} role="button" tabIndex={0}
                       onKeyDown={ev => ev.key === 'Enter' && nav(`/prospectos/${p.id}`)}>
                       <b>{p.nombre}</b>
+                      {(p.valor_estimado || (de === 'todas' && p.owner_id !== session.user.id)) && <div className="meta">{p.valor_estimado ? <span className="valor">{dinero(p.valor_estimado)}</span> : null}{de === 'todas' && p.owner_id !== session.user.id && <span className="chip">{nombres[p.owner_id] ?? 'Otro'}</span>}</div>}
                       <div className="meta">
                         <span>{p.rubro}</span>
                         {p.resenas ? <span>· <Star size={11} style={{ verticalAlign: -1 }} /> {p.resenas}</span> : null}
@@ -318,3 +321,5 @@ function Calificador({ valor, onCambiar }) {
     </span>
   )
 }
+
+const dinero = n => Number(n).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })

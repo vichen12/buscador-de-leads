@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { supabase, configurado, llamarFuncion } from './lib/supabase.js'
 import { ToastProvider, ConfirmProvider, Cargando } from './components/ui.jsx'
+import { CambiarEstadoProvider } from './components/CambiarEstado.jsx'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
 import Tablero from './pages/Tablero.jsx'
@@ -22,6 +23,7 @@ import Conexiones from './pages/Conexiones.jsx'
 import { Baja, Terminos, Privacidad } from './pages/Publico.jsx'
 import Respuestas from './pages/Respuestas.jsx'
 import Secuencias from './pages/Secuencias.jsx'
+import Equipo from './pages/Equipo.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -31,7 +33,9 @@ export default function App() {
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <Raiz />
+        <CambiarEstadoProvider>
+          <Raiz />
+        </CambiarEstadoProvider>
       </ConfirmProvider>
     </ToastProvider>
   )
@@ -123,7 +127,7 @@ function Privada() {
           <Route path="/conexiones" element={<Conexiones />} />
           <Route path="/asistente" element={<Asistente />} />
           <Route path="/admin" element={perfil?.es_admin ? <Admin /> : <Navigate to="/" />} />
-          <Route path="/equipo" element={<Navigate to="/admin" />} />
+          <Route path="/equipo" element={<Equipo />} />
           <Route path="/ajustes" element={<Navigate to="/cuenta" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

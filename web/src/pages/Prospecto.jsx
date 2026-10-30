@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, AtSign, Globe, MapPin, Star, Clock, CalendarClock, MessageCircle, Send, Sparkles, Wand2, Loader2,
-  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target, Paperclip, MailX, ShieldOff,
+  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target, Paperclip, MailX, ShieldOff, Users,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
-import { ESTADOS, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
+import { ESTADOS, MOTIVOS_PERDIDO, NO_CONTACTAR, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
 import { linkWhatsApp, linkEmail, linkGmail, numeroWhatsApp } from '@shared/clasificar.js'
 import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
 import Desplegable from '../components/Desplegable.jsx'
@@ -13,6 +13,7 @@ import Enlaces from '../components/Enlaces.jsx'
 import { useArchivos } from '../lib/archivos.js'
 import { AdjuntarEnEmail } from '../components/ArchivosCorreo.jsx'
 import PorQue from '../components/PorQue.jsx'
+import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEmpresa } from '../components/FichaExtras.jsx'
 import { useApp } from '../App.jsx'
 
@@ -32,6 +33,8 @@ export default function Prospecto() {
   const confirmar = useConfirmar()
   const { perfil, enviadosHoy, refrescar, servicios, correo, session, tablero } = useApp()
   const arch = useArchivos(session?.user?.id)
+  const cambiarEstadoGlobal = useCambiarEstado()
+  const [responsable, setResponsable] = useState('')
   const [adj, setAdj] = useState(null) // ids de archivos a adjuntar; null = lo que eligió Claude
   const [mandando, setMandando] = useState(false)
   const [agenda, setAgenda] = useState(null)
@@ -64,6 +67,10 @@ export default function Prospecto() {
     setHist(hs ?? [])
   }
   useEffect(() => { cargar() }, [id])
+  useEffect(() => {
+    if (!p || p.owner_id === session.user.id) { setResponsable(''); return }
+    supabase.rpc('responsables').then(({ data }) => setResponsable((data ?? []).find(r => r.id === p.owner_id)?.nombre ?? ''))
+  }, [p?.owner_id])
   // Verificar el email (formato, que el dominio reciba correo) y si está en "No contactar"
   useEffect(() => {
     if (!p?.email) { setBloqueo(null); return }
@@ -76,13 +83,14 @@ export default function Prospecto() {
   // Si todavía no hay borradores, Claude los escribe solo al abrir la ficha (con tu negocio, tu firma y tus archivos)
   const autoGenerado = useRef(new Set())
   useEffect(() => {
-    if (!p || p.id !== id || Object.keys(msgs).length || !servicios.ia || ['no_interesado', 'no_contactar'].includes(p.estado) || autoGenerado.current.has(id)) return
+    if (!p || p.id !== id || Object.keys(msgs).length || !servicios.ia || NO_CONTACTAR.includes(p.estado) || p.owner_id !== session.user.id || autoGenerado.current.has(id)) return
     autoGenerado.current.add(id)
     generar()
   }, [p, msgs, servicios.ia])
 
   if (!p) return <Cargando />
-  const optOut = p.estado === 'no_interesado' || p.estado === 'no_contactar'
+  const ajena = p.owner_id !== session.user.id // la trabaja otra persona del equipo
+  const optOut = NO_CONTACTAR.includes(p.estado) || ajena
   const limEmail = tablero?.email
   const sinCupoEmail = limEmail ? limEmail.enviados_hoy >= limEmail.limite_hoy : false
   const emailBloqueado = bloqueo ? `No se puede enviar: ${bloqueo}.` : p.email_estado === 'invalido' ? `No se puede enviar: ${p.email_motivo || 'el email no es válido'}. Corregí el email.` : ''
@@ -182,22 +190,26 @@ export default function Prospecto() {
   }
 
   // Google Calendar: abre el evento cargado (sin conectar nada) y deja nota + seguimiento
-  async function agendar(e) {
-    e.preventDefault()
+  // Agendar: el evento se abre en Google Calendar u Outlook (o se descarga un .ics) y la empresa pasa a "Reunión agendada"
+  async function agendar(e, donde = 'google') {
+    e?.preventDefault?.()
     const { titulo, fecha: dia, hora: h, duracion } = agenda
     const ini = new Date(`${dia}T${h}`), fin = new Date(ini.getTime() + Number(duracion) * 60000)
     const f = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
     const detalles = [p.telefono && `Tel: ${p.telefono}`, p.email && `Email: ${p.email}`, p.instagram && `Instagram: ${p.instagram}`, p.notas && `\nNotas: ${p.notas}`, `\nFicha: ${location.origin}/prospectos/${p.id}`].filter(Boolean).join('\n')
-    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titulo)}&dates=${f(ini)}/${f(fin)}&details=${encodeURIComponent(detalles)}&location=${encodeURIComponent(p.direccion || p.zona || '')}`
-    window.open(url, '_blank', 'noopener')
-    await supabase.from('interacciones').insert({ prospecto_id: id, tipo: 'nota', detalle: `Agendado: ${titulo} (${ini.toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })})` })
-    // Agendar una reunión o llamada = hay conversación en curso
-    if (p.estado === 'pendiente' || p.estado === 'contactado') {
-      await supabase.from('prospectos').update({ estado: 'respondio', ultimo_contacto: new Date().toISOString() }).eq('id', id)
-      await supabase.from('interacciones').insert({ prospecto_id: id, tipo: 'cambio_estado', detalle: `${ESTADOS[p.estado].label} → ${ESTADOS.respondio.label}` })
+    const lugar = p.direccion || p.zona || ''
+    if (donde === 'google') window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titulo)}&dates=${f(ini)}/${f(fin)}&details=${encodeURIComponent(detalles)}&location=${encodeURIComponent(lugar)}`, '_blank', 'noopener')
+    else if (donde === 'outlook') window.open(`https://outlook.office.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(titulo)}&startdt=${ini.toISOString()}&enddt=${fin.toISOString()}&body=${encodeURIComponent(detalles)}&location=${encodeURIComponent(lugar)}`, '_blank', 'noopener')
+    else {
+      const esc = t => String(t).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n')
+      const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Prospecta//ES', 'BEGIN:VEVENT', `UID:${crypto.randomUUID()}@prospecta`, `DTSTAMP:${f(new Date())}`, `DTSTART:${f(ini)}`, `DTEND:${f(fin)}`, `SUMMARY:${esc(titulo)}`, `DESCRIPTION:${esc(detalles)}`, `LOCATION:${esc(lugar)}`, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n')
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' })); a.download = `${titulo.replace(/[^\w\s-]/g, '').slice(0, 40) || 'reunion'}.ics`; a.click()
     }
-    await supabase.from('prospectos').update({ proximo_seguimiento: dia }).eq('id', id)
-    setAgenda(null); toast(`Agendado y pasado a "${ESTADOS.respondio.label}". Se abrió tu Google Calendar con el evento.`); cargar(); refrescar()
+    await supabase.from('interacciones').insert({ prospecto_id: id, tipo: 'nota', detalle: `Agendado: ${titulo} (${ini.toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })})` })
+    if (!['reunion', 'propuesta', 'cliente'].includes(p.estado)) await cambiarEstadoGlobal([p], 'reunion', { silencioso: true })
+    await supabase.from('prospectos').update({ proximo_seguimiento: dia, ultimo_contacto: new Date().toISOString() }).eq('id', id)
+    await supabase.from('tareas').insert({ prospecto_id: id, tipo: 'reunion', titulo, vence: dia })
+    setAgenda(null); toast(`Agendado y pasado a "${ESTADOS.reunion.label}"`); cargar(); refrescar()
   }
 
   async function registrar(tipo, detalle = '') {
@@ -210,14 +222,13 @@ export default function Prospecto() {
   }
 
   async function cambiarEstado(estado) {
-    if (estado === p.estado) return
-    if (estado === 'no_interesado' && !(await confirmar({
-      titulo: '¿Marcar como no interesado?', texto: 'No se le podrá escribir más y sale de todos los seguimientos. Es lo correcto si te pidió que no lo contactes.', aceptar: 'Sí, marcar', peligro: true,
-    }))) return
-    const { error } = await supabase.from('prospectos').update({ estado }).eq('id', id)
-    if (error) { toast(mensajeError(error), 'error'); return }
-    await registrar('cambio_estado', `${ESTADOS[p.estado].label} → ${ESTADOS[estado].label}`)
-    toast(`Estado: ${ESTADOS[estado].label}`)
+    if (await cambiarEstadoGlobal([p], estado)) { await cargar(); refrescar() }
+  }
+
+  async function tomar() {
+    if (!(await confirmar({ titulo: `La está trabajando ${responsable || 'otra persona del equipo'}`, texto: '¿Querés seguir igual? Pasás a ser el responsable de esta empresa (se frena su secuencia y se avisa en el historial).', aceptar: 'Sí, tomarla' }))) return
+    const { error } = await supabase.rpc('tomar_prospecto', { p_id: p.id })
+    if (error) toast(mensajeError(error), 'error'); else { toast('Ahora la trabajás vos'); cargar(); refrescar() }
   }
 
   async function guardarDatos(e) {
@@ -225,6 +236,7 @@ export default function Prospecto() {
     const f = Object.fromEntries(new FormData(e.target))
     f.resenas = f.resenas ? Number(f.resenas) : null
     f.rating = f.rating ? Number(String(f.rating).replace(',', '.')) : null
+    f.valor_estimado = f.valor_estimado ? Number(String(f.valor_estimado).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')) : null
     const { error } = await supabase.from('prospectos').update(f).eq('id', id)
     if (error) toast(mensajeError(error), 'error'); else { setEditando(false); toast('Datos actualizados'); cargar() }
   }
@@ -240,7 +252,9 @@ export default function Prospecto() {
   return (
     <>
       <Link to="/prospectos" className="migas"><ArrowLeft size={15} /> Prospectos</Link>
-      {optOut && <div className="banner"><Ban size={18} /> {p.estado === 'no_contactar' ? 'Pidió no recibir más mensajes o está en tu lista de "No contactar"' : 'Marcado como No interesado'}: fuera de toda secuencia. No se le puede escribir más.</div>}
+      {ajena && <div className="banner info-banner"><Users size={18} /> La está trabajando {responsable || 'otra persona de tu equipo'}. <button className="btn chico" onClick={tomar}>¿Querés seguir igual? Tomarla</button></div>}
+      {!ajena && NO_CONTACTAR.includes(p.estado) && <div className="banner"><Ban size={18} /> {p.estado === 'no_contactar' ? 'Pidió no recibir más mensajes o está en tu lista de "No contactar"' : 'Marcado como No interesado'}: fuera de toda secuencia. No se le puede escribir más.</div>}
+      {p.estado === 'perdido' && <div className="banner info-banner"><Ban size={18} /> Perdido{p.perdido_motivo ? `: ${MOTIVOS_PERDIDO[p.perdido_motivo]}` : ''}{p.perdido_detalle ? ` (${p.perdido_detalle})` : ''}. Si la volvés a contactar, cambiá el estado.</div>}
       {aviso && <Aviso tipo="error">{aviso}</Aviso>}
 
       <div className="detalle">
@@ -257,7 +271,7 @@ export default function Prospecto() {
           {editando ? (
             <form onSubmit={guardarDatos}>
               {[['nombre', 'Nombre'], ['rubro', 'Tipo de empresa'], ['zona', 'Zona'], ['direccion', 'Dirección'], ['telefono', 'Teléfono'], ['email', 'Email'],
-                ['web_actual', 'Página web'], ['google_maps_url', 'Google Maps'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['linkedin', 'LinkedIn'], ['rating', 'Puntaje en Google'], ['resenas', 'Reseñas']]
+                ['web_actual', 'Página web'], ['google_maps_url', 'Google Maps'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['linkedin', 'LinkedIn'], ['rating', 'Puntaje en Google'], ['resenas', 'Reseñas'], ['valor_estimado', 'Valor estimado (opcional)']]
                 .map(([k, l]) => <label key={k}>{l}<input name={k} defaultValue={p[k] ?? ''} required={k === 'nombre'} /></label>)}
               <div className="acciones"><button className="btn primario"><Save size={15} /> Guardar</button><button type="button" className="btn" onClick={() => setEditando(false)}>Cancelar</button></div>
             </form>
@@ -274,6 +288,7 @@ export default function Prospecto() {
               {p.senales && <><Sparkles size={16} /><div><small>Novedades (motivo para escribir ahora)</small>{p.senales}</div></>}
               <Clock size={16} /><div><small>Último contacto</small>{fechaHora(p.ultimo_contacto)}</div>
               <CalendarClock size={16} /><div><small>Próximo seguimiento</small>{p.proximo_seguimiento ? fecha(p.proximo_seguimiento) : '—'}</div>
+              {p.valor_estimado ? <><Trophy size={16} /><div><small>Valor estimado</small>{Number(p.valor_estimado).toLocaleString('es-AR', { style: 'currency', currency: p.moneda || 'ARS', maximumFractionDigits: 0 })}</div></> : null}
             </div>
           )}
           {!editando && <button className="btn chico" onClick={() => setEditando(true)}><Pencil size={14} /> Editar datos</button>}
@@ -283,7 +298,8 @@ export default function Prospecto() {
             <button className="btn" onClick={() => cambiarEstado('cliente')}><Trophy size={15} /> ¡Es cliente!</button>
             <button className="btn" onClick={() => registrar('llamada', 'Llamada registrada')} disabled={optOut}><Phone size={15} /> Llamé</button>
             <button className="btn" onClick={() => { const m = new Date(Date.now() + 86400000); setAgenda({ titulo: `Llamada con ${p.nombre}`, fecha: m.toLocaleDateString('en-CA'), hora: '10:00', duracion: 30 }) }} disabled={optOut}><CalendarPlus size={15} /> Agendar</button>
-            <button className="btn peligro" onClick={() => cambiarEstado('no_interesado')} disabled={optOut}><Ban size={15} /> No interesado</button>
+            <button className="btn peligro" onClick={() => cambiarEstado('perdido')} disabled={optOut || p.estado === 'perdido'}><Ban size={15} /> Perdido</button>
+            <button className="btn fantasma chico" onClick={() => cambiarEstado('no_contactar')} disabled={p.estado === 'no_contactar' || ajena}>No contactar más</button>
           </div>
           <SecuenciaDeEmpresa p={p} onCambio={cargar} />
           <button className="btn fantasma chico peligro" style={{ marginTop: 14 }} onClick={borrar}><Trash2 size={14} /> Borrar prospecto</button>
@@ -416,17 +432,19 @@ export default function Prospecto() {
       {agenda && (
         <Modal onCerrar={() => setAgenda(null)}>
           <form onSubmit={agendar}>
-            <h3><CalendarPlus size={18} style={{ verticalAlign: -3 }} /> Agendar en Google Calendar</h3>
+            <h3><CalendarPlus size={18} style={{ verticalAlign: -3 }} /> Agendar reunión o llamada</h3>
             <label>Qué<input value={agenda.titulo} onChange={e => setAgenda({ ...agenda, titulo: e.target.value })} required /></label>
             <div className="form-grid">
               <label>Día<input type="date" value={agenda.fecha} onChange={e => setAgenda({ ...agenda, fecha: e.target.value })} required /></label>
               <label>Hora<input type="time" value={agenda.hora} onChange={e => setAgenda({ ...agenda, hora: e.target.value })} required /></label>
             </div>
             <div className="campo">Duración<Desplegable className="ancho" ariaLabel="Duración" value={agenda.duracion} onChange={v => setAgenda({ ...agenda, duracion: v })} opciones={[[15, '15 minutos'], [30, '30 minutos'], [60, '1 hora'], [120, '2 horas']].map(([value, label]) => ({ value, label }))} /></div>
-            <p className="muted chico">Se abre tu Google Calendar con el evento cargado (con teléfono, dirección y notas) y en Prospecta queda agendado el seguimiento para ese día.</p>
+            <p className="muted chico">Se abre tu calendario con el evento cargado (teléfono, dirección y notas), la empresa pasa a "Reunión agendada" y te queda la tarea para ese día.</p>
             <div className="acciones fin">
               <button type="button" className="btn" onClick={() => setAgenda(null)}>Cancelar</button>
-              <button className="btn primario"><CalendarPlus size={15} /> Abrir en Google Calendar</button>
+              <button type="button" className="btn" onClick={() => agendar(null, 'ics')}>Descargar .ics</button>
+              <button type="button" className="btn" onClick={() => agendar(null, 'outlook')}>Outlook</button>
+              <button className="btn primario"><CalendarPlus size={15} /> Google Calendar</button>
             </div>
           </form>
         </Modal>

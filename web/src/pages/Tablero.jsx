@@ -2,25 +2,25 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Store, Users, Send, MessageCircle, Trophy, CalendarClock, ArrowRight, Upload, Search, Sparkles, ChevronRight, Flame, Inbox } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
-import { ESTADOS, fecha, hoyLocal, saludoHora } from '../lib/util.js'
+import { ESTADOS, ESTADOS_VISIBLES, fecha, hoyLocal, saludoHora } from '../lib/util.js'
 import { Avatar, Esqueleto, Aviso, Contador } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Tablero() {
-  const { perfil, tablero: t, refrescar, servicios, comercial, porRevisar } = useApp()
+  const { perfil, tablero: t, refrescar, servicios, comercial, porRevisar, session } = useApp()
   const [vencidos, setVencidos] = useState([])
   const [listos, setListos] = useState([])
   const [rubros, setRubros] = useState([])
 
   useEffect(() => {
     refrescar()
-    supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento')
+    supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', session.user.id)
       .eq('estado', 'contactado').lte('proximo_seguimiento', hoyLocal())
       .order('proximo_seguimiento').limit(6).then(({ data }) => setVencidos(data ?? []))
-    supabase.from('prospectos').select('id, nombre, rubro, resenas, mensajes!inner(tipo)')
+    supabase.from('prospectos').select('id, nombre, rubro, resenas, mensajes!inner(tipo)').eq('owner_id', session.user.id)
       .eq('estado', 'pendiente').eq('mensajes.tipo', 'whatsapp').order('resenas', { ascending: false, nullsFirst: false }).limit(6)
       .then(({ data }) => setListos(data ?? []))
-    supabase.from('prospectos').select('rubro, estado').then(({ data }) => {
+    supabase.from('prospectos').select('rubro, estado').eq('owner_id', session.user.id).then(({ data }) => {
       const m = {}
       for (const p of data ?? []) {
         const r = (m[p.rubro || 'Sin rubro'] ??= { total: 0, contactados: 0, respondieron: 0 })
@@ -90,16 +90,16 @@ export default function Tablero() {
           {lim
             ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
             : <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />}
-          <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Tasa de respuesta" valor={`${tasa}%`} pie={`${t.respondieron} de ${t.contactados} contactados`} />
-          <Kpi icono={Trophy} color="#15803d" fondo="#e8f6ec" titulo="Clientes" valor={t.clientes} />
-          <Kpi icono={CalendarClock} color="#8b2c3c" fondo="#f8ecee" titulo="Seguimientos para hoy" valor={t.seguimientos_vencidos} alerta={t.seguimientos_vencidos > 0} />
+          <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Tasa de respuesta" valor={`${tasa}%`} pie={`${t.respondieron ?? 0} de ${t.contactados ?? 0} contactados`} />
+          <Kpi icono={Trophy} color="#15803d" fondo="#e8f6ec" titulo="Clientes" valor={t.clientes ?? 0} />
+          <Kpi icono={CalendarClock} color="#8b2c3c" fondo="#f8ecee" titulo="Seguimientos para hoy" valor={t.seguimientos_vencidos ?? 0} alerta={t.seguimientos_vencidos > 0} />
         </div>
 
         <div className="grilla-2">
           <section className="tarjeta">
             <div className="tarjeta-titulo"><h3>Embudo</h3><Link to="/prospectos?vista=pipeline" className="chico">Ver pipeline <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link></div>
             <div className="embudo">
-              {Object.entries(ESTADOS).map(([k, e]) => {
+              {Object.entries(ESTADOS_VISIBLES).map(([k, e]) => {
                 const n = t.por_estado[k] ?? 0
                 return (
                   <Link key={k} to={`/prospectos?estado=${k}`} className="embudo-fila">

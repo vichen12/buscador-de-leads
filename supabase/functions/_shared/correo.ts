@@ -335,7 +335,7 @@ export async function leerEntrantes(cfg: Dic, clave: string) {
   } finally { im.cerrar() }
 }
 
-const ESTADO_POR_CLASE: Record<string, string> = { interesado: 'respondio', pide_info: 'respondio', reunion: 'respondio', no_interesado: 'no_interesado', derivar: 'respondio', otro: 'respondio' }
+const ESTADO_POR_CLASE: Record<string, string> = { interesado: 'respondio', pide_info: 'respondio', reunion: 'reunion', no_interesado: 'perdido', derivar: 'respondio', otro: 'respondio' }
 const ETIQUETA: Record<string, string> = { interesado: 'Interesado', pide_info: 'Pide info o precio', reunion: 'Quiere una reunión', no_interesado: 'No interesado', derivar: 'Deriva a otra persona', fuera_oficina: 'Fuera de la oficina', baja: 'Pidió la baja', rebote: 'Rebotó', otro: 'Respondió' }
 
 /**
@@ -399,9 +399,13 @@ export async function procesarEntrantes(db: any, owner: string, encontrados: Ent
     if (!error) marcados.push(p.nombre)
     // El estado cambia solo según lo que respondió
     const nuevo = ESTADO_POR_CLASE[c.clasificacion]
-    if (nuevo === 'no_interesado' && !['cliente', 'no_contactar'].includes(p.estado)) {
-      await db.from('prospectos').update({ estado: 'no_interesado' }).eq('id', p.id)
-      await db.from('interacciones').insert({ owner_id: owner, prospecto_id: p.id, tipo: 'cambio_estado', detalle: `Pasó a "No interesado" (lo dijo en su respuesta${c.motivo ? `: ${c.motivo}` : ''})` })
+    if (nuevo === 'perdido' && !['cliente', 'no_contactar', 'perdido'].includes(p.estado)) {
+      await db.from('prospectos').update({ estado: 'perdido', perdido_motivo: 'no_interesado', perdido_detalle: (c.motivo ?? '').slice(0, 200) }).eq('id', p.id)
+      await db.from('interacciones').insert({ owner_id: owner, prospecto_id: p.id, tipo: 'cambio_estado', detalle: `Pasó a "Perdido" (motivo: no interesado${c.motivo ? `: ${c.motivo}` : ''})` })
+    }
+    if (nuevo === 'reunion' && ['pendiente', 'contactado', 'respondio'].includes(p.estado)) {
+      await db.from('prospectos').update({ estado: 'reunion' }).eq('id', p.id)
+      await db.from('interacciones').insert({ owner_id: owner, prospecto_id: p.id, tipo: 'cambio_estado', detalle: 'Pasó a "Reunión agendada" (propuso o aceptó una reunión en su respuesta)' })
     }
     if (c.clasificacion === 'reunion') {
       await db.from('tareas').insert({ owner_id: owner, prospecto_id: p.id, tipo: 'reunion', titulo: `Coordinar la reunión con ${p.nombre}`, texto: c.motivo ?? '', origen: 'respuesta' })
@@ -441,7 +445,7 @@ export async function enviarUno(db: any, owner: string, o: { prospecto_id: strin
   if (!p) throw new ErrorEnvio('No encontré la empresa.', 'NO_ENCONTRADO')
   const para = String(p.email ?? '').trim()
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)) throw new ErrorEnvio('La empresa no tiene un email válido.', 'SIN_EMAIL')
-  if (['no_interesado', 'no_contactar', 'perdido'].includes(p.estado)) throw new ErrorEnvio('Esta empresa pidió no ser contactada.', 'OPT_OUT')
+  if (['no_interesado', 'no_contactar'].includes(p.estado)) throw new ErrorEnvio('Esta empresa pidió no ser contactada.', 'OPT_OUT')
   const [{ data: lim }, { data: bloqueo }, { data: clave }] = await Promise.all([
     db.rpc('limite_email', { p_owner: owner }),
     db.rpc('motivo_supresion', { p_owner: owner, p_email: para }),

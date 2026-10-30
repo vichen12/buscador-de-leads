@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, AlertCircle, Info, Loader2, X, Circle, Send, MessageSquareReply, Trophy, Ban, ChevronDown, Check, ShieldOff, MailCheck, MailWarning, MailX } from 'lucide-react'
-import { ESTADOS } from '../lib/util.js'
+import { CheckCircle2, AlertCircle, Info, Loader2, X, Circle, Send, MessageSquareReply, Trophy, Ban, ChevronDown, Check, ShieldOff, MailCheck, MailWarning, MailX, CalendarCheck, FileText, XCircle } from 'lucide-react'
+import { ESTADOS, ESTADOS_VISIBLES } from '../lib/util.js'
 
 // ---------- Toasts ----------
 const ToastCtx = createContext(() => {})
@@ -80,7 +80,7 @@ export function Avatar({ nombre = '', grande, className = '' }) {
   return <span className={'avatar ' + (grande ? 'grande ' : '') + className} style={{ background: color }}>{ini}</span>
 }
 
-export const ICONO_ESTADO = { pendiente: Circle, contactado: Send, respondio: MessageSquareReply, cliente: Trophy, no_interesado: Ban, no_contactar: ShieldOff }
+export const ICONO_ESTADO = { pendiente: Circle, contactado: Send, respondio: MessageSquareReply, reunion: CalendarCheck, propuesta: FileText, cliente: Trophy, perdido: XCircle, no_interesado: Ban, no_contactar: ShieldOff }
 
 export function EstadoBadge({ estado }) {
   const e = ESTADOS[estado] ?? ESTADOS.pendiente
@@ -108,7 +108,7 @@ export function SelectorEstado({ valor, onCambiar }) {
       </button>
       {abierto && (
         <div className="menu" role="listbox">
-          {Object.entries(ESTADOS).map(([k, v]) => {
+          {Object.entries(ESTADOS_VISIBLES).map(([k, v]) => {
             const Icono = ICONO_ESTADO[k]
             return (
               <button key={k} type="button" role="option" aria-selected={k === valor} data-estado={k} onClick={() => { setAbierto(false); onCambiar(k) }}>
