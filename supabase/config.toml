@@ -1,0 +1,11 @@
+# Configuración mínima para la CLI de Supabase (`supabase link` / `supabase functions deploy`)
+project_id = "prospecta"
+
+[functions.generar-mensajes]
+verify_jwt = true
+
+[functions.buscar-places]
+verify_jwt = true
+
+[functions.registro]
+verify_jwt = false
