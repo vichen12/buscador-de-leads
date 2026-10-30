@@ -15,6 +15,7 @@ import { AdjuntarEnEmail } from '../components/ArchivosCorreo.jsx'
 import PorQue from '../components/PorQue.jsx'
 import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEmpresa } from '../components/FichaExtras.jsx'
+import { HerramientasIA, Etiquetas, Comentarios, Propuestas, VisitasDeEmpresa, ArchivosEmpresa } from '../components/FichaParte2.jsx'
 import { useApp } from '../App.jsx'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
@@ -267,6 +268,7 @@ export default function Prospecto() {
             </div>
           </div>
           <SelectorEstado valor={p.estado} onCambiar={cambiarEstado} />
+          <Etiquetas p={p} editable={!ajena} onCambio={et => setP(x => ({ ...x, etiquetas: et }))} />
 
           {editando ? (
             <form onSubmit={guardarDatos}>
@@ -301,6 +303,7 @@ export default function Prospecto() {
             <button className="btn peligro" onClick={() => cambiarEstado('perdido')} disabled={optOut || p.estado === 'perdido'}><Ban size={15} /> Perdido</button>
             <button className="btn fantasma chico" onClick={() => cambiarEstado('no_contactar')} disabled={p.estado === 'no_contactar' || ajena}>No contactar más</button>
           </div>
+          <HerramientasIA p={p} />
           <SecuenciaDeEmpresa p={p} onCambio={cargar} />
           <button className="btn fantasma chico peligro" style={{ marginTop: 14 }} onClick={borrar}><Trash2 size={14} /> Borrar prospecto</button>
         </section>
@@ -405,6 +408,14 @@ export default function Prospecto() {
       <div className="grilla-ficha-extra">
         <ContactosDeEmpresa p={p} />
         <TareasDeEmpresa p={p} />
+      </div>
+      <div className="grilla-ficha-extra">
+        <Propuestas p={p} onCambio={cargar} />
+        <VisitasDeEmpresa p={p} />
+      </div>
+      <div className="grilla-ficha-extra">
+        <Comentarios p={p} />
+        <ArchivosEmpresa p={p} />
       </div>
 
       <section className="tarjeta">

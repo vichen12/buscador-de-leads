@@ -20,7 +20,11 @@ import Admin from './pages/Admin.jsx'
 import Asistente from './pages/Asistente.jsx'
 import MiNegocio from './pages/MiNegocio.jsx'
 import Conexiones from './pages/Conexiones.jsx'
-import { Baja, Terminos, Privacidad } from './pages/Publico.jsx'
+import { Baja, Terminos, Privacidad, FormularioPublico } from './pages/Publico.jsx'
+import TuDia from './pages/TuDia.jsx'
+import Metas from './pages/Metas.jsx'
+import Catalogo from './pages/Catalogo.jsx'
+import Visitas from './pages/Visitas.jsx'
 import Respuestas from './pages/Respuestas.jsx'
 import Secuencias from './pages/Secuencias.jsx'
 import Equipo from './pages/Equipo.jsx'
@@ -54,6 +58,7 @@ function Raiz() {
   if (PUBLICAS.test(pathname)) return (
     <Routes>
       <Route path="/baja/:token" element={<Baja />} />
+      <Route path="/f/:token" element={<FormularioPublico />} />
       <Route path="/terminos" element={<Terminos />} />
       <Route path="/privacidad" element={<Privacidad />} />
     </Routes>
@@ -129,6 +134,10 @@ function Privada() {
         <Routes>
           <Route path="/" element={perfil?.modo === 'b2c' ? <TableroB2C /> : <Tablero />} />
           <Route path="/clientes" element={<Clientes />} />
+          <Route path="/hoy" element={<TuDia />} />
+          <Route path="/metas" element={<Metas />} />
+          <Route path="/catalogo" element={<Catalogo />} />
+          <Route path="/visitas" element={<Visitas />} />
           <Route path="/campanas" element={<Campanas />} />
           <Route path="/aliados" element={<Aliados />} />
           <Route path="/creadores" element={<Creadores />} />

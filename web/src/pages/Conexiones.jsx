@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Mail, MessageCircle, CalendarDays, Loader2, CheckCircle2, ExternalLink, Send, RefreshCw, Unplug, ChevronDown, AlertTriangle, Info, Eye, EyeOff, Check, ArrowRight } from 'lucide-react'
-import { llamarFuncion } from '../lib/supabase.js'
+import { Mail, MessageCircle, CalendarDays, Loader2, CheckCircle2, ExternalLink, Send, RefreshCw, Unplug, ChevronDown, AlertTriangle, Info, Eye, EyeOff, Check, ArrowRight, Globe } from 'lucide-react'
+import { llamarFuncion, supabase } from '../lib/supabase.js'
 import { fechaHora, mensajeError } from '../lib/util.js'
 import { Aviso, useConfirmar, useToast } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
@@ -17,6 +17,7 @@ export default function Conexiones() {
         <span><b>El email se configura en la sección Email</b>: ahí conectás tu casilla, armás la firma y subís tus archivos.</span>
         <span className="espacio" /><span className="link">Ir a Email <ArrowRight size={14} /></span>
       </Link>
+      <FormularioWeb />
       <div className="grilla-2">
         <section className="tarjeta conexion">
           <div className="conexion-cab"><span className="conexion-icono wa"><MessageCircle size={20} /></span><div><h3>WhatsApp</h3><span className="chip ok"><CheckCircle2 size={12} /> Listo para usar</span></div></div>
@@ -140,6 +141,25 @@ export function CorreoCard() {
         <button className="btn primario" disabled={!!cargando || noSoportado}>{cargando === 'conectar' ? <><Loader2 size={15} className="spin" /> Probando la conexión…</> : <><Mail size={15} /> Conectar {P.nombre === 'Otro' ? 'email' : P.nombre}</>}</button>
         <small className="muted">La contraseña se guarda cifrada y sólo la usa el servidor para enviar y leer tus respuestas. Podés desconectarla cuando quieras.</small>
       </form>
+    </section>
+  )
+}
+
+/** Formulario para la web: link y código para pegar; lo que llega entra solo como empresa nueva con una tarea */
+function FormularioWeb() {
+  const [token, setToken] = useState(null)
+  const [copiado, setCopiado] = useState('')
+  useEffect(() => { supabase.rpc('mi_token_formulario').then(({ data }) => setToken(data ?? null)) }, [])
+  if (!token) return null
+  const url = `${window.location.origin}/f/${token}`
+  const codigo = `<iframe src="${url}?embebido=1" style="width:100%;max-width:520px;height:640px;border:0" title="Contacto"></iframe>`
+  const copiar = (t, k) => { navigator.clipboard.writeText(t); setCopiado(k); setTimeout(() => setCopiado(''), 1800) }
+  return (
+    <section className="tarjeta conexion">
+      <div className="conexion-cab"><span className="conexion-icono"><Globe size={20} /></span><div><h3>Formulario para tu web</h3><span className="chip ok"><CheckCircle2 size={12} /> Listo para usar</span></div></div>
+      <p>Pegalo en tu página o compartí el link. Cada mensaje entra solo como empresa nueva en tu Pipeline, con una tarea para responder y un aviso en la campanita.</p>
+      <div className="codigo-copiar"><code>{url}</code><button type="button" className="btn chico" onClick={() => copiar(url, 'link')}>{copiado === 'link' ? 'Copiado' : 'Copiar link'}</button><a className="btn chico fantasma" href={url} target="_blank" rel="noreferrer">Ver</a></div>
+      <div className="codigo-copiar"><code>{codigo}</code><button type="button" className="btn chico" onClick={() => copiar(codigo, 'codigo')}>{copiado === 'codigo' ? 'Copiado' : 'Copiar código'}</button></div>
     </section>
   )
 }

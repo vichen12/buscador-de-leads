@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Building2, UserRound, CornerDownLeft, LayoutDashboard, BarChart3, Users, CalendarClock, MessageSquareReply, Send, Workflow, Mail, Store, Inbox, Upload, Bot, Loader2, Heart } from 'lucide-react'
+import { Search, Building2, UserRound, CornerDownLeft, LayoutDashboard, BarChart3, Users, CalendarClock, MessageSquareReply, Send, Workflow, Mail, Store, Inbox, Upload, Bot, Loader2, Heart, Sun, Target, MapPin, Package } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { EstadoBadge } from './ui.jsx'
 
 const PAGINAS = [
-  ['/', 'Tablero', LayoutDashboard], ['/reportes', 'Reportes', BarChart3], ['/prospectos', 'Pipeline', Users], ['/seguimientos', 'Seguimientos', CalendarClock],
+  ['/hoy', 'Tu día', Sun], ['/', 'Tablero', LayoutDashboard], ['/reportes', 'Reportes', BarChart3], ['/metas', 'Metas', Target], ['/visitas', 'Visitas', MapPin], ['/catalogo', 'Catálogo', Package], ['/prospectos', 'Pipeline', Users], ['/seguimientos', 'Seguimientos', CalendarClock],
   ['/respuestas', 'Respuestas', MessageSquareReply], ['/envios', 'Envío masivo', Send], ['/secuencias', 'Secuencias', Workflow],
   ['/buscar', 'Buscar clientes', Search], ['/revisar', 'Por revisar', Inbox], ['/importar', 'Importar', Upload],
   ['/negocio', 'Mi negocio', Store], ['/email', 'Email', Mail], ['/asistente', 'Asistente IA', Bot],

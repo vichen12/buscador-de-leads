@@ -10,7 +10,7 @@ export function useArchivos(uid) {
   const [lista, setLista] = useState(null)
   const [firmaUrl, setFirmaUrl] = useState('')
   async function cargar() {
-    const { data } = await supabase.from('archivos').select('*').order('created_at')
+    const { data } = await supabase.from('archivos').select('*').neq('tipo', 'empresa').order('created_at')
     setLista(data ?? [])
     const f = (data ?? []).find(a => a.tipo === 'firma')
     if (f) { const { data: u } = await supabase.storage.from('archivos').createSignedUrl(f.path, 3600); setFirmaUrl(u?.signedUrl ?? '') } else setFirmaUrl('')

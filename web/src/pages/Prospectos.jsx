@@ -42,6 +42,9 @@ export default function Prospectos() {
   const busqueda = params.get('busqueda') ?? ''
   const califFiltro = params.get('calif') ?? ''
   const de = params.get('de') ?? 'mias' // mias | todas (del equipo)
+  const etiqueta = params.get('etiqueta') ?? ''
+  const [vistas, setVistas] = useState([])
+  useEffect(() => { supabase.from('vistas').select('*').eq('pagina', 'prospectos').order('created_at').then(({ data }) => setVistas(data ?? [])) }, [])
   const [infoBusqueda, setInfoBusqueda] = useState(null)
   const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
@@ -79,10 +82,11 @@ export default function Prospectos() {
   }, [cargando])
 
   const rubros = useMemo(() => [...new Set(lista.map(p => p.rubro).filter(Boolean))].sort(), [lista])
+  const etiquetas = useMemo(() => [...new Set(lista.flatMap(p => p.etiquetas ?? []))].sort(), [lista])
   const filtrados = useMemo(() => {
     const t = q.toLowerCase()
     const r = lista.filter(p =>
-      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!califFiltro || String(p.calificacion ?? '') === califFiltro) && (!busqueda || p.busqueda_id === busqueda) &&
+      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!califFiltro || String(p.calificacion ?? '') === califFiltro) && (!busqueda || p.busqueda_id === busqueda) && (!etiqueta || (p.etiquetas ?? []).includes(etiqueta)) &&
       (!t || [p.nombre, p.rubro, p.zona, p.direccion, p.telefono, p.email, p.instagram, p.notas].join(' ').toLowerCase().includes(t)))
     const cmp = {
       resenas: (a, b) => (b.calificacion ?? 0) - (a.calificacion ?? 0) || (b.puntaje ?? 0) - (a.puntaje ?? 0) || (b.resenas ?? 0) - (a.resenas ?? 0),
@@ -91,7 +95,18 @@ export default function Prospectos() {
       seguimiento: (a, b) => (a.proximo_seguimiento ?? '9999').localeCompare(b.proximo_seguimiento ?? '9999'),
     }[orden]
     return r.sort(cmp)
-  }, [lista, q, estado, rubro, orden, vista, busqueda, califFiltro])
+  }, [lista, q, estado, rubro, orden, vista, busqueda, califFiltro, etiqueta])
+  const CLAVES_VISTA = ['q', 'estado', 'rubro', 'orden', 'calif', 'etiqueta', 'de', 'vista']
+  async function guardarVista() {
+    const nombre = window.prompt('Nombre para esta vista (ej.: "Distribuidoras con 3 llamas")')
+    if (!nombre?.trim()) return
+    const filtros = Object.fromEntries(CLAVES_VISTA.map(k => [k, params.get(k)]).filter(([, v]) => v))
+    const { data, error } = await supabase.from('vistas').insert({ pagina: 'prospectos', nombre: nombre.trim().slice(0, 60), filtros }).select().single()
+    if (!error) setVistas(v => [...v, data])
+  }
+  const aplicarVista = v => setParams(new URLSearchParams(v.filtros), { replace: true })
+  const borrarVista = async v => { await supabase.from('vistas').delete().eq('id', v.id); setVistas(x => x.filter(y => y.id !== v.id)) }
+  const hayFiltros = CLAVES_VISTA.some(k => k !== 'vista' && params.get(k))
 
   const toggle = id => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const todos = filtrados.length > 0 && filtrados.every(p => sel.has(p.id))
@@ -187,9 +202,21 @@ export default function Prospectos() {
           <Desplegable compacto ariaLabel="Tipo de empresa" value={rubro} onChange={v => set('rubro', v)} anchoMenu={240}
             opciones={[{ value: '', label: 'Todos los tipos', icono: <Tag size={14} className="muted" /> }, ...rubros.map(r => ({ value: r, label: r }))]} />
         )}
+        {etiquetas.length > 0 && (
+          <Desplegable compacto ariaLabel="Etiqueta" value={etiqueta} onChange={v => set('etiqueta', v)} anchoMenu={200}
+            opciones={[{ value: '', label: 'Todas las etiquetas', icono: <Tag size={14} className="muted" /> }, ...etiquetas.map(t => ({ value: t, label: t }))]} />
+        )}
         <Desplegable compacto ariaLabel="Ordenar" value={orden} onChange={v => set('orden', v)} anchoMenu={230} alinear="der"
           opciones={[['resenas', 'Mejor encaje'], ['reciente', 'Agregadas recientemente'], ['nombre', 'Nombre (A-Z)'], ['seguimiento', 'Próximo seguimiento']].map(([value, label]) => ({ value, label, icono: <ArrowDownUp size={14} className="muted" /> }))} />
       </div>
+
+      {(vistas.length > 0 || hayFiltros) && (
+        <div className="chips-filtro vistas-guardadas">
+          <span className="muted chico">Vistas:</span>
+          {vistas.map(v => <span key={v.id} className="vista-chip"><button type="button" onClick={() => aplicarVista(v)}>{v.nombre}</button><button type="button" onClick={() => borrarVista(v)} aria-label={`Borrar vista ${v.nombre}`}><X size={11} /></button></span>)}
+          {hayFiltros && <button type="button" onClick={guardarVista}>+ Guardar esta vista</button>}
+        </div>
+      )}
 
       {busqueda && (
         <div className="aviso-filtro">

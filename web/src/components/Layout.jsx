@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
-  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone,
+  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone, Sun, Target, MapPin, Package, AtSign,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
@@ -70,7 +70,7 @@ export default function Layout({ children }) {
     ]],
     config,
   ] : [
-    ['Inicio', [['/', 'Tablero', LayoutDashboard, 0, true], ['/reportes', 'Reportes', BarChart3]]],
+    ['Inicio', [['/hoy', 'Tu día', Sun, 0, true], ['/', 'Tablero', LayoutDashboard], ['/reportes', 'Reportes', BarChart3], ['/metas', 'Metas', Target]]],
     ['Prospectar', [
       ['/negocio', 'Mi negocio', Store],
       ['/buscar', 'Buscar clientes', Search],
@@ -83,9 +83,11 @@ export default function Layout({ children }) {
       ['/respuestas', 'Respuestas', MessageSquareReply, sinLeer, true],
       ['/envios', 'Envío masivo', Send],
       ['/secuencias', 'Secuencias', Workflow],
+      ['/visitas', 'Visitas', MapPin],
       ['/asistente', 'Asistente IA', Bot],
     ]],
     ['Configuración', [
+      ['/catalogo', 'Catálogo', Package],
       ['/email', 'Email', Mail],
       ...(esAdminEquipo && perfil?.empresa_id ? [['/equipo', 'Equipo', UsersRound]] : []),
       ['/conexiones', 'Conexiones', Plug],
@@ -227,6 +229,12 @@ function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
   const confirmar = useConfirmar()
   const { tablero, contadores, porRevisar } = useApp()
   const [abierto, setAbierto] = useState('') // '' | usuario | nuevo | avisos
+  const [notis, setNotis] = useState([])
+  useEffect(() => {
+    const cargar = () => supabase.from('notificaciones').select('*').eq('leida', false).order('created_at', { ascending: false }).limit(10).then(({ data }) => setNotis(data ?? []))
+    cargar(); const t = setInterval(cargar, 60000); return () => clearInterval(t)
+  }, [])
+  const leer = n => { supabase.from('notificaciones').update({ leida: true }).eq('id', n.id).then(() => {}); setNotis(x => x.filter(y => y.id !== n.id)) }
   const [sombra, setSombra] = useState(false)
   const ref = useRef(null)
 
@@ -247,13 +255,14 @@ function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
   const sinLeer = contadores?.respuestas_sin_leer ?? 0
   const tareas = (contadores?.tareas_hoy ?? 0) + (tablero?.seguimientos_vencidos ?? 0)
   const cola = contadores?.cola ?? 0
-  const avisos = modo === 'b2c' ? [] : [
+  const avisosNotis = notis.map(n => ({ to: n.link, icono: n.tipo === 'mencion' ? AtSign : Inbox, texto: n.texto, sub: new Date(n.created_at).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), alClic: () => leer(n) }))
+  const avisos = modo === 'b2c' ? avisosNotis : [...avisosNotis,
     sinLeer > 0 && { to: '/respuestas?clase=sin_leer', icono: MessageSquareReply, texto: `${sinLeer} ${sinLeer === 1 ? 'respuesta nueva' : 'respuestas nuevas'}`, sub: 'Claude ya las clasificó' },
     tareas > 0 && { to: '/seguimientos', icono: ListTodo, texto: `${tareas} ${tareas === 1 ? 'cosa' : 'cosas'} para hacer hoy`, sub: 'Tareas y seguimientos vencidos' },
     porRevisar > 0 && { to: '/revisar', icono: Inbox, texto: `${porRevisar} ${porRevisar === 1 ? 'empresa' : 'empresas'} por revisar`, sub: 'Lo que encontró la búsqueda' },
     cola > 0 && { to: '/envios', icono: Send, texto: `${cola} ${cola === 1 ? 'mail' : 'mails'} saliendo`, sub: 'Se envían solos, con pausas' },
   ].filter(Boolean)
-  const totalAvisos = modo === 'b2c' ? 0 : sinLeer + tareas + porRevisar
+  const totalAvisos = notis.length + (modo === 'b2c' ? 0 : sinLeer + tareas + porRevisar)
 
   async function salirDeTodos() {
     if (!(await confirmar({ titulo: '¿Cerrar sesión en todos los dispositivos?', texto: 'Se cierra en esta computadora, en el celular y en cualquier otro lugar donde hayas entrado.', aceptar: 'Cerrar en todos' }))) return
@@ -300,7 +309,7 @@ function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
               <div className="cab"><b>Para atender</b></div>
               {avisos.length ? avisos.map(a => {
                 const I = a.icono
-                return <Link key={a.to} to={a.to} className="aviso-item"><span className="aviso-icono"><I size={15} /></span><span><b>{a.texto}</b><small>{a.sub}</small></span></Link>
+                return <Link key={a.to + a.texto} to={a.to} className="aviso-item" onClick={a.alClic}><span className="aviso-icono"><I size={15} /></span><span><b>{a.texto}</b><small>{a.sub}</small></span></Link>
               }) : <div className="vacio-avisos"><ShieldCheck size={20} /><span>Estás al día. No hay nada pendiente.</span></div>}
             </div>
           )}

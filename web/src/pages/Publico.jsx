@@ -137,3 +137,36 @@ export function Privacidad() {
     </Marco>
   )
 }
+
+/** Formulario público para la web de cada cuenta: lo que se manda entra como empresa nueva + tarea + aviso */
+export function FormularioPublico() {
+  const { token } = useParams()
+  const embebido = new URLSearchParams(window.location.search).has('embebido')
+  const [f, setF] = useState({ nombre: '', empresa: '', email: '', telefono: '', mensaje: '', web: '' })
+  const [estado, setEstado] = useState('') // '' | enviando | ok | error
+  const [error, setError] = useState('')
+  async function enviar(e) {
+    e.preventDefault()
+    if (f.web) return setEstado('ok') // campo trampa para robots
+    setEstado('enviando'); setError('')
+    const { data, error } = await supabase.rpc('recibir_lead', { p_token: token, p_nombre: f.nombre, p_empresa: f.empresa, p_email: f.email, p_telefono: f.telefono, p_mensaje: f.mensaje })
+    if (error || !data?.ok) { setEstado('error'); setError(data?.error || 'No pudimos mandar tu mensaje. Probá de nuevo en un rato.') } else setEstado('ok')
+  }
+  const cuerpo = estado === 'ok' ? (
+    <div className="baja-ok"><CheckCircle2 size={34} /><h1>¡Gracias! Te vamos a contactar a la brevedad.</h1></div>
+  ) : (
+    <form onSubmit={enviar} className="form-publico">
+      {!embebido && <h1>Escribinos</h1>}
+      <label>Tu nombre<input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} required maxLength={120} /></label>
+      <label>Empresa<input value={f.empresa} onChange={e => setF({ ...f, empresa: e.target.value })} maxLength={160} /></label>
+      <label>Email<input type="email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} maxLength={160} /></label>
+      <label>Teléfono / WhatsApp<input value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} maxLength={40} /></label>
+      <label>¿En qué te podemos ayudar?<textarea rows={4} value={f.mensaje} onChange={e => setF({ ...f, mensaje: e.target.value })} maxLength={1500} required /></label>
+      <input tabIndex={-1} autoComplete="off" value={f.web} onChange={e => setF({ ...f, web: e.target.value })} style={{ position: 'absolute', left: -9999 }} aria-hidden="true" />
+      {estado === 'error' && <p style={{ color: 'var(--err)' }}><AlertCircle size={14} /> {error}</p>}
+      <button className="btn primario ancho" disabled={estado === 'enviando'}>{estado === 'enviando' && <Loader2 size={15} className="spin" />} Enviar</button>
+      <p className="muted chico">Usamos tus datos sólo para responderte.</p>
+    </form>
+  )
+  return embebido ? <div style={{ padding: 16 }}>{cuerpo}</div> : <Marco>{cuerpo}</Marco>
+}
