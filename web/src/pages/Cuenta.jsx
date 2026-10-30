@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { KeyRound, Sparkles, Loader2, IdCard, Store, Gauge, ShieldCheck, Plus, ArrowRight, Mail, Globe, Eye, EyeOff, LogOut, Paperclip } from 'lucide-react'
 import { useArchivos } from '../lib/archivos.js'
-import { EditorFirma } from '../components/ArchivosCorreo.jsx'
+import { EditorFirma, ArchivosAdjuntos } from '../components/ArchivosCorreo.jsx'
 import { supabase } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { mensajeError } from '../lib/util.js'
@@ -128,6 +128,12 @@ export default function Cuenta() {
           </section>
         </div>
       </div>
+
+      <section className="tarjeta">
+        <div className="tarjeta-titulo"><h3><Paperclip size={16} /> Archivos para tus emails</h3>{arch.adjuntos.length > 0 && <span className="chip">{arch.adjuntos.length}</span>}</div>
+        <p className="muted chico ayuda">Subí tus PDF, brochures o presentaciones (hasta 20 MB) y contá de qué se tratan. Claude los adjunta en el email cuando suman, y antes de enviar podés sacarlos o sumar otro.</p>
+        {arch.lista ? <ArchivosAdjuntos arch={arch} /> : <Cargando />}
+      </section>
 
       <div className="cuenta-grid">
         <section className="tarjeta">
