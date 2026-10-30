@@ -1,34 +1,20 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Loader2, Sparkles, ShieldCheck, Send, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Sparkles, ShieldCheck, Send, AlertCircle, Lock, Mail, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 
 export default function Login() {
-  const codigoUrl = new URLSearchParams(window.location.search).get('invitacion') || ''
-  const [modo, setModo] = useState(codigoUrl ? 'registro' : 'entrar')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [nombre, setNombre] = useState('')
-  const [codigo, setCodigo] = useState(codigoUrl.toUpperCase())
   const [ver, setVer] = useState(false)
   const [msg, setMsg] = useState('')
   const [cargando, setCargando] = useState(false)
+  const [olvido, setOlvido] = useState(false)
 
   async function enviar(e) {
     e.preventDefault()
     setCargando(true); setMsg('')
-    try {
-      if (modo === 'registro') {
-        const { data, error } = await supabase.functions.invoke('registro', { body: { email, password, nombre, codigo } })
-        let err = data?.error || null
-        if (error) { try { err = (await error.context.json()).error } catch { err = error.message } }
-        if (err) throw new Error(err)
-      }
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw new Error(error.message === 'Invalid login credentials' ? 'Email o contraseña incorrectos' : error.message)
-      if (codigoUrl) window.history.replaceState(null, '', '/')
-    } catch (e) {
-      setMsg(e.message)
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    if (error) setMsg(error.message === 'Invalid login credentials' ? 'Email o contraseña incorrectos.' : error.message)
     setCargando(false)
   }
 
@@ -37,42 +23,39 @@ export default function Login() {
       <section className="login-hero">
         <div className="marca"><span className="marca-logo">P</span>Prospecta</div>
         <h1>Conseguí clientes para tu estudio, de a uno y bien.</h1>
-        <p>Negocios con Instagram activo y sin web, mensajes que escribe Claude con tu estilo, y un seguimiento ordenado. Vos revisás y enviás cada mensaje.</p>
+        <p>Claude encuentra negocios sin web, te escribe los mensajes con tu estilo y te ordena el seguimiento. Vos revisás y enviás cada uno.</p>
         <div className="login-puntos">
-          <div><Sparkles size={18} /> Borradores personalizados por negocio, con IA</div>
+          <div><Sparkles size={18} /> Búsqueda de negocios y borradores con Claude</div>
           <div><Send size={18} /> WhatsApp y email con un clic, siempre enviados por vos</div>
           <div><ShieldCheck size={18} /> Límite diario y opt-out para cuidar tu número</div>
         </div>
       </section>
       <section className="login-form">
         <form onSubmit={enviar}>
-          <h2>{modo === 'entrar' ? 'Hola de nuevo' : 'Crear tu cuenta'}</h2>
-          <p>{modo === 'entrar' ? 'Entrá para seguir con tus prospectos.' : 'Necesitás el código de invitación de tu estudio.'}</p>
-          {modo === 'registro' && (
-            <>
-              <label>Tu nombre<input value={nombre} onChange={e => setNombre(e.target.value)} required autoComplete="name" /></label>
-              <label>Código de invitación<input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} required placeholder="MZA-XXXXXXXX" /></label>
-            </>
-          )}
-          <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" /></label>
+          <span className="login-sello"><Lock size={13} /> Acceso privado</span>
+          <h2>Hola de nuevo</h2>
+          <p>Entrá con el email y la contraseña que te dio el administrador.</p>
+          <label>Email
+            <div className="campo-icono"><Mail size={16} />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" autoFocus placeholder="vos@estudio.com" />
+            </div>
+          </label>
           <label>Contraseña
-            <div className="campo-pass">
-              <input type={ver ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
-                autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'} style={{ marginTop: 6 }} />
+            <div className="campo-pass campo-icono"><Lock size={16} />
+              <input type={ver ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" placeholder="••••••••" />
               <button type="button" onClick={() => setVer(!ver)} aria-label={ver ? 'Ocultar contraseña' : 'Mostrar contraseña'}>{ver ? <EyeOff size={17} /> : <Eye size={17} />}</button>
             </div>
-            {modo === 'registro' && <small>Mínimo 8 caracteres.</small>}
           </label>
           {msg && <div className="aviso error"><AlertCircle size={17} /><div>{msg}</div></div>}
-          <button className="btn primario ancho" disabled={cargando} style={{ padding: '11px 14px' }}>
-            {cargando && <Loader2 size={16} className="spin" />}{modo === 'entrar' ? 'Entrar' : 'Crear cuenta'}
+          <button className="btn primario ancho btn-grande" disabled={cargando}>
+            {cargando ? <Loader2 size={16} className="spin" /> : null} Entrar {!cargando && <ArrowRight size={16} />}
           </button>
           <div className="alternar">
-            {modo === 'entrar' ? '¿No tenés cuenta? ' : '¿Ya tenés cuenta? '}
-            <button type="button" className="link" onClick={() => { setModo(modo === 'entrar' ? 'registro' : 'entrar'); setMsg('') }}>
-              {modo === 'entrar' ? 'Crear una' : 'Entrar'}
-            </button>
+            {olvido
+              ? <span>Pedile al administrador que te genere una contraseña nueva desde su panel.</span>
+              : <button type="button" className="link" onClick={() => setOlvido(true)}>¿Olvidaste tu contraseña?</button>}
           </div>
+          <p className="login-pie">¿No tenés cuenta? Las cuentas las crea el administrador de tu estudio.</p>
         </form>
       </section>
     </div>

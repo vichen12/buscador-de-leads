@@ -87,10 +87,8 @@ export default function Cuenta() {
         </form>
         <section className="tarjeta">
           <div className="tarjeta-titulo"><h3><Sparkles size={16} /> Servicios</h3></div>
-          <p className="muted chico" style={{ marginTop: 0 }}>Claude escribe y reescribe los mensajes</p>
+          <p className="muted chico" style={{ marginTop: 0 }}>Claude busca negocios, escribe los mensajes y responde en el Asistente</p>
           <Estado ok={servicios.ia} si={`Claude conectado (${servicios.modelo || 'IA'})`} no="Sin clave de Claude: se usan plantillas. La carga el super admin en su panel (Claves y servicios)." />
-          <p className="muted chico" style={{ margin: '16px 0 8px', display: 'flex', gap: 6, alignItems: 'center' }}><MapPin size={14} /> Búsqueda en Google</p>
-          <Estado ok={servicios.places} si="Google Places conectado" no="Sin clave de Google Places: la carga el super admin en su panel para usar Buscar." />
         </section>
       </div>
     </>

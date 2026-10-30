@@ -22,7 +22,7 @@ export default function Layout({ children }) {
   ]
   const cargar = [
     ['/importar', 'Importar', Upload, 0, 'solo-escritorio'],
-    ['/buscar', 'Buscar en Maps', Search, 0, 'solo-escritorio'],
+    ['/buscar', 'Buscar negocios', Search, 0, 'solo-escritorio'],
   ]
   const cuenta = [['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : '']]
   if (perfil?.es_admin) cuenta.push(['/admin', 'Super admin', Crown])

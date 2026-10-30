@@ -7,7 +7,7 @@ const ok = (c, m) => { if (!c) { console.error('FALLA:', m); process.exitCode = 
 // --- stub mínimo de Supabase (auth.users, auth.uid(), rol authenticated)
 await db.exec(`
 create schema auth;
-create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}', last_sign_in_at timestamptz);
+create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}', raw_app_meta_data jsonb default '{"alta_admin": true}', last_sign_in_at timestamptz);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 create role authenticated; create role anon; create role service_role bypassrls;
 grant usage on schema auth to authenticated;
@@ -110,8 +110,16 @@ await as(S, `insert into codigos_invitacion (codigo, empresa_id, usos_max) value
 const asSR = async sql => { await db.exec('set role service_role;'); try { return await db.query(sql) } finally { await db.exec('reset role;') } }
 let can = (await asSR(`select canjear_codigo('SUR-1') r`)).rows[0].r
 ok(can.ok && can.empresa_id === emp, 'canjear código devuelve la empresa')
-await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${C}', 'c@x.com', '{"empresa_id": "${emp}", "codigo": "SUR-1"}')`)
-ok((await db.query(`select empresa_id from perfiles where id = '${C}'`)).rows[0].empresa_id === emp, 'el perfil queda en la empresa del código')
+await db.exec(`insert into auth.users (id, email, raw_app_meta_data) values ('${C}', 'c@x.com', '{"alta_admin": true, "empresa_id": "${emp}"}')`)
+ok((await db.query(`select empresa_id from perfiles where id = '${C}'`)).rows[0].empresa_id === emp, 'alta por el admin: el perfil queda en su empresa')
+// Registro por cuenta propia (sin pasar por el admin): nace sin acceso, aunque mande una empresa en sus metadatos
+const X = '55555555-5555-5555-5555-555555555555'
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values ('${X}', 'intruso@x.com', '{"empresa_id": "${emp}"}', '{}')`)
+const px = (await db.query(`select activo, empresa_id from perfiles where id = '${X}'`)).rows[0]
+ok(px.activo === false && px.empresa_id === null, 'registro por fuera del admin: la cuenta nace sin acceso ni empresa')
+ok((await as(X, 'select mi_acceso() a')).rows[0].a.habilitado === false, 'y ve la pantalla de cuenta suspendida')
+let ex = null; try { await as(X, `select importar_prospectos('[{"nombre":"Intruso"}]'::jsonb)`) } catch (e) { ex = e.message }
+ok((await as(X, 'select count(*)::int c from prospectos')).rows[0].c === 0, 'y no puede cargar ni ver datos')
 await as(C, `select importar_prospectos('[{"nombre":"Negocio de C","telefono":"0261 15-111-2222"}]'::jsonb)`)
 ok((await as(C, 'select count(*)::int c from prospectos')).rows[0].c === 1, 'C opera normalmente')
 await as(C, `update perfiles set activo = false, empresa_id = null, es_admin = true where id = '${C}'`)

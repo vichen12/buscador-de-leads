@@ -1,5 +1,5 @@
 // Prueba de punta a punta contra el proyecto Supabase real.
-// Uso: SUPABASE_URL=... SUPABASE_ANON_KEY=... CODIGO_INVITACION=... node backend.test.mjs
+// Uso: SUPABASE_URL=... SUPABASE_ANON_KEY=... [TEST_A=... TEST_B=...] node backend.test.mjs
 import { createRequire } from 'module'
 const require = createRequire(new URL('../../web/package.json', import.meta.url))
 const { createClient } = require('@supabase/supabase-js')
@@ -8,27 +8,16 @@ import fs from 'fs'
 
 const URL_ = process.env.SUPABASE_URL, KEY = process.env.SUPABASE_ANON_KEY
 const PASS = 'Prueba-Prospecta-2026!'
-const T = Date.now()
-const A = `prospecta.a.${T}@example.com`, B = `prospecta.b.${T}@example.com`
+// El registro está cerrado: se usan dos cuentas de prueba existentes (creadas por el admin) y se limpian al empezar
+const A = process.env.TEST_A || 'prospecta.a.1793330735305@example.com'
+const B = process.env.TEST_B || 'prospecta.b.1793330735305@example.com'
 const cliente = () => createClient(URL_, KEY, { auth: { persistSession: false } })
 let fallas = 0
 const ok = (c, m) => { console.log((c ? 'ok   - ' : 'FALLA- ') + m); if (!c) fallas++ }
 
-const CODIGO = process.env.CODIGO_INVITACION
-const registrar = body => fetch(`${URL_}/functions/v1/registro`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify(body) })
-  .then(async r => ({ status: r.status, ...(await r.json()) }))
-
-// registro con código de invitación
-let reg = await registrar({ email: 'intruso@example.com', password: PASS, codigo: 'CUALQUIERA' })
-ok(reg.status === 403, 'registro con código inválido rechazado')
-reg = await registrar({ email: A, password: 'corta', codigo: CODIGO })
-ok(reg.status === 400, 'registro con contraseña corta rechazado')
-for (const email of [A, B]) {
-  reg = await registrar({ email, password: PASS, nombre: email.split('@')[0], codigo: CODIGO })
-  ok(reg.ok, `registro de ${email}: ${reg.ok ? 'creado' : reg.error}`)
-}
-reg = await registrar({ email: A, password: PASS, codigo: CODIGO })
-ok(reg.status === 409, 'registro duplicado rechazado')
+// registro abierto cerrado
+const reg = await fetch(`${URL_}/functions/v1/registro`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ email: 'intruso@example.com', password: PASS, codigo: 'MZA-MKGW6LLS' }) })
+ok(reg.status === 403, 'el registro abierto está cerrado')
 
 const login = async email => {
   const c = cliente()
@@ -38,10 +27,23 @@ const login = async email => {
 }
 const sa = await login(A), sb = await login(B)
 ok(true, 'login de los dos usuarios')
+for (const c of [sa, sb]) {
+  const { data: { user } } = await c.auth.getUser()
+  await c.from('prospectos').delete().eq('owner_id', user.id)
+  await c.from('chat_conversaciones').delete().eq('owner_id', user.id)
+  await c.from('perfiles').update({ limite_diario: 15, nombre: '', estudio: '' }).eq('id', user.id)
+}
+const { count: quedan } = await sa.from('prospectos').select('*', { count: 'exact', head: true })
+ok(quedan === 0, 'cuentas de prueba limpias')
+
+// sólo el super admin crea usuarios
+const altaNoAdmin = await sa.functions.invoke('admin-usuarios', { body: { modo: 'crear', email: 'otro@example.com', nombre: 'Otro' } })
+let altaMsg = altaNoAdmin.data?.error; try { altaMsg = altaMsg || (await altaNoAdmin.error.context.json()).error } catch {}
+ok(/super admin/.test(altaMsg ?? ''), 'una cuenta común no puede crear usuarios: ' + altaMsg)
 
 // perfil creado por trigger y editable
 const { data: perfA } = await sa.from('perfiles').select('*').single()
-ok(perfA?.limite_diario === 15, 'perfil creado automáticamente con límite 15')
+ok(perfA?.limite_diario === 15 && perfA.activo === true, 'perfil activo con límite 15')
 await sa.from('perfiles').update({ nombre: 'Vincenzo', estudio: 'Estudio Prueba', limite_diario: 4 }).eq('id', perfA.id)
 
 // importar los 50 prospectos reales (mismo mapeo que el front)
@@ -144,12 +146,13 @@ const { data: eq } = await sa.rpc('equipo')
 ok(Array.isArray(eq) && eq.length === 0, 'una cuenta común no ve el equipo')
 const { data: cods } = await sa.from('codigos_invitacion').select('*')
 ok(cods.length === 0, 'una cuenta común no ve los códigos de invitación')
-const { error: eIns } = await sa.from('codigos_invitacion').insert({ codigo: 'HACK-' + T })
+const { error: eIns } = await sa.from('codigos_invitacion').insert({ codigo: 'HACK-' + Date.now() })
 ok(eIns, 'una cuenta común no puede crear códigos')
 await sa.from('perfiles').update({ es_admin: true }).eq('id', perfA.id)
-const { data: perfA2 } = await sa.from('perfiles').select('es_admin, codigo_invitacion').single()
+await sa.from('perfiles').update({ limite_chat: 999, activo: true, empresa_id: null }).eq('id', perfA.id)
+const { data: perfA2 } = await sa.from('perfiles').select('es_admin, limite_chat, empresa_id').single()
 ok(perfA2.es_admin === false, 'nadie puede darse rol de administrador')
-ok(perfA2.codigo_invitacion === CODIGO, 'el perfil registra con qué código se dio de alta')
+ok(perfA2.limite_chat !== 999 && perfA2.empresa_id === perfA.empresa_id, 'ni subirse el límite de IA ni cambiarse de empresa')
 
 // estado de servicios y reescritura
 const est = await sa.functions.invoke('generar-mensajes', { body: { modo: 'estado' } })
@@ -183,10 +186,14 @@ if (cu.data?.ia) {
 const { error: insErr } = await sa.from('chat_mensajes').insert({ conversacion_id: '00000000-0000-0000-0000-000000000000', rol: 'user', contenido: 'trampa' })
 ok(!!insErr, 'el navegador no puede escribir mensajes del asistente')
 
-// buscar-places sin key → error claro
-const bp = await sa.functions.invoke('buscar-places', { body: { rubro: 'barbería', zona: 'Godoy Cruz' } })
-let bpMsg = bp.data?.error; try { bpMsg = bpMsg || (await bp.error.context.json()).error } catch {}
-console.log('     buscar-places:', bp.data?.resultados ? `${bp.data.resultados.length} resultados` : bpMsg)
+// buscar negocios con Claude: sin clave lo explica; con clave devuelve candidatos
+const bn = await sa.functions.invoke('buscar-negocios', { body: { rubro: 'barbería', zona: 'Godoy Cruz, Mendoza', cantidad: 5 } })
+let bnMsg = bn.data?.error; try { bnMsg = bnMsg || (await bn.error.context.json()).error } catch {}
+if (cu.data?.ia) ok(Array.isArray(bn.data?.resultados), `buscar-negocios: ${bn.data?.resultados?.length} candidatos`)
+else ok(/clave de Claude/.test(bnMsg ?? ''), 'buscar-negocios sin clave: lo explica')
+const bnVacio = await sa.functions.invoke('buscar-negocios', { body: { rubro: '', zona: '' } })
+let bnV = bnVacio.data?.error; try { bnV = bnV || (await bnVacio.error.context.json()).error } catch {}
+ok(/rubro y zona/.test(bnV ?? ''), 'buscar-negocios valida rubro y zona')
 
 console.log(fallas ? `\n${fallas} FALLAS` : '\nTODO OK')
 process.exit(fallas ? 1 : 0)

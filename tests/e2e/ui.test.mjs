@@ -1,14 +1,16 @@
 // Prueba de interfaz de punta a punta contra el Supabase real.
-// Uso: APP_URL=http://localhost:4173 CODIGO_INVITACION=... node ui.test.mjs
+// Uso: APP_URL=http://localhost:4173 [TEST_UI=email] node ui.test.mjs
 import { createRequire } from 'module'
 import fs from 'fs'
 const require = createRequire(import.meta.url)
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright')
 
 const APP = process.env.APP_URL || 'http://localhost:4173'
-const CODIGO = process.env.CODIGO_INVITACION
-const EMAIL = `prospecta.ui.${Date.now()}@example.com`
-const PASS = 'Prueba-Interfaz-2026!', PASS2 = 'Prueba-Interfaz-2027!'
+import { prepararCuenta } from './cuentas.mjs'
+const EMAIL = process.env.TEST_UI || 'prospecta.ui.1793330981106@example.com'
+const CLAVES = ['Prueba-Interfaz-2026!', 'Prueba-Interfaz-2027!']
+const PASS = await prepararCuenta(EMAIL, CLAVES, { nombre: 'Vincenzo UI' })
+const PASS2 = CLAVES.find(c => c !== PASS) // la prueba cambia la contraseña a la otra
 const CSV = new URL('../../datos/prospectos_mendoza.csv', import.meta.url).pathname
 const SHOTS = process.env.SHOTS || '/tmp'
 let fallas = 0
@@ -27,19 +29,19 @@ const pass = () => page.locator('input[autocomplete$=password]')
 const estadoSel = () => page.locator('.selector-estado')
 const estadoActual = () => estadoSel().getAttribute('data-valor')
 
-// 1. Registro con código
+// 1. Login (el registro está cerrado: no hay "Crear una")
 await page.goto(APP)
-ok(await ver('Conseguí clientes para tu estudio'), 'pantalla de ingreso')
-await page.getByRole('button', { name: 'Crear una' }).click()
-await page.getByLabel('Tu nombre').fill('Vincenzo UI')
-await page.getByLabel('Código de invitación').fill('MZA-FALSO123')
+ok(await ver('Hola de nuevo'), 'pantalla de ingreso')
+ok(await page.getByRole('button', { name: 'Crear una' }).count() === 0 && await page.getByText('Las cuentas las crea el administrador').count() === 1, 'no se puede crear una cuenta desde el login')
 await page.getByLabel('Email').fill(EMAIL)
+await pass().fill('Contraseña-Mala-123')
+await page.getByRole('button', { name: 'Entrar' }).click()
+ok(await ver('Email o contraseña incorrectos'), 'contraseña incorrecta rechazada')
+await page.getByRole('button', { name: '¿Olvidaste tu contraseña?' }).click()
+ok(await ver('Pedile al administrador'), 'olvido de contraseña: explica que la genera el admin')
 await pass().fill(PASS)
-await page.getByRole('button', { name: 'Crear cuenta' }).click()
-ok(await ver('inválido o agotado'), 'código de invitación falso rechazado')
-await page.getByLabel('Código de invitación').fill(CODIGO)
-await page.getByRole('button', { name: 'Crear cuenta' }).click()
-ok(await ver('Todavía no cargaste prospectos'), 'registro OK → tablero vacío')
+await page.getByRole('button', { name: 'Entrar' }).click()
+ok(await ver('Todavía no cargaste prospectos'), 'login OK → tablero vacío')
 ok(await ver('Buenas'), 'saludo con el nombre')
 await page.goto(APP + '/equipo')
 ok(await ver('Todavía no cargaste prospectos'), 'una cuenta común no entra a Equipo (vuelve al tablero)')
@@ -194,7 +196,7 @@ ok(csv.trim().split('\n').length === 51 && csv.includes('No interesado') && csv.
 await nav('Seguimientos').click()
 ok(await ver('Próximos'), 'seguimientos con próximos agendados')
 await nav('Buscar').click()
-ok(await ver('hace falta la clave de Google Places'), 'Buscar explica que falta la clave de Places')
+ok(await ver('Claude busca en la web negocios') && await page.getByRole('button', { name: 'Buscar con Claude' }).count() === 1, 'Buscar negocios usa Claude')
 await nav('Importar').click()
 await page.setInputFiles('input[type=file]', CSV)
 await page.getByRole('button', { name: 'Revisar duplicados' }).click()

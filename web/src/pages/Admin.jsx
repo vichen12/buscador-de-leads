@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Link2, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw } from 'lucide-react'
+import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, fechaHora, mensajeError } from '../lib/util.js'
 import { Avatar, Esqueleto, Interruptor, Modal, Aviso, Contador, useConfirmar, useToast } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
 
-const nuevoCodigo = () => 'MZA-' + Array.from(crypto.getRandomValues(new Uint8Array(8)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('')
-const linkInvitacion = c => `${window.location.origin}/?invitacion=${c}`
 const MODELOS = [
   ['claude-sonnet-5-5', 'Claude Sonnet 5.5 — equilibrado (recomendado)'],
   ['claude-opus-5-5', 'Claude Opus 5.5 — máxima calidad'],
@@ -17,29 +15,29 @@ export default function Admin() {
   const toast = useToast()
   const [tab, setTab] = useState('empresas')
   const [datos, setDatos] = useState(null)
+  const [alta, setAlta] = useState(null)
+  const [credenciales, setCredenciales] = useState(null)
 
   async function cargar() {
-    const [e, u, c, k, ch] = await Promise.all([
+    const [e, u, k, ch] = await Promise.all([
       supabase.rpc('admin_empresas'),
       supabase.rpc('admin_usuarios'),
-      supabase.from('codigos_invitacion').select('*').order('created_at', { ascending: false }),
       supabase.rpc('admin_estado_claves'),
       supabase.rpc('admin_uso_chat'),
     ])
-    const error = e.error || u.error || c.error || k.error
+    const error = e.error || u.error || k.error
     if (error) toast(mensajeError(error), 'error')
     const chat = new Map((ch.data ?? []).map(x => [x.id, x]))
-    setDatos({ empresas: e.data ?? [], usuarios: (u.data ?? []).map(x => ({ ...x, chat: chat.get(x.id) })), codigos: c.data ?? [], claves: k.data ?? [] })
+    setDatos({ empresas: e.data ?? [], usuarios: (u.data ?? []).map(x => ({ ...x, chat: chat.get(x.id) })), claves: k.data ?? [] })
   }
   useEffect(() => { cargar() }, [])
 
   if (!datos) return <Esqueleto />
-  const { empresas, usuarios, codigos, claves } = datos
+  const { empresas, usuarios, claves } = datos
   const claveIA = claves.find(c => c.nombre === 'anthropic')
   const tabs = [
     ['empresas', 'Empresas', Building2, empresas.length],
     ['usuarios', 'Usuarios', Users, usuarios.length],
-    ['codigos', 'Invitaciones', Ticket, codigos.filter(c => c.activo && c.usos < c.usos_max).length],
     ['claves', 'Claves y servicios', KeyRound, claveIA?.configurada ? null : '!'],
   ]
   const total = k => empresas.reduce((s, x) => s + Number(x[k] || 0), 0)
@@ -49,7 +47,7 @@ export default function Admin() {
       <header className="cabecera">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Crown size={26} style={{ color: 'var(--acc)' }} /> Super admin</h1>
-          <p>Dás de alta empresas, habilitás o suspendés su acceso y cargás las claves que usa todo el sistema.</p>
+          <p>Dás de alta empresas y usuarios, habilitás o suspendés su acceso y cargás las claves que usa todo el sistema.</p>
         </div>
       </header>
 
@@ -69,11 +67,12 @@ export default function Admin() {
       </div>
 
       <div key={tab} className="pagina">
-        {tab === 'empresas' && <Empresas empresas={empresas} recargar={cargar} />}
-        {tab === 'usuarios' && <Usuarios usuarios={usuarios} empresas={empresas} recargar={cargar} />}
-        {tab === 'codigos' && <Codigos codigos={codigos} empresas={empresas} recargar={cargar} />}
+        {tab === 'empresas' && <Empresas empresas={empresas} recargar={cargar} nuevoUsuario={emp => setAlta({ empresa_id: emp.id })} />}
+        {tab === 'usuarios' && <Usuarios usuarios={usuarios} empresas={empresas} recargar={cargar} nuevoUsuario={() => setAlta({ empresa_id: empresas.find(e => e.activa)?.id ?? '' })} setCredenciales={setCredenciales} />}
         {tab === 'claves' && <Claves claves={claves} recargar={cargar} />}
       </div>
+      {alta && <NuevoUsuario inicial={alta} empresas={empresas} onCerrar={() => setAlta(null)} onCreado={c => { setAlta(null); setCredenciales(c); cargar() }} />}
+      {credenciales && <Credenciales {...credenciales} onCerrar={() => setCredenciales(null)} />}
     </>
   )
 }
@@ -91,11 +90,10 @@ function Mini({ titulo, valor, pie, icono: Icono, color, fondo }) {
 const copiar = async (toast, texto, msg) => { try { await navigator.clipboard.writeText(texto); toast(msg) } catch { toast(texto, 'info') } }
 
 // ---------------- Empresas ----------------
-function Empresas({ empresas, recargar }) {
+function Empresas({ empresas, recargar, nuevoUsuario }) {
   const toast = useToast()
   const confirmar = useConfirmar()
   const [edit, setEdit] = useState(null)
-  const [invitacion, setInvitacion] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
   async function guardar(ev) {
@@ -109,7 +107,7 @@ function Empresas({ empresas, recargar }) {
     setEdit(null)
     toast(nueva ? `Empresa "${edit.nombre.trim()}" creada` : 'Cambios guardados')
     await recargar()
-    if (nueva) crearInvitacion({ id, nombre: edit.nombre.trim() })
+    if (nueva) nuevoUsuario({ id })
   }
 
   async function alternar(e) {
@@ -123,14 +121,6 @@ function Empresas({ empresas, recargar }) {
     recargar()
   }
 
-  async function crearInvitacion(e) {
-    const codigo = nuevoCodigo()
-    const { error } = await supabase.from('codigos_invitacion').insert({ codigo, descripcion: e.nombre, usos_max: 10, empresa_id: e.id })
-    if (error) return toast(mensajeError(error), 'error')
-    setInvitacion({ codigo, empresa: e.nombre })
-    recargar()
-  }
-
   return (
     <>
       <div className="barra-herramientas" style={{ justifyContent: 'space-between' }}>
@@ -138,7 +128,7 @@ function Empresas({ empresas, recargar }) {
         <button className="btn primario" onClick={() => setEdit({ nombre: '', contacto: '', notas: '' })}><Plus size={16} /> Nueva empresa</button>
       </div>
       {!empresas.length ? (
-        <div className="tarjeta vacio"><div className="icono-grande"><Building2 size={26} /></div><h3>Todavía no hay empresas</h3><p>Creá la primera y te damos el link de invitación para mandarle.</p></div>
+        <div className="tarjeta vacio"><div className="icono-grande"><Building2 size={26} /></div><h3>Todavía no hay empresas</h3><p>Creá la primera y después dale de alta a sus usuarios.</p></div>
       ) : (
         <div className="empresas-grid stagger">
           {empresas.map(e => (
@@ -159,7 +149,7 @@ function Empresas({ empresas, recargar }) {
                 <span className={'estado'} style={e.activa ? { color: 'var(--ok)', background: 'var(--ok-soft)' } : { color: 'var(--err)', background: 'var(--err-soft)' }}>{e.activa ? 'Habilitada' : 'Suspendida'}</span>
                 <span className="espacio" />
                 <button className="btn chico" onClick={() => setEdit({ ...e })}><Pencil size={14} /> Editar</button>
-                <button className="btn chico oscuro" onClick={() => crearInvitacion(e)} disabled={!e.activa}><UserPlus size={14} /> Invitar</button>
+                <button className="btn chico oscuro" onClick={() => nuevoUsuario(e)} disabled={!e.activa}><UserPlus size={14} /> Agregar usuario</button>
               </div>
             </article>
           ))}
@@ -170,7 +160,7 @@ function Empresas({ empresas, recargar }) {
         <Modal onCerrar={() => setEdit(null)}>
           <form onSubmit={guardar}>
             <h3>{edit.id ? 'Editar empresa' : 'Nueva empresa'}</h3>
-            <p>{edit.id ? 'Los cambios se ven al instante.' : 'Al crearla te damos un código de invitación para que se registren sus usuarios.'}</p>
+            <p>{edit.id ? 'Los cambios se ven al instante.' : 'Después de crearla, le das de alta los usuarios.'}</p>
             <label>Nombre<input autoFocus required value={edit.nombre} onChange={ev => setEdit({ ...edit, nombre: ev.target.value })} placeholder="Ej.: Estudio Andes" /></label>
             <label>Contacto<input value={edit.contacto} onChange={ev => setEdit({ ...edit, contacto: ev.target.value })} placeholder="Nombre, mail o teléfono del responsable" /></label>
             <label>Notas internas<textarea rows={3} value={edit.notas} onChange={ev => setEdit({ ...edit, notas: ev.target.value })} placeholder="Plan, forma de pago, lo que quieras recordar" /></label>
@@ -181,30 +171,12 @@ function Empresas({ empresas, recargar }) {
           </form>
         </Modal>
       )}
-      {invitacion && <InvitacionLista {...invitacion} onCerrar={() => setInvitacion(null)} />}
     </>
   )
 }
 
-function InvitacionLista({ codigo, empresa, onCerrar }) {
-  const toast = useToast()
-  return (
-    <Modal onCerrar={onCerrar}>
-      <div className="icono-grande" style={{ background: 'var(--ok-soft)', color: 'var(--ok)', margin: '0 0 14px' }}><CheckCircle2 size={26} /></div>
-      <h3>Invitación lista para {empresa}</h3>
-      <p>Mandale este link. Al abrirlo, el código ya viene cargado y sólo tiene que elegir su email y contraseña. Sirve para 10 personas.</p>
-      <label>Código<input readOnly value={codigo} onFocus={e => e.target.select()} /></label>
-      <label>Link<input readOnly value={linkInvitacion(codigo)} onFocus={e => e.target.select()} /></label>
-      <div className="acciones fin">
-        <button className="btn" onClick={() => copiar(toast, codigo, 'Código copiado')}><Copy size={15} /> Copiar código</button>
-        <button className="btn primario" onClick={() => copiar(toast, linkInvitacion(codigo), 'Link copiado')}><Link2 size={15} /> Copiar link</button>
-      </div>
-    </Modal>
-  )
-}
-
 // ---------------- Usuarios ----------------
-function Usuarios({ usuarios, empresas, recargar }) {
+function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales }) {
   const toast = useToast()
   const confirmar = useConfirmar()
   const { session } = useApp()
@@ -219,6 +191,13 @@ function Usuarios({ usuarios, empresas, recargar }) {
     if (error) return toast(mensajeError(error), 'error')
     toast(msg); recargar()
   }
+  async function restablecer(u) {
+    if (!(await confirmar({ titulo: `¿Generar una contraseña nueva para ${u.nombre || u.email}?`, texto: 'La actual deja de funcionar. Te mostramos la nueva para que se la pases.', aceptar: 'Generar contraseña' }))) return
+    try {
+      const r = await llamarFuncion('admin-usuarios', { modo: 'restablecer', id: u.id })
+      setCredenciales({ nombre: u.nombre, email: r.email, password: r.password, nueva: false })
+    } catch (e) { toast(e.message, 'error') }
+  }
   async function alternar(u) {
     if (u.activo && !(await confirmar({ titulo: `¿Suspender a ${u.nombre || u.email}?`, texto: 'No va a poder entrar hasta que lo reactives. Sus datos quedan guardados.', peligro: true, aceptar: 'Suspender' }))) return
     actualizar(u, { activo: !u.activo }, u.activo ? 'Usuario suspendido' : 'Usuario reactivado')
@@ -228,6 +207,7 @@ function Usuarios({ usuarios, empresas, recargar }) {
     <section className="tarjeta sin-pad">
       <div className="barra-herramientas" style={{ padding: '16px 18px 0', marginBottom: 12 }}>
         <div className="buscador"><SearchIcon /><input placeholder="Buscar por nombre, email o empresa" value={q} onChange={e => setQ(e.target.value)} /></div>
+        <button className="btn primario" onClick={nuevoUsuario}><UserPlus size={16} /> Nuevo usuario</button>
       </div>
       <div className="scroll-x">
         <table className="tabla">
@@ -259,7 +239,12 @@ function Usuarios({ usuarios, empresas, recargar }) {
                     toast(v === null ? 'Vuelve al límite general' : `Límite del asistente: ${v} por día`); recargar()
                   }} /></td>
                   <td className="nowrap muted">{u.ultimo_ingreso ? fechaHora(u.ultimo_ingreso) : 'Nunca'}</td>
-                  <td><Interruptor on={u.activo} disabled={yo} onCambiar={() => alternar(u)} etiqueta={(u.activo ? 'Suspender a ' : 'Reactivar a ') + (u.nombre || u.email)} /></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <Interruptor on={u.activo} disabled={yo} onCambiar={() => alternar(u)} etiqueta={(u.activo ? 'Suspender a ' : 'Reactivar a ') + (u.nombre || u.email)} />
+                      {!yo && <button className="btn chico fantasma" onClick={() => restablecer(u)} title="Generar contraseña nueva" aria-label={'Nueva contraseña para ' + (u.nombre || u.email)}><RotateCcw size={14} /></button>}
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -289,85 +274,59 @@ function LimiteChat({ u, onGuardar }) {
 
 const SearchIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
 
-// ---------------- Códigos ----------------
-function Codigos({ codigos, empresas, recargar }) {
+// ---------------- Alta de usuarios ----------------
+function NuevoUsuario({ inicial, empresas, onCerrar, onCreado }) {
   const toast = useToast()
-  const [modal, setModal] = useState(null)
-  const nombreEmpresa = id => empresas.find(e => e.id === id)?.nombre
-
-  async function crear(ev) {
-    ev.preventDefault()
-    if (!modal.empresa_id) return toast('Elegí a qué empresa pertenece la invitación', 'error')
-    const { error } = await supabase.from('codigos_invitacion').insert({ codigo: modal.codigo, descripcion: modal.descripcion, usos_max: Number(modal.usos_max) || 1, empresa_id: modal.empresa_id })
-    if (error) return toast(mensajeError(error), 'error')
-    toast('Invitación creada'); setModal(null); recargar()
+  const [f, setF] = useState({ nombre: '', email: '', empresa_id: inicial.empresa_id ?? '' })
+  const [creando, setCreando] = useState(false)
+  async function crear(e) {
+    e.preventDefault()
+    setCreando(true)
+    try {
+      const r = await llamarFuncion('admin-usuarios', { modo: 'crear', ...f, empresa_id: f.empresa_id || null })
+      toast(`Cuenta de ${f.nombre} creada`)
+      onCreado({ nombre: f.nombre, email: r.email, password: r.password, nueva: true })
+    } catch (err) { toast(err.message, 'error') }
+    setCreando(false)
   }
-  async function alternar(c) {
-    const { error } = await supabase.from('codigos_invitacion').update({ activo: !c.activo }).eq('codigo', c.codigo)
-    if (error) toast(mensajeError(error), 'error'); else { toast(c.activo ? 'Código desactivado' : 'Código activado'); recargar() }
-  }
-
   return (
-    <>
-      <div className="barra-herramientas" style={{ justifyContent: 'space-between' }}>
-        <span className="muted">Con un código, la persona se registra sola y queda dentro de esa empresa.</span>
-        <button className="btn primario" disabled={!empresas.length} onClick={() => setModal({ codigo: nuevoCodigo(), descripcion: '', usos_max: 5, empresa_id: empresas.find(e => e.activa)?.id ?? '' })}><Plus size={16} /> Nueva invitación</button>
-      </div>
-      <section className="tarjeta sin-pad">
-        <div className="scroll-x">
-          <table className="tabla">
-            <thead><tr><th>Código</th><th>Empresa</th><th>Para</th><th>Usos</th><th>Estado</th><th>Creado</th><th></th></tr></thead>
-            <tbody>
-              {codigos.map(c => (
-                <tr key={c.codigo} className={c.activo ? '' : 'apagado'}>
-                  <td><code>{c.codigo}</code></td>
-                  <td className="nowrap">{nombreEmpresa(c.empresa_id) || <span className="muted">—</span>}</td>
-                  <td>{c.descripcion || <span className="muted">—</span>}</td>
-                  <td className="nowrap">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div className="cupo-barra" style={{ width: 54, margin: 0 }}><span style={{ width: Math.min(100, c.usos / c.usos_max * 100) + '%' }} /></div>{c.usos}/{c.usos_max}
-                    </div>
-                  </td>
-                  <td>{c.activo ? (c.usos >= c.usos_max ? <span className="chip con_web">Agotado</span> : <span className="chip nuevo">Activo</span>) : <span className="chip">Desactivado</span>}</td>
-                  <td className="nowrap muted">{fecha(c.created_at)}</td>
-                  <td>
-                    <div className="acciones" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-                      <button className="btn chico" onClick={() => copiar(toast, linkInvitacion(c.codigo), 'Link de invitación copiado')}><Link2 size={14} /> Link</button>
-                      <button className="btn chico" onClick={() => copiar(toast, c.codigo, 'Código copiado')} aria-label="Copiar código"><Copy size={14} /></button>
-                      <Interruptor on={c.activo} onCambiar={() => alternar(c)} etiqueta={(c.activo ? 'Desactivar ' : 'Activar ') + c.codigo} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!codigos.length && <tr><td colSpan={7} className="muted centrado" style={{ padding: 30 }}>Todavía no hay códigos.</td></tr>}
-            </tbody>
-          </table>
+    <Modal onCerrar={onCerrar}>
+      <form onSubmit={crear}>
+        <h3>Nuevo usuario</h3>
+        <p>Creamos la cuenta con una contraseña inicial que te mostramos una sola vez para que se la pases.</p>
+        <label>Nombre<input autoFocus required value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej.: Marta Gómez" /></label>
+        <label>Email<input type="email" required value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="marta@estudio.com" /></label>
+        <label>Empresa
+          <select value={f.empresa_id} onChange={e => setF({ ...f, empresa_id: e.target.value })} aria-label="Empresa del usuario">
+            <option value="">Sin empresa</option>
+            {empresas.map(e => <option key={e.id} value={e.id} disabled={!e.activa}>{e.nombre}{e.activa ? '' : ' (suspendida)'}</option>)}
+          </select>
+        </label>
+        <div className="acciones fin">
+          <button type="button" className="btn" onClick={onCerrar}>Cancelar</button>
+          <button className="btn primario" disabled={creando}>{creando ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />} Crear cuenta</button>
         </div>
-      </section>
-      {modal && (
-        <Modal onCerrar={() => setModal(null)}>
-          <form onSubmit={crear}>
-            <h3>Nueva invitación</h3>
-            <p>Compartí el link: el código queda precargado en el registro.</p>
-            <label>Empresa
-              <select value={modal.empresa_id} onChange={e => setModal({ ...modal, empresa_id: e.target.value })} required aria-label="Empresa de la invitación">
-                <option value="">Elegí una empresa…</option>
-                {empresas.map(e => <option key={e.id} value={e.id} disabled={!e.activa}>{e.nombre}{e.activa ? '' : ' (suspendida)'}</option>)}
-              </select>
-            </label>
-            <div className="form-grid">
-              <label>Código<input value={modal.codigo} onChange={e => setModal({ ...modal, codigo: e.target.value.toUpperCase().trim() })} required /></label>
-              <label>Usos máximos<input type="number" min={1} max={500} value={modal.usos_max} onChange={e => setModal({ ...modal, usos_max: e.target.value })} /></label>
-            </div>
-            <label>Para quién (opcional)<input value={modal.descripcion} onChange={e => setModal({ ...modal, descripcion: e.target.value })} placeholder="Ej.: equipo de ventas" /></label>
-            <div className="acciones fin">
-              <button type="button" className="btn" onClick={() => setModal(null)}>Cancelar</button>
-              <button className="btn primario">Crear invitación</button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </>
+      </form>
+    </Modal>
+  )
+}
+
+function Credenciales({ nombre, email, password, nueva, onCerrar }) {
+  const toast = useToast()
+  const link = window.location.origin
+  const mensaje = `Hola${nombre ? ' ' + nombre.split(' ')[0] : ''}! ${nueva ? 'Te creé una cuenta en Prospecta' : 'Te generé una contraseña nueva para Prospecta'}.\n\nEntrá en: ${link}\nEmail: ${email}\nContraseña: ${password}\n\nCuando entres, cambiala en Mi cuenta.`
+  return (
+    <Modal onCerrar={onCerrar}>
+      <div className="icono-grande" style={{ background: 'var(--ok-soft)', color: 'var(--ok)', margin: '0 0 14px' }}><CheckCircle2 size={26} /></div>
+      <h3>{nueva ? 'Cuenta creada' : 'Contraseña nueva'}</h3>
+      <p>Pasale estos datos a {nombre || 'la persona'}. <b>La contraseña no se vuelve a mostrar.</b></p>
+      <label>Email<input readOnly value={email} onFocus={e => e.target.select()} /></label>
+      <label>Contraseña<input readOnly value={password} onFocus={e => e.target.select()} aria-label="Contraseña generada" style={{ fontFamily: 'ui-monospace, monospace', fontSize: 15, letterSpacing: '.04em' }} /></label>
+      <div className="acciones fin">
+        <button className="btn" onClick={() => copiar(toast, password, 'Contraseña copiada')}><Copy size={15} /> Copiar contraseña</button>
+        <button className="btn primario" onClick={() => copiar(toast, mensaje, 'Mensaje copiado: pegalo en WhatsApp o mail')}><Copy size={15} /> Copiar mensaje con el acceso</button>
+      </div>
+    </Modal>
   )
 }
 
@@ -392,9 +351,7 @@ function LimiteGeneral({ actual, guardando, onGuardar }) {
 
 const SERVICIOS = [
   { nombre: 'anthropic', titulo: 'Claude (Anthropic)', icono: Sparkles, color: '#8b2c3c', fondo: '#fbeff1', placeholder: 'sk-ant-api03-…',
-    ayuda: <>Escribe y reescribe los mensajes. Creala en <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a> → API Keys.</> },
-  { nombre: 'google_places', titulo: 'Google Places', icono: MapPin, color: '#1d4ed8', fondo: '#ebf1ff', placeholder: 'AIza…',
-    ayuda: <>Opcional. Busca negocios en Maps y detecta si tienen web. Activá “Places API (New)” en <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud</a>.</> },
+    ayuda: <>Busca negocios, escribe los mensajes y responde en el Asistente. Creala en <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a> → API Keys.</> },
 ]
 
 function Claves({ claves, recargar }) {
@@ -477,7 +434,7 @@ function Claves({ claves, recargar }) {
 
       <div className="estado-servicio" style={{ marginTop: 10 }}>
         <span className="punto" style={{ background: servicios.ia ? '#22c55e' : servicios.ia === false ? '#f59e0b' : '#a1a1aa', width: 10, height: 10 }} />
-        <div><b>Estado en vivo</b><span>Claude: {servicios.ia ? `conectado (${servicios.modelo || modeloActual})` : 'sin clave'} · Google Places: {servicios.places ? 'conectado' : 'sin clave'}</span></div>
+        <div><b>Estado en vivo</b><span>Claude: {servicios.ia ? `conectado (${servicios.modelo || modeloActual})` : 'sin clave'} · lo usan el Asistente, la búsqueda de negocios y los borradores</span></div>
         <span className="espacio" />
         <button className="btn chico" onClick={async () => { await refrescarServicios(); toast('Estado actualizado', 'info') }}>Volver a verificar</button>
       </div>
