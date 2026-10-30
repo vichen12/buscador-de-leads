@@ -44,3 +44,10 @@ Fuente: los tres documentos "Mejoras para Prospecta" (parte 1: completar y orden
 - Color B2C: verde azulado (#0d9488). B2B: naranja.
 - Pendiente de verificar: URL de Vercel en Supabase Auth → URL Configuration para el mail de recuperación.
 - Sigue: P8 (integraciones CRM, plantillas, búsquedas guardadas, notificaciones), Parte 2 (Tu día, guion de llamada, brief de reunión, propuestas, visitas, multi-casilla, inbound, etiquetas, vistas, comentarios, metas, resumen semanal, coach, admin, ayuda, API), Parte 3 resto (bandeja unificada, planes, landing, demo, LANZAMIENTO.md).
+
+## 30/10 (cierre) — todo lo de las 3 partes
+- Parte 2: Tu día, metas/ranking/racha, catálogo y propuestas, visitas, etiquetas, vistas guardadas, comentarios con @menciones y notificaciones, archivos por empresa, guion de llamada, brief de reunión, formulario web (recibir_lead), plantillas, interesados, export CRM, reactivar perdidos, resumen semanal (_shared/resumen.ts, trabajador), coach (Consejos de Claude en Reportes), ayuda/novedades/feedback, super admin (uso, planes, sugerencias, errores, pedidos de acceso), modo oscuro.
+- Parte 3: B2C completo, página pública /conoce con demo y planes, primeros pasos por modo, planes configurables (cobro apagado).
+- Paginación en listas largas (components/Paginador.jsx) y carga completa de >1000 filas (traerTodo).
+- Endurecimiento: funciones internas sin EXECUTE para la API; sólo 5 RPC públicas + helpers de RLS.
+- Ver LANZAMIENTO.md para lo pendiente de decisión y la checklist de paneles.

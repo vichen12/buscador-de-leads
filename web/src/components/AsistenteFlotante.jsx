@@ -52,6 +52,13 @@ export default function AsistenteFlotante() {
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   }, [])
 
+  // Otras pantallas pueden pedirle algo a Claude: window.dispatchEvent(new CustomEvent('preguntar-a-claude', { detail: 'texto' }))
+  const enviarRef = useRef(null)
+  useEffect(() => {
+    const f = e => { setAbierto(true); setTimeout(() => enviarRef.current?.(String(e.detail ?? '')), 80) }
+    window.addEventListener('preguntar-a-claude', f); return () => window.removeEventListener('preguntar-a-claude', f)
+  }, [])
+
   if (loc.pathname === '/asistente') return null
 
   async function enviar(t = texto) {
@@ -70,6 +77,7 @@ export default function AsistenteFlotante() {
     setEnviando(false)
   }
 
+  enviarRef.current = enviar
   return (
     <>
       {abierto && (

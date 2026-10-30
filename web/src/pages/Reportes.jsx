@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, Download, Send, MessageCircle, CalendarCheck, Trophy, Building2, FlaskConical, RefreshCw } from 'lucide-react'
+import { BarChart3, Download, Send, MessageCircle, CalendarCheck, Trophy, Building2, FlaskConical, RefreshCw, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { ESTADOS, MOTIVOS_PERDIDO, hoyLocal } from '../lib/util.js'
 import { Esqueleto, ErrorCarga, Vacio, Contador } from '../components/ui.jsx'
@@ -73,6 +73,11 @@ export default function Reportes() {
         </div>
         <div className="acciones">
           <button type="button" className="btn" onClick={cargar} disabled={cargando}><RefreshCw size={15} className={cargando ? 'spin' : ''} /> Actualizar</button>
+          <button type="button" className="btn ia" disabled={!datos} onClick={() => {
+            const t = datos.totales
+            const top = (l, n = 5) => l.slice(0, n).map(x => `${x.clave}: ${x.respondieron}/${x.contactados}`).join('; ')
+            window.dispatchEvent(new CustomEvent('preguntar-a-claude', { detail: `Sos mi coach de ventas. Analizá mis resultados del ${desde} al ${hasta} y decime 3 cosas concretas para mejorar la semana que viene. Envíos ${t.enviados}, contactadas ${t.contactados}, respondieron ${t.respondieron}, reuniones ${t.reuniones}, clientes ${t.clientes}. Por rubro (respondieron/contactadas): ${top(datos.por_rubro)}. Por zona: ${top(datos.por_zona)}. Mensajes personalizados vs genéricos: ${top(datos.por_personalizacion)}. Motivos de pérdida: ${datos.motivos_perdida.map(m => m.clave + ' ' + m.cantidad).join(', ') || 'ninguno'}.` }))
+          }}><Sparkles size={15} /> Consejos de Claude</button>
           <button type="button" className="btn primario" onClick={exportar} disabled={!datos}><Download size={15} /> Descargar Excel</button>
         </div>
       </header>
