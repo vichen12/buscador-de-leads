@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Plus, Download, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X } from 'lucide-react'
+import { Search, Plus, Download, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
-import { ESTADOS, descargarCSV, fecha, handleIG, mensajeError } from '../lib/util.js'
-import { Avatar, Esqueleto, EstadoBadge, QueTieneChip, useConfirmar, useToast } from '../components/ui.jsx'
+import { ESTADOS, fecha, mensajeError } from '../lib/util.js'
+import { descargarExcel, filaEmpresa } from '../lib/excel.js'
+import { Avatar, Esqueleto, EstadoBadge, useConfirmar, useToast } from '../components/ui.jsx'
 import NuevoProspecto from '../components/NuevoProspecto.jsx'
+import Desplegable from '../components/Desplegable.jsx'
+import Enlaces from '../components/Enlaces.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Prospectos() {
@@ -12,7 +15,7 @@ export default function Prospectos() {
   const nav = useNavigate()
   const toast = useToast()
   const confirmar = useConfirmar()
-  const { refrescar } = useApp()
+  const { refrescar, porRevisar } = useApp()
   const [lista, setLista] = useState([])
   const [cargando, setCargando] = useState(true)
   const [sel, setSel] = useState(new Set())
@@ -53,9 +56,9 @@ export default function Prospectos() {
     const t = q.toLowerCase()
     const r = lista.filter(p =>
       (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!busqueda || p.busqueda_id === busqueda) &&
-      (!t || [p.nombre, p.rubro, p.direccion, p.telefono, p.instagram, p.notas].join(' ').toLowerCase().includes(t)))
+      (!t || [p.nombre, p.rubro, p.zona, p.direccion, p.telefono, p.email, p.instagram, p.notas].join(' ').toLowerCase().includes(t)))
     const cmp = {
-      resenas: (a, b) => (b.resenas ?? 0) - (a.resenas ?? 0),
+      resenas: (a, b) => (b.puntaje ?? 0) - (a.puntaje ?? 0) || (b.resenas ?? 0) - (a.resenas ?? 0),
       nombre: (a, b) => a.nombre.localeCompare(b.nombre),
       reciente: (a, b) => b.created_at.localeCompare(a.created_at),
       seguimiento: (a, b) => (a.proximo_seguimiento ?? '9999').localeCompare(b.proximo_seguimiento ?? '9999'),
@@ -96,47 +99,53 @@ export default function Prospectos() {
     refrescar()
   }
 
-  function exportar() {
-    descargarCSV(`prospectos_${new Date().toISOString().slice(0, 10)}.csv`, filtrados.map(p => ({
-      Nombre: p.nombre, Rubro: p.rubro, Zona: p.zona, Dirección: p.direccion, Teléfono: p.telefono, Email: p.email,
-      Instagram: p.instagram, 'Qué tiene hoy': p.que_tiene_hoy, 'Web actual': p.web_actual, Puntaje: p.rating ?? '',
-      Reseñas: p.resenas ?? '', 'Google Maps': p.google_maps_url, Estado: ESTADOS[p.estado].label,
-      'Último contacto': p.ultimo_contacto ? p.ultimo_contacto.slice(0, 10) : '', 'Próximo seguimiento': p.proximo_seguimiento ?? '', Notas: p.notas,
+  async function exportar() {
+    await descargarExcel(`mi_lista_${new Date().toISOString().slice(0, 10)}.xlsx`, filtrados.map(p => filaEmpresa(p, {
+      Estado: ESTADOS[p.estado].label, 'Último contacto': p.ultimo_contacto ? p.ultimo_contacto.slice(0, 10) : '',
+      'Próximo seguimiento': p.proximo_seguimiento ?? '', Notas: p.notas || '',
     })))
-    toast(`Exportados ${filtrados.length} prospectos`)
+    toast(`Descargaste ${filtrados.length} empresas en Excel`)
   }
+
+  const opcionesEstado = Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.label, nodo: <EstadoBadge estado={k} /> }))
 
   return (
     <>
       <header className="cabecera">
-        <div><h1>Prospectos</h1><p>{filtrados.length} de {lista.length} negocios</p></div>
+        <div><h1>Prospectos</h1><p>Tu lista en limpio: las empresas que vas a contactar. {lista.length ? `${filtrados.length} de ${lista.length}.` : ''}</p></div>
         <div className="acciones">
           <div className="selector-vista" role="tablist">
-            <button className={vista === 'lista' ? 'activo' : ''} onClick={() => set('vista', '')}><List size={15} /> Lista</button>
+            <button className={vista === 'lista' ? 'activo' : ''} onClick={() => set('vista', '')}><List size={15} /> Tabla</button>
             <button className={vista === 'pipeline' ? 'activo' : ''} onClick={() => set('vista', 'pipeline')}><Columns3 size={15} /> Pipeline</button>
           </div>
-          <button className="btn" onClick={exportar} disabled={!filtrados.length}><Download size={16} /> Exportar CSV</button>
-          <button className="btn primario" onClick={() => setNuevo(true)}><Plus size={16} /> Nuevo</button>
+          <button className="btn" onClick={exportar} disabled={!filtrados.length}><Download size={16} /> Descargar Excel</button>
+          <button className="btn primario" onClick={() => setNuevo(true)}><Plus size={16} /> Agregar</button>
         </div>
       </header>
 
+      {porRevisar > 0 && (
+        <Link to="/revisar" className="aviso-revisar">
+          <Inbox size={18} />
+          <span><b>{porRevisar} {porRevisar === 1 ? 'empresa encontrada espera' : 'empresas encontradas esperan'} tu revisión.</b> Sumá las que te sirven a esta lista.</span>
+          <span className="espacio" /><span className="link">Revisar <ArrowRight size={14} /></span>
+        </Link>
+      )}
+
       <div className="barra-herramientas">
         <div className="buscador"><Search size={16} />
-          <input placeholder="Buscar nombre, teléfono, Instagram…" value={q} onChange={e => set('q', e.target.value)} />
+          <input placeholder="Buscar por nombre, teléfono, zona…" value={q} onChange={e => set('q', e.target.value)} />
+          {q && <button className="bb-limpiar" onClick={() => set('q', '')} aria-label="Borrar"><X size={13} /></button>}
         </div>
         {vista === 'lista' && (
-          <select value={estado} onChange={e => set('estado', e.target.value)} aria-label="Estado">
-            <option value="">Todos los estados</option>
-            {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
+          <Desplegable compacto ariaLabel="Estado" value={estado} onChange={v => set('estado', v)} anchoMenu={210}
+            opciones={[{ value: '', label: 'Todos los estados', icono: <CircleDot size={14} className="muted" /> }, ...opcionesEstado]} />
         )}
-        <select value={rubro} onChange={e => set('rubro', e.target.value)} aria-label="Rubro">
-          <option value="">Todos los rubros</option>{rubros.map(r => <option key={r}>{r}</option>)}
-        </select>
-        <select value={orden} onChange={e => set('orden', e.target.value)} aria-label="Orden">
-          <option value="resenas">Más reseñas</option><option value="nombre">Nombre</option>
-          <option value="reciente">Cargados recientemente</option><option value="seguimiento">Próximo seguimiento</option>
-        </select>
+        {rubros.length > 1 && (
+          <Desplegable compacto ariaLabel="Tipo de empresa" value={rubro} onChange={v => set('rubro', v)} anchoMenu={240}
+            opciones={[{ value: '', label: 'Todos los tipos', icono: <Tag size={14} className="muted" /> }, ...rubros.map(r => ({ value: r, label: r }))]} />
+        )}
+        <Desplegable compacto ariaLabel="Ordenar" value={orden} onChange={v => set('orden', v)} anchoMenu={230} alinear="der"
+          opciones={[['resenas', 'Mejor encaje'], ['reciente', 'Agregadas recientemente'], ['nombre', 'Nombre (A-Z)'], ['seguimiento', 'Próximo seguimiento']].map(([value, label]) => ({ value, label, icono: <ArrowDownUp size={14} className="muted" /> }))} />
       </div>
 
       {busqueda && (
@@ -197,31 +206,36 @@ export default function Prospectos() {
               <thead><tr>
                 <th style={{ width: 36 }}><input type="checkbox" checked={todos} aria-label="Seleccionar todos"
                   onChange={() => setSel(todos ? new Set() : new Set(filtrados.map(p => p.id)))} /></th>
-                <th>Negocio</th><th>Teléfono</th><th>Instagram</th><th>Hoy tiene</th><th>Google</th><th>Estado</th><th>Seguimiento</th>
+                <th>Empresa</th><th>Contacto</th><th>Links</th><th>Estado</th><th>Seguimiento</th>
               </tr></thead>
               <tbody>
                 {filtrados.map(p => (
-                  <tr key={p.id} className={p.estado === 'no_interesado' ? 'apagado' : ''}>
+                  <tr key={p.id} className={(p.estado === 'no_interesado' ? 'apagado ' : '') + (sel.has(p.id) ? 'seleccionada' : '')}>
                     <td><input type="checkbox" checked={sel.has(p.id)} onChange={() => toggle(p.id)} aria-label={'Seleccionar ' + p.nombre} /></td>
                     <td>
                       <div className="negocio">
                         <Avatar nombre={p.nombre} />
-                        <div>
-                          <Link to={`/prospectos/${p.id}`} className="fuerte">{p.nombre}</Link>
-                          <div className="muted chico">{p.rubro}{p.zona ? ' · ' + p.zona : ''}
+                        <div className="negocio-txt">
+                          <Link to={`/prospectos/${p.id}`} className="fuerte nombre-empresa">{p.nombre}</Link>
+                          <div className="muted chico">{[p.rubro, p.zona].filter(Boolean).join(' · ')}
+                            {p.puntaje > 0 && <> · <span className="puntaje mini" title={`Encaje ${p.puntaje} de 5`}><Star size={10} fill="currentColor" /> {p.puntaje}</span></>}
                             {p.mensajes?.length > 0 && <> · <span style={{ color: 'var(--acc)' }}><Sparkles size={11} style={{ verticalAlign: -1 }} /> borrador</span></>}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="nowrap">{p.telefono || <span className="muted">—</span>}</td>
-                    <td>{p.instagram ? <a href={p.instagram} target="_blank" rel="noreferrer">{handleIG(p.instagram)}</a> : <span className="muted">—</span>}</td>
-                    <td><QueTieneChip valor={p.que_tiene_hoy} /></td>
-                    <td className="nowrap">{p.resenas ?? '—'}{p.rating ? <span className="muted"> · {p.rating}★</span> : ''}</td>
-                    <td><EstadoBadge estado={p.estado} /></td>
+                    <td className="contacto-celda">
+                      {p.telefono ? <a href={`tel:${p.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={12} /> {p.telefono}</a> : null}
+                      {p.email ? <a href={`mailto:${p.email}`}><Mail size={12} /> {p.email}</a> : null}
+                      {!p.telefono && !p.email && <span className="muted">—</span>}
+                    </td>
+                    <td><Enlaces e={p} fuente={false} /></td>
+                    <td><Desplegable compacto className="estado-celda" ariaLabel={'Estado de ' + p.nombre} value={p.estado} onChange={v => moverA(p, v)} anchoMenu={200} opciones={opcionesEstado} /></td>
                     <td className="nowrap">{p.proximo_seguimiento ? fecha(p.proximo_seguimiento) : <span className="muted">—</span>}</td>
                   </tr>
                 ))}
-                {!filtrados.length && <tr><td colSpan={8} className="muted centrado" style={{ padding: 40 }}>No hay prospectos con esos filtros.</td></tr>}
+                {!filtrados.length && <tr><td colSpan={6} className="muted centrado" style={{ padding: 40 }}>
+                  {lista.length ? 'No hay empresas con esos filtros.' : <>Todavía no pasaste empresas a tu lista. <Link to={porRevisar ? '/revisar' : '/buscar'}>{porRevisar ? 'Revisá las encontradas' : 'Buscá clientes'}</Link> o importá una planilla.</>}
+                </td></tr>}
               </tbody>
             </table>
           </div>

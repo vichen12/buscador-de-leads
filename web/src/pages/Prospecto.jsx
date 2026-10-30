@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, AtSign, Globe, MapPin, Star, Clock, CalendarClock, MessageCircle, Send, Sparkles, Wand2, Loader2,
-  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus,
+  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
 import { linkWhatsApp, linkEmail, linkGmail, numeroWhatsApp } from '@shared/clasificar.js'
 import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, useConfirmar, useToast } from '../components/ui.jsx'
+import Desplegable from '../components/Desplegable.jsx'
+import Enlaces from '../components/Enlaces.jsx'
 import { useApp } from '../App.jsx'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
@@ -215,19 +217,19 @@ export default function Prospecto() {
 
           {editando ? (
             <form onSubmit={guardarDatos}>
-              {[['nombre', 'Nombre'], ['rubro', 'Rubro'], ['zona', 'Zona'], ['direccion', 'Dirección'], ['telefono', 'Teléfono'], ['email', 'Email'],
-                ['instagram', 'Instagram'], ['que_tiene_hoy', 'Qué tiene hoy'], ['web_actual', 'Web actual'], ['google_maps_url', 'Google Maps'], ['rating', 'Puntaje'], ['resenas', 'Reseñas']]
+              {[['nombre', 'Nombre'], ['rubro', 'Tipo de empresa'], ['zona', 'Zona'], ['direccion', 'Dirección'], ['telefono', 'Teléfono'], ['email', 'Email'],
+                ['web_actual', 'Página web'], ['google_maps_url', 'Google Maps'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['linkedin', 'LinkedIn'], ['rating', 'Puntaje en Google'], ['resenas', 'Reseñas']]
                 .map(([k, l]) => <label key={k}>{l}<input name={k} defaultValue={p[k] ?? ''} required={k === 'nombre'} /></label>)}
               <div className="acciones"><button className="btn primario"><Save size={15} /> Guardar</button><button type="button" className="btn" onClick={() => setEditando(false)}>Cancelar</button></div>
             </form>
           ) : (
             <div className="datos">
               <Phone size={16} /><div>{p.telefono || '—'}{p.telefono && !tieneWA && <small>Parece fijo: sin WhatsApp</small>}</div>
-              <AtSign size={16} /><div>{p.instagram ? <a href={p.instagram} target="_blank" rel="noreferrer">{handleIG(p.instagram)} <ExternalLink size={12} /></a> : '—'}</div>
-              <Mail size={16} /><div>{p.email || '—'}</div>
-              <Globe size={16} /><div><QueTieneChip valor={p.que_tiene_hoy} />{p.web_actual && <small><a href={p.web_actual} target="_blank" rel="noreferrer">{p.web_actual.replace(/^https?:\/\/(www\.)?/, '').slice(0, 42)}</a></small>}</div>
-              <Star size={16} /><div>{p.resenas ?? '—'} reseñas{p.rating ? ` · ${p.rating}★` : ''}{p.google_maps_url && <small><a href={p.google_maps_url} target="_blank" rel="noreferrer">Ver en Google Maps</a></small>}</div>
-              <MapPin size={16} /><div>{p.direccion || '—'}</div>
+              <Mail size={16} /><div>{p.email ? <a href={`mailto:${p.email}`}>{p.email}</a> : '—'}</div>
+              <MapPin size={16} /><div>{p.direccion || '—'}{p.zona && <small>{p.zona}</small>}</div>
+              <Globe size={16} /><div><Enlaces e={p} conTexto /></div>
+              {(p.resenas || p.rating) && <><Star size={16} /><div>{p.resenas ?? '—'} reseñas{p.rating ? ` · ${p.rating}★` : ''}</div></>}
+              {p.encaje && <><Target size={16} /><div><small>Por qué encaja</small>{p.encaje}</div></>}
               <Clock size={16} /><div><small>Último contacto</small>{fechaHora(p.ultimo_contacto)}</div>
               <CalendarClock size={16} /><div><small>Próximo seguimiento</small>{p.proximo_seguimiento ? fecha(p.proximo_seguimiento) : '—'}</div>
             </div>
@@ -361,7 +363,7 @@ export default function Prospecto() {
               <label>Día<input type="date" value={agenda.fecha} onChange={e => setAgenda({ ...agenda, fecha: e.target.value })} required /></label>
               <label>Hora<input type="time" value={agenda.hora} onChange={e => setAgenda({ ...agenda, hora: e.target.value })} required /></label>
             </div>
-            <label>Duración<select value={agenda.duracion} onChange={e => setAgenda({ ...agenda, duracion: e.target.value })}><option value={15}>15 minutos</option><option value={30}>30 minutos</option><option value={60}>1 hora</option><option value={120}>2 horas</option></select></label>
+            <div className="campo">Duración<Desplegable className="ancho" ariaLabel="Duración" value={agenda.duracion} onChange={v => setAgenda({ ...agenda, duracion: v })} opciones={[[15, '15 minutos'], [30, '30 minutos'], [60, '1 hora'], [120, '2 horas']].map(([value, label]) => ({ value, label }))} /></div>
             <p className="muted chico">Se abre tu Google Calendar con el evento cargado (con teléfono, dirección y notas) y en Prospecta queda agendado el seguimiento para ese día.</p>
             <div className="acciones fin">
               <button type="button" className="btn" onClick={() => setAgenda(null)}>Cancelar</button>

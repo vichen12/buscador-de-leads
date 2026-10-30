@@ -62,7 +62,7 @@ Deno.serve(async req => {
 
   const db = admin()
   const { data: cupo } = await db.rpc('cupo_chat', { p_usuario: user.id })
-  if (cupo && cupo.usados >= cupo.limite) return json({ error: `Llegaste al límite de ${cupo.limite} consultas de IA de hoy.` }, 429)
+  if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de IA de hoy.` }, 429)
   const key = await claveServicio('anthropic')
   if (!key) return json({ error: 'Falta la clave de Claude: la carga el super admin en Super admin → Claves.' }, 503)
   const modelo = (await claveServicio('modelo_resumen')) || 'claude-haiku-5-5'

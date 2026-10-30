@@ -9,6 +9,8 @@ import Prospectos from './pages/Prospectos.jsx'
 import Prospecto from './pages/Prospecto.jsx'
 import Seguimientos from './pages/Seguimientos.jsx'
 import Importar from './pages/Importar.jsx'
+import Revisar from './pages/Revisar.jsx'
+import { contarPorRevisar } from './lib/hallazgos.js'
 import BuscarPlaces from './pages/BuscarPlaces.jsx'
 import Cuenta from './pages/Cuenta.jsx'
 import Admin from './pages/Admin.jsx'
@@ -37,6 +39,7 @@ function Raiz() {
   const [servicios, setServicios] = useState({ ia: null, places: null })
   const [acceso, setAcceso] = useState(null)
   const [correo, setCorreo] = useState(null)
+  const [porRevisar, setPorRevisar] = useState(0)
   const [comercial, setComercial] = useState(undefined) // perfil comercial: undefined = cargando, null = sin completar
 
   useEffect(() => {
@@ -55,6 +58,7 @@ function Raiz() {
       supabase.from('perfil_comercial').select('*').eq('owner_id', session.user.id).maybeSingle(),
     ])
     setComercial(c ?? null)
+    contarPorRevisar().then(setPorRevisar)
     supabase.from('conexiones_correo').select('*').eq('owner_id', session.user.id).maybeSingle().then(({ data }) => setCorreo(data ?? null))
     setPerfil(p)
     setTablero(t)
@@ -77,7 +81,7 @@ function Raiz() {
   if (!acceso) return <div className="centro-pantalla"><Cargando /></div>
   if (acceso.habilitado === false) return <Suspendido acceso={acceso} email={session.user.email} />
 
-  const valor = { session, perfil, tablero, enviadosHoy: tablero?.enviados_hoy ?? 0, refrescar, servicios, refrescarServicios, acceso, comercial, setComercial, correo, setCorreo }
+  const valor = { session, perfil, tablero, enviadosHoy: tablero?.enviados_hoy ?? 0, refrescar, servicios, refrescarServicios, acceso, comercial, setComercial, correo, setCorreo, porRevisar, setPorRevisar }
   return (
     <Ctx.Provider value={valor}>
       <Layout>
@@ -88,6 +92,7 @@ function Raiz() {
           <Route path="/seguimientos" element={<Seguimientos />} />
           <Route path="/importar" element={<Importar />} />
           <Route path="/buscar" element={<BuscarPlaces />} />
+          <Route path="/revisar" element={<Revisar />} />
           <Route path="/cuenta" element={<Cuenta />} />
           <Route path="/negocio" element={<MiNegocio />} />
           <Route path="/conexiones" element={<Conexiones />} />

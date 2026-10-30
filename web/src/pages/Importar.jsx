@@ -7,6 +7,7 @@ import { RUBROS, ZONAS, zonaCompleta } from '../lib/catalogo.js'
 import { descargarCSV, mensajeError } from '../lib/util.js'
 import { Aviso, useToast } from '../components/ui.jsx'
 import Autocompletar from '../components/Autocompletar.jsx'
+import Desplegable from '../components/Desplegable.jsx'
 import { useApp } from '../App.jsx'
 
 const ETIQUETA = { nuevo: 'Nuevo', duplicado: 'Ya lo tenés', invalido: 'Sin nombre', con_web: 'Tiene web propia' }
@@ -144,13 +145,11 @@ export default function Importar() {
           <p className="muted" style={{ marginTop: -6 }}>Decinos qué columna de tu planilla corresponde a cada dato. Ya completamos las que reconocimos; revisalas y cambiá lo que haga falta.</p>
           <div className="mapeo">
             {CAMPOS.map(c => (
-              <label key={c.key} className={mapeo[c.key] ? 'mapeado' : ''}>{c.label}{c.obligatorio && <span className="obligatorio"> *</span>}
-                <select value={mapeo[c.key] ?? ''} onChange={e => { setMapeo({ ...mapeo, [c.key]: e.target.value || undefined }); setPreview(null) }}>
-                  <option value="">— no lo tengo —</option>
-                  {datos.columnas.map(col => <option key={col} value={col}>{col}</option>)}
-                </select>
+              <div key={c.key} className={'campo' + (mapeo[c.key] ? ' mapeado' : '')}>{c.label}{c.obligatorio && <span className="obligatorio"> *</span>}
+                <Desplegable className="ancho" ariaLabel={c.label} value={mapeo[c.key] ?? ''} onChange={v => { setMapeo({ ...mapeo, [c.key]: v || undefined }); setPreview(null) }}
+                  opciones={[{ value: '', label: 'No lo tengo' }, ...datos.columnas.map(col => ({ value: col, label: col, ayuda: String(datos.filas[0]?.[col] ?? '').slice(0, 40) }))]} />
                 {mapeo[c.key] && <small>ej.: {String(datos.filas[0][mapeo[c.key]] ?? '').slice(0, 40) || '(vacío)'}</small>}
-              </label>
+              </div>
             ))}
           </div>
           {(!mapeo.rubro || !mapeo.zona) && (

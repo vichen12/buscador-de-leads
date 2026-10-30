@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2 } from 'lucide-react'
+import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, Inbox } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { Avatar, useToast } from './ui.jsx'
@@ -8,7 +8,7 @@ import Logo from './Logo.jsx'
 import AsistenteFlotante from './AsistenteFlotante.jsx'
 
 export default function Layout({ children }) {
-  const { perfil, tablero, session, servicios, acceso, correo, refrescar } = useApp()
+  const { perfil, tablero, session, servicios, acceso, correo, refrescar, porRevisar } = useApp()
   const toastRevision = useToast()
   // Si el email está conectado, revisar respuestas al entrar (como mucho cada 15 minutos)
   useEffect(() => {
@@ -35,8 +35,9 @@ export default function Layout({ children }) {
   ]
   const cargar = [
     ['/negocio', 'Mi negocio', Store],
+    ['/buscar', 'Buscar clientes', Search, 0, 'solo-escritorio'],
+    ['/revisar', 'Por revisar', Inbox, porRevisar],
     ['/importar', 'Importar', Upload, 0, 'solo-escritorio'],
-    ['/buscar', 'Buscar negocios', Search, 0, 'solo-escritorio'],
   ]
   const cuenta = [['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : ''], ['/conexiones', 'Conexiones', Plug, 0, 'solo-escritorio']]
   if (perfil?.es_admin) cuenta.push(['/admin', 'Super admin', Crown])

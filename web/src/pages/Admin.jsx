@@ -3,7 +3,17 @@ import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Spa
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, fechaHora, mensajeError } from '../lib/util.js'
 import { Avatar, Esqueleto, Interruptor, Modal, Aviso, Contador, useConfirmar, useToast } from '../components/ui.jsx'
+import Desplegable from '../components/Desplegable.jsx'
 import { useApp } from '../App.jsx'
+
+const PLANES = [
+  { value: 'prueba', label: 'Prueba', limite: 100, ayuda: '100 consultas de IA por mes' },
+  { value: 'basico', label: 'Básico', limite: 500, ayuda: '500 consultas de IA por mes' },
+  { value: 'pro', label: 'Pro', limite: 2000, ayuda: '2.000 consultas de IA por mes' },
+  { value: 'medida', label: 'A medida', limite: null, ayuda: 'Elegís el tope' },
+  { value: 'ilimitado', label: 'Sin tope', limite: null, ayuda: 'Sin límite mensual (ojo con el costo)' },
+]
+const nombrePlan = p => PLANES.find(x => x.value === p)?.label ?? p
 
 const MODELOS = [
   ['claude-sonnet-5-5', 'Claude Sonnet 5.5 — equilibrado (recomendado)'],
@@ -100,7 +110,9 @@ function Empresas({ empresas, recargar, nuevoUsuario }) {
     ev.preventDefault()
     if (!edit.nombre.trim()) return
     setGuardando(true)
-    const { data: id, error } = await supabase.rpc('admin_guardar_empresa', { p_id: edit.id ?? null, p_nombre: edit.nombre, p_contacto: edit.contacto, p_notas: edit.notas, p_activa: edit.activa ?? true })
+    const plan = edit.plan || 'basico'
+    const limite = plan === 'ilimitado' ? null : plan === 'medida' ? Math.max(0, Number(edit.limite_ia_mes) || 0) : PLANES.find(x => x.value === plan).limite
+    const { data: id, error } = await supabase.rpc('admin_guardar_empresa', { p_id: edit.id ?? null, p_nombre: edit.nombre, p_contacto: edit.contacto, p_notas: edit.notas, p_activa: edit.activa ?? true, p_plan: plan, p_limite_ia_mes: limite })
     setGuardando(false)
     if (error) return toast(mensajeError(error), 'error')
     const nueva = !edit.id
@@ -125,7 +137,7 @@ function Empresas({ empresas, recargar, nuevoUsuario }) {
     <>
       <div className="barra-herramientas" style={{ justifyContent: 'space-between' }}>
         <span className="muted">Cada empresa tiene sus propios usuarios. Cada usuario ve sólo sus prospectos.</span>
-        <button className="btn primario" onClick={() => setEdit({ nombre: '', contacto: '', notas: '' })}><Plus size={16} /> Nueva empresa</button>
+        <button className="btn primario" onClick={() => setEdit({ nombre: '', contacto: '', notas: '', plan: 'basico', limite_ia_mes: 500 })}><Plus size={16} /> Nueva empresa</button>
       </div>
       {!empresas.length ? (
         <div className="tarjeta vacio"><div className="icono-grande"><Building2 size={26} /></div><h3>Todavía no hay empresas</h3><p>Creá la primera y después dale de alta a sus usuarios.</p></div>
@@ -144,11 +156,17 @@ function Empresas({ empresas, recargar, nuevoUsuario }) {
                 <div><b>{e.enviados}</b><span>envíos</span></div>
                 <div><b>{e.clientes}</b><span>clientes</span></div>
               </div>
+              <div className="uso-ia">
+                <div className="uso-ia-top"><span><Sparkles size={13} /> Plan <b>{nombrePlan(e.plan)}</b></span>
+                  <span>{e.uso_ia_mes} {e.limite_ia_mes != null ? `/ ${e.limite_ia_mes}` : ''} consultas este mes</span></div>
+                {e.limite_ia_mes != null && <div className={'cupo-barra' + (e.uso_ia_mes >= e.limite_ia_mes ? ' lleno' : e.uso_ia_mes >= e.limite_ia_mes * 0.8 ? ' casi' : '')}><span style={{ width: Math.min(100, e.limite_ia_mes ? (e.uso_ia_mes / e.limite_ia_mes) * 100 : 100) + '%' }} /></div>}
+                {e.limite_ia_mes != null && e.uso_ia_mes >= e.limite_ia_mes && <small className="no-txt">Llegó al tope: sus usuarios no pueden usar la IA hasta el mes que viene o hasta que amplíes el plan.</small>}
+              </div>
               {e.notas && <p className="muted chico" style={{ margin: '0 0 12px' }}>{e.notas}</p>}
               <div className="acciones">
                 <span className={'estado'} style={e.activa ? { color: 'var(--ok)', background: 'var(--ok-soft)' } : { color: 'var(--err)', background: 'var(--err-soft)' }}>{e.activa ? 'Habilitada' : 'Suspendida'}</span>
                 <span className="espacio" />
-                <button className="btn chico" onClick={() => setEdit({ ...e })}><Pencil size={14} /> Editar</button>
+                <button className="btn chico" onClick={() => setEdit({ ...e, plan: e.plan === 'basico' && e.limite_ia_mes !== 500 ? (e.limite_ia_mes == null ? 'ilimitado' : 'medida') : e.plan })}><Pencil size={14} /> Editar</button>
                 <button className="btn chico oscuro" onClick={() => nuevoUsuario(e)} disabled={!e.activa}><UserPlus size={14} /> Agregar usuario</button>
               </div>
             </article>
@@ -163,6 +181,12 @@ function Empresas({ empresas, recargar, nuevoUsuario }) {
             <p>{edit.id ? 'Los cambios se ven al instante.' : 'Después de crearla, le das de alta los usuarios.'}</p>
             <label>Nombre<input autoFocus required value={edit.nombre} onChange={ev => setEdit({ ...edit, nombre: ev.target.value })} placeholder="Ej.: Estudio Andes" /></label>
             <label>Contacto<input value={edit.contacto} onChange={ev => setEdit({ ...edit, contacto: ev.target.value })} placeholder="Nombre, mail o teléfono del responsable" /></label>
+            <div className="campo">Plan y límite de IA
+              <Desplegable className="ancho" ariaLabel="Plan" value={edit.plan || 'basico'} onChange={v => setEdit({ ...edit, plan: v, limite_ia_mes: PLANES.find(x => x.value === v).limite ?? edit.limite_ia_mes ?? 500 })}
+                opciones={PLANES.map(x => ({ value: x.value, label: x.label, ayuda: x.ayuda, icono: <Sparkles size={14} className="muted" /> }))} />
+              <small>Cada búsqueda, consulta al asistente o estrategia cuenta 1. El tope es por mes y lo comparten todos los usuarios de la empresa.</small>
+            </div>
+            {edit.plan === 'medida' && <label>Consultas de IA por mes<input type="number" min={0} step={50} value={edit.limite_ia_mes ?? ''} onChange={ev => setEdit({ ...edit, limite_ia_mes: ev.target.value })} /></label>}
             <label>Notas internas<textarea rows={3} value={edit.notas} onChange={ev => setEdit({ ...edit, notas: ev.target.value })} placeholder="Plan, forma de pago, lo que quieras recordar" /></label>
             <div className="acciones fin">
               <button type="button" className="btn" onClick={() => setEdit(null)}>Cancelar</button>
@@ -227,10 +251,9 @@ function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales 
                     </div>
                   </td>
                   <td style={{ minWidth: 180 }}>
-                    <select value={u.empresa_id ?? ''} aria-label={'Empresa de ' + (u.nombre || u.email)} onChange={e => actualizar(u, { empresa: e.target.value || null }, 'Empresa actualizada')} style={{ padding: '6px 30px 6px 10px' }}>
-                      <option value="">Sin empresa</option>
-                      {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}{e.activa ? '' : ' (suspendida)'}</option>)}
-                    </select>
+                    <Desplegable compacto className="ancho" ariaLabel={'Empresa de ' + (u.nombre || u.email)} value={u.empresa_id ?? ''} anchoMenu={220}
+                      onChange={v => actualizar(u, { empresa: v || null }, 'Empresa actualizada')}
+                      opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.map(e => ({ value: e.id, label: e.nombre, ayuda: e.activa ? '' : 'Suspendida', icono: <Building2 size={14} /> }))]} />
                   </td>
                   <td>{u.prospectos}</td><td>{u.enviados}</td><td>{u.clientes}</td>
                   <td><LimiteChat u={u} onGuardar={async v => {
@@ -296,12 +319,10 @@ function NuevoUsuario({ inicial, empresas, onCerrar, onCreado }) {
         <p>Creamos la cuenta con una contraseña inicial que te mostramos una sola vez para que se la pases.</p>
         <label>Nombre<input autoFocus required value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej.: Marta Gómez" /></label>
         <label>Email<input type="email" required value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="marta@estudio.com" /></label>
-        <label>Empresa
-          <select value={f.empresa_id} onChange={e => setF({ ...f, empresa_id: e.target.value })} aria-label="Empresa del usuario">
-            <option value="">Sin empresa</option>
-            {empresas.map(e => <option key={e.id} value={e.id} disabled={!e.activa}>{e.nombre}{e.activa ? '' : ' (suspendida)'}</option>)}
-          </select>
-        </label>
+        <div className="campo">Empresa
+          <Desplegable className="ancho" ariaLabel="Empresa del usuario" value={f.empresa_id} onChange={v => setF({ ...f, empresa_id: v })}
+            opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.filter(e => e.activa).map(e => ({ value: e.id, label: e.nombre, icono: <Building2 size={14} /> }))]} />
+        </div>
         <div className="acciones fin">
           <button type="button" className="btn" onClick={onCerrar}>Cancelar</button>
           <button className="btn primario" disabled={creando}>{creando ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />} Crear cuenta</button>
@@ -420,10 +441,8 @@ function Claves({ claves, recargar }) {
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><b>Modelo de Claude</b><span className="chip">{modeloActual}</span></div>
           <div className="muted chico" style={{ marginTop: 3 }}>Qué modelo escribe los mensajes. Sonnet alcanza y sobra para esto.</div>
           <form onSubmit={ev => { ev.preventDefault(); guardar('modelo_ia', modelo, 'Modelo actualizado') }}>
-            <select value={MODELOS.some(m => m[0] === modelo) ? modelo : '__otro'} onChange={e => setModelo(e.target.value === '__otro' ? '' : e.target.value)} aria-label="Modelo de Claude">
-              {MODELOS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-              <option value="__otro">Otro (escribir el id)…</option>
-            </select>
+            <Desplegable ariaLabel="Modelo de Claude" value={MODELOS.some(m => m[0] === modelo) ? modelo : '__otro'} onChange={v => setModelo(v === '__otro' ? '' : v)} anchoMenu={320}
+              opciones={[...MODELOS.map(([id, label]) => ({ value: id, label: label.split(' — ')[0], ayuda: label.split(' — ')[1] })), { value: '__otro', label: 'Otro…', ayuda: 'Escribir el id del modelo' }]} />
             {!MODELOS.some(m => m[0] === modelo) && <input value={modelo} onChange={e => setModelo(e.target.value.trim())} placeholder="id del modelo" aria-label="Id del modelo" />}
             <button className="btn oscuro" disabled={!modelo || modelo === modeloActual || guardando === 'modelo_ia'}>Guardar modelo</button>
           </form>

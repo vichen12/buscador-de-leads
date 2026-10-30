@@ -75,7 +75,7 @@ Deno.serve(async req => {
   if (!mensaje && !pdf?.base64) return json({ error: 'Escribí una pregunta' }, 400)
   if (mensaje.length > 8000) return json({ error: 'El mensaje es muy largo (máximo 8.000 caracteres)' }, 400)
   if (pdf?.base64 && pdf.base64.length * 0.75 > MAX_PDF_BYTES) return json({ error: 'El PDF es muy pesado (máximo 8 MB)' }, 400)
-  if (cupo && cupo.usados >= cupo.limite) return json({ error: `Llegaste al límite de ${cupo.limite} consultas de hoy. Mañana se renueva.`, codigo: 'LIMITE_CHAT', cupo }, 429)
+  if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de hoy. Mañana se renueva.`, codigo: 'LIMITE_CHAT', cupo }, 429)
 
   const key = await claveServicio('anthropic')
   if (!key) return json({ error: 'Falta la clave de Claude: la carga el super admin en Super admin → Claves.', codigo: 'SIN_CLAVE' }, 503)

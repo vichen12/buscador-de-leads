@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Store, Users, Send, MessageCircle, Trophy, CalendarClock, ArrowRight, Upload, Search, Sparkles, ChevronRight, Flame } from 'lucide-react'
+import { Store, Users, Send, MessageCircle, Trophy, CalendarClock, ArrowRight, Upload, Search, Sparkles, ChevronRight, Flame, Inbox } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { ESTADOS, fecha, hoyLocal, saludoHora } from '../lib/util.js'
 import { Avatar, Esqueleto, Aviso, Contador } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Tablero() {
-  const { perfil, tablero: t, refrescar, servicios, comercial } = useApp()
+  const { perfil, tablero: t, refrescar, servicios, comercial, porRevisar } = useApp()
   const [vencidos, setVencidos] = useState([])
   const [listos, setListos] = useState([])
   const [rubros, setRubros] = useState([])
@@ -59,6 +59,14 @@ export default function Tablero() {
           <div style={{ flex: 1 }}><b>Empezá por contarnos de tu negocio</b><p>Qué vendés, a quién y dónde. Claude arma tu estrategia (rubros, zonas y filtros) y la usa para buscar clientes y escribir los mensajes.</p></div>
           <Link className="btn primario" to="/negocio">Completar mi negocio <ArrowRight size={15} /></Link>
         </div>
+      )}
+
+      {porRevisar > 0 && (
+        <Link to="/revisar" className="aviso-revisar">
+          <Inbox size={18} />
+          <span><b>{porRevisar} {porRevisar === 1 ? 'empresa encontrada' : 'empresas encontradas'} por revisar.</b> Sumá a tu lista las que te sirven y descartá el resto.</span>
+          <span className="espacio" /><span className="link">Revisar <ArrowRight size={14} /></span>
+        </Link>
       )}
 
       {servicios.ia === false && t.total > 0 && (
