@@ -1,5 +1,5 @@
 // Correo conectado: envía emails desde la cuenta del usuario (SMTP, puerto 465 con TLS) y revisa
-// si los prospectos respondieron (IMAP, puerto 993). La contraseña de aplicación vive cifrada en Vault.
+// si los prospectos respondieron (IMAP, puerto 993). La contraseña vive cifrada en Vault.
 // Modos: estado | conectar | probar | desconectar | enviar | revisar
 // Nota: Supabase no deja salir por los puertos 25 y 587, por eso sólo SMTP con TLS directo (465).
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -74,24 +74,69 @@ async function smtpSesion(cfg: Dic, clave: string, fn?: (l: Linea) => Promise<vo
   } finally { l.cerrar() }
 }
 const palabra = (s: string) => /^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64(s)}?=`
-function armarMail(o: { de: string, nombre: string, para: string, asunto: string, cuerpo: string }) {
-  const dominio = o.de.split('@')[1] || 'prospecta.app'
-  const cuerpo64 = b64(o.cuerpo.replace(/\r?\n/g, '\r\n')).replace(/.{1,76}/g, m => m + '\r\n')
-  return [
-    `From: ${o.nombre ? `${palabra(o.nombre)} ` : ''}<${o.de}>`, `To: <${o.para}>`, `Subject: ${palabra(o.asunto)}`,
-    `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${dominio}>`,
-    'MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', cuerpo64,
-  ].join('\r\n')
+type Archivo = { nombre: string, mime: string, datos: Uint8Array }
+/** base64 de binario en tramos (un spread de un archivo grande revienta la pila) */
+function b64Bytes(d: Uint8Array) {
+  let s = ''
+  for (let i = 0; i < d.length; i += 0x8000) s += String.fromCharCode(...d.subarray(i, i + 0x8000))
+  return btoa(s)
 }
-async function enviarMail(cfg: Dic, clave: string, para: string, asunto: string, cuerpo: string) {
+const lineas76 = (s: string) => s.replace(/.{1,76}/g, m => m + '\r\n')
+const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const enlazar = (s: string) => s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
+function html(cuerpo: string, conFirma: boolean) {
+  const parrafos = escapar(cuerpo).split(/\n{2,}/).map(p => `<p style="margin:0 0 14px">${enlazar(p).replace(/\n/g, '<br>')}</p>`).join('')
+  return `<!doctype html><html><body><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#222">${parrafos}${conFirma ? '<img src="cid:firma@prospecta" alt="" style="display:block;max-width:360px;height:auto;margin-top:6px">' : ''}</div></body></html>`
+}
+function armarMail(o: { de: string, nombre: string, para: string, asunto: string, cuerpo: string, firma?: Archivo | null, adjuntos?: Archivo[] }) {
+  const dominio = o.de.split('@')[1] || 'prospecta.app'
+  const texto = o.cuerpo.replace(/\r?\n/g, '\r\n')
+  const cab = [
+    `From: ${o.nombre ? `${palabra(o.nombre)} ` : ''}<${o.de}>`, `To: <${o.para}>`, `Subject: ${palabra(o.asunto)}`,
+    `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${dominio}>`, 'MIME-Version: 1.0',
+  ]
+  const adj = o.adjuntos ?? []
+  if (!o.firma && !adj.length) return [...cab, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', lineas76(b64(texto))].join('\r\n')
+  const f = () => 'b' + crypto.randomUUID().replace(/-/g, '')
+  const [bMix, bRel, bAlt] = [f(), f(), f()]
+  const parte = (tipo: string, datos: string, extra: string[] = []) => [`Content-Type: ${tipo}`, 'Content-Transfer-Encoding: base64', ...extra, '', datos].join('\r\n')
+  const alternativa = [`Content-Type: multipart/alternative; boundary="${bAlt}"`, '',
+    `--${bAlt}`, parte('text/plain; charset=UTF-8', lineas76(b64(texto))),
+    `--${bAlt}`, parte('text/html; charset=UTF-8', lineas76(b64(html(o.cuerpo, !!o.firma)))), `--${bAlt}--`, ''].join('\r\n')
+  const cuerpo = o.firma
+    ? [`Content-Type: multipart/related; boundary="${bRel}"`, '', `--${bRel}`, alternativa,
+       `--${bRel}`, parte(`${o.firma.mime}; name="${palabra(o.firma.nombre)}"`, lineas76(b64Bytes(o.firma.datos)), ['Content-ID: <firma@prospecta>', `Content-Disposition: inline; filename="${palabra(o.firma.nombre)}"`]),
+       `--${bRel}--`, ''].join('\r\n')
+    : alternativa
+  if (!adj.length) return [...cab, cuerpo].join('\r\n')
+  return [...cab, `Content-Type: multipart/mixed; boundary="${bMix}"`, '', `--${bMix}`, cuerpo,
+    ...adj.flatMap(a => [`--${bMix}`, parte(`${a.mime}; name="${palabra(a.nombre)}"`, lineas76(b64Bytes(a.datos)), [`Content-Disposition: attachment; filename="${palabra(a.nombre)}"`])]),
+    `--${bMix}--`, ''].join('\r\n')
+}
+async function enviarMail(cfg: Dic, clave: string, para: string, asunto: string, cuerpo: string, extra: { firma?: Archivo | null, adjuntos?: Archivo[] } = {}) {
   await smtpSesion(cfg, clave, async l => {
     await smtpCmd(l, `MAIL FROM:<${cfg.email}>`, [250])
     await smtpCmd(l, `RCPT TO:<${para}>`, [250, 251])
     await smtpCmd(l, 'DATA', [354])
-    const msg = armarMail({ de: cfg.email, nombre: cfg.nombre_remitente, para, asunto, cuerpo }).replace(/\r\n\./g, '\r\n..')
+    const msg = armarMail({ de: cfg.email, nombre: cfg.nombre_remitente, para, asunto, cuerpo, ...extra }).replace(/\r\n\./g, '\r\n..')
     await l.escribir(msg + '\r\n.\r\n')
     const r = await smtpRespuesta(l); if (r.codigo !== 250) throw new Error(`SMTP ${r.codigo}: ${r.texto.slice(0, 200)}`)
   })
+}
+
+/** Firma con imagen y adjuntos elegidos, leídos del storage (sólo los del propio usuario) */
+async function archivosDe(db: ReturnType<typeof admin>, owner: string, ids: string[]) {
+  const { data } = await db.from('archivos').select('*').eq('owner_id', owner)
+  const leer = async (a: Dic): Promise<Archivo | null> => {
+    const { data: blob, error } = await db.storage.from('archivos').download(a.path)
+    if (error || !blob) { console.error('archivo', a.path, error); return null }
+    return { nombre: a.nombre, mime: a.mime || 'application/octet-stream', datos: new Uint8Array(await blob.arrayBuffer()) }
+  }
+  const lista = (data ?? []) as Dic[]
+  const firmaFila = lista.find(a => a.tipo === 'firma')
+  const elegidos = lista.filter(a => a.tipo === 'adjunto' && ids.includes(a.id))
+  const [firma, ...adjuntos] = await Promise.all([firmaFila ? leer(firmaFila) : Promise.resolve(null), ...elegidos.map(leer)])
+  return { firma, adjuntos: adjuntos.filter(Boolean) as Archivo[] }
 }
 
 // ---------- IMAP (lo justo para leer remitentes nuevos) ----------
@@ -185,7 +230,7 @@ function explicar(e: unknown, cfg?: Dic) {
   const m = e instanceof Error ? e.message : String(e)
   if (/^AUTH/.test(m) || /535|534|AUTHENTICATIONFAILED|Invalid credentials/i.test(m))
     return /gmail/i.test(cfg?.smtp_host ?? '') ? 'Gmail rechazó la contraseña. Tiene que ser una contraseña de aplicación (16 letras), no tu contraseña normal, y la cuenta necesita la verificación en 2 pasos activada.'
-      : 'El servidor rechazó el email o la contraseña. Revisá que sea una contraseña de aplicación.'
+      : 'El servidor rechazó el email o la contraseña. Revisá que el email esté completo y la contraseña sea la de esa casilla (o una contraseña de aplicación si tenés verificación en 2 pasos).'
   if (/No pude conectar|no responde|cerró/i.test(m)) return m + '. Revisá el servidor y el puerto.'
   return m.replace(/^Error:\s*/, '')
 }
@@ -210,9 +255,9 @@ Deno.serve(async req => {
     const email = String(body.email ?? '').trim().toLowerCase()
     const clave = String(body.clave ?? '').replace(/\s+/g, '')
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'Escribí un email válido.' }, 400)
-    if (clave.length < 6) return json({ error: 'Pegá la contraseña de aplicación.' }, 400)
+    if (clave.length < 6) return json({ error: 'Pegá la contraseña.' }, 400)
     const preset = PROVEEDORES.find(([re]) => re.test(email))?.[1]
-    if (preset && !preset.smtp) return json({ error: 'Outlook, Hotmail e iCloud sólo permiten enviar por el puerto 587, que nuestro servidor no puede usar. Conectá una cuenta de Gmail, Yahoo, Zoho o el correo de tu dominio.', codigo: 'NO_SOPORTADO' }, 400)
+    if (preset && !preset.smtp) return json({ error: 'Outlook, Hotmail e iCloud sólo permiten enviar por el puerto 587, que nuestro servidor no puede usar. Conectá Gmail, Private Email, Zoho, Yahoo o el correo de tu dominio.', codigo: 'NO_SOPORTADO' }, 400)
     const dominio = email.split('@')[1]
     const nuevo = {
       owner_id: user.id, email, nombre_remitente: String(body.nombre ?? '').slice(0, 80),
@@ -237,7 +282,8 @@ Deno.serve(async req => {
 
   if (modo === 'probar') {
     try {
-      await enviarMail(cfg, clave, cfg.email, 'Prueba de Prospecta ✓', `¡Hola!\n\nSi te llegó este mail, tu cuenta ${cfg.email} quedó conectada a Prospecta y ya podés enviar emails a tus prospectos desde la app.\n\nProspecta`)
+      const { firma } = await archivosDe(db, user.id, [])
+      await enviarMail(cfg, clave, cfg.email, 'Prueba de Prospecta ✓', `¡Hola!\n\nSi te llegó este mail, tu cuenta ${cfg.email} quedó conectada a Prospecta y ya podés enviar emails a tus prospectos desde la app.${firma ? '\n\nAbajo vas a ver tu firma tal como la reciben tus clientes.' : ''}\n\nProspecta`, { firma })
       return json({ ok: true })
     } catch (e) { return json({ error: explicar(e, cfg) }, 400) }
   }
@@ -258,9 +304,12 @@ Deno.serve(async req => {
     const { data: iguales } = await supabase.from('mensajes').select('id').eq('cuerpo', m.cuerpo).not('enviado_at', 'is', null).neq('id', m.id).limit(1)
     if (iguales?.length) return json({ error: 'TEXTO_REPETIDO' }, 400)
     const remitente = { ...cfg, nombre_remitente: cfg.nombre_remitente || perfil?.nombre || '' }
-    try { await enviarMail(remitente, clave, para, m.asunto || 'Hola', m.cuerpo) }
+    const ids: string[] = Array.isArray(body.adjuntos) ? body.adjuntos.map(String) : (m.adjuntos ?? [])
+    const extra = await archivosDe(db, user.id, ids)
+    if (Array.isArray(body.adjuntos)) await supabase.from('mensajes').update({ adjuntos: ids }).eq('id', m.id)
+    try { await enviarMail(remitente, clave, para, m.asunto || 'Hola', m.cuerpo, extra) }
     catch (e) { return json({ error: 'No se pudo enviar: ' + explicar(e, cfg) }, 502) }
-    const { error } = await supabase.from('interacciones').insert({ prospecto_id: p.id, mensaje_id: m.id, tipo: 'enviado', canal: 'email', detalle: `Email enviado desde ${cfg.email}` })
+    const { error } = await supabase.from('interacciones').insert({ prospecto_id: p.id, mensaje_id: m.id, tipo: 'enviado', canal: 'email', detalle: `Email enviado desde ${cfg.email}${extra.adjuntos.length ? ` con ${extra.adjuntos.map(a => a.nombre).join(', ')}` : ''}` })
     if (error) console.error('registrar envío', error)
     return json({ ok: true, para })
   }

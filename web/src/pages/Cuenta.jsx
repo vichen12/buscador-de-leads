@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { KeyRound, Sparkles, Loader2, IdCard, Store, Gauge, ShieldCheck, Plus, ArrowRight, Mail, Globe, Eye, EyeOff, LogOut } from 'lucide-react'
+import { KeyRound, Sparkles, Loader2, IdCard, Store, Gauge, ShieldCheck, Plus, ArrowRight, Mail, Globe, Eye, EyeOff, LogOut, Paperclip } from 'lucide-react'
+import { useArchivos } from '../lib/archivos.js'
+import { FirmaImagen, ArchivosAdjuntos } from '../components/ArchivosCorreo.jsx'
 import { supabase } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { mensajeError } from '../lib/util.js'
@@ -16,6 +18,7 @@ export default function Cuenta() {
   const [pass, setPass] = useState({ nueva: '', repetir: '' })
   const [verPass, setVerPass] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const arch = useArchivos(session?.user?.id)
   // Se carga una sola vez por cuenta: si el perfil se refresca mientras escribís, no te pisa lo tipeado
   useEffect(() => { if (perfil && f?.id !== perfil.id) setF(perfil) }, [perfil])
   if (!f) return <Cargando />
@@ -76,9 +79,11 @@ export default function Cuenta() {
               <div className="firma-vista">
                 <span className="muted chico">…y quedo atento. Saludos,</span>
                 <pre>{firmaVista || 'Tu nombre'}</pre>
+                {arch.firmaUrl && <img className="firma-vista-img" src={arch.firmaUrl} alt="Firma" />}
               </div>
             </div>
           </div>
+          <FirmaImagen arch={arch} />
         </section>
 
         <div className="cuenta-col">
@@ -110,6 +115,12 @@ export default function Cuenta() {
           </section>
         </div>
       </div>
+
+      <section className="tarjeta">
+        <div className="tarjeta-titulo"><h3><Paperclip size={16} /> Archivos para tus emails</h3>{arch.adjuntos.length > 0 && <span className="chip">{arch.adjuntos.length}</span>}</div>
+        <p className="muted chico ayuda">Subí lo que solés mandar y contá de qué se trata. Cuando Claude escribe un email, elige si conviene adjuntar alguno, lo menciona en el texto y antes de enviar vos podés sacarlo o sumar otro.</p>
+        {arch.lista ? <ArchivosAdjuntos arch={arch} /> : <Cargando />}
+      </section>
 
       <div className="cuenta-grid">
         <section className="tarjeta">

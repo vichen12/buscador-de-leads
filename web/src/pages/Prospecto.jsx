@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, AtSign, Globe, MapPin, Star, Clock, CalendarClock, MessageCircle, Send, Sparkles, Wand2, Loader2,
-  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target,
+  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target, Paperclip,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
@@ -10,6 +10,7 @@ import { linkWhatsApp, linkEmail, linkGmail, numeroWhatsApp } from '@shared/clas
 import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, useConfirmar, useToast } from '../components/ui.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
+import { useArchivos, tamanoLegible } from '../lib/archivos.js'
 import { useApp } from '../App.jsx'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
@@ -26,7 +27,9 @@ export default function Prospecto() {
   const [params] = useSearchParams()
   const toast = useToast()
   const confirmar = useConfirmar()
-  const { perfil, enviadosHoy, refrescar, servicios, correo } = useApp()
+  const { perfil, enviadosHoy, refrescar, servicios, correo, session } = useApp()
+  const arch = useArchivos(correo ? session?.user?.id : null)
+  const [adj, setAdj] = useState(null) // ids de archivos a adjuntar; null = lo que eligió Claude
   const [mandando, setMandando] = useState(false)
   const [agenda, setAgenda] = useState(null)
   const [p, setP] = useState(null)
@@ -51,6 +54,7 @@ export default function Prospecto() {
     setP(pr)
     const porTipo = Object.fromEntries((ms ?? []).map(m => [m.tipo, m]))
     setMsgs(porTipo)
+    setAdj(null)
     setBorrador(Object.fromEntries(TABS.map(([t]) => [t, { asunto: porTipo[t]?.asunto ?? '', cuerpo: porTipo[t]?.cuerpo ?? '' }])))
     setHist(hs ?? [])
   }
@@ -59,6 +63,8 @@ export default function Prospecto() {
   if (!p) return <Cargando />
   const optOut = p.estado === 'no_interesado'
   const actual = borrador[tab] ?? { asunto: '', cuerpo: '' }
+  const adjElegidos = adj ?? (msgs.email?.adjuntos ?? [])
+  const alternarAdj = id => setAdj(a => { const s = new Set(a ?? msgs.email?.adjuntos ?? []); s.has(id) ? s.delete(id) : s.add(id); return [...s] })
   const sucio = actual.cuerpo !== (msgs[tab]?.cuerpo ?? '') || actual.asunto !== (msgs[tab]?.asunto ?? '')
   const limite = perfil?.limite_diario ?? 15
   const sinCupo = enviadosHoy >= limite
@@ -140,10 +146,10 @@ export default function Prospecto() {
     if (!actual.cuerpo.trim()) { setAviso('El mensaje está vacío.'); return }
     const m = sucio || !msgs[tab] ? await guardarBorrador(true) : msgs[tab]
     if (!m) return
-    if (!(await confirmar({ titulo: `¿Enviar el email a ${p.email}?`, texto: `Sale desde ${correo.email} con el asunto "${m.asunto || 'Hola'}". Queda registrado y se agenda el seguimiento.`, aceptar: 'Enviar' }))) return
+    if (!(await confirmar({ titulo: `¿Enviar el email a ${p.email}?`, texto: `Sale desde ${correo.email} con el asunto "${m.asunto || 'Hola'}"${tab === 'email' && adjElegidos.length ? ` y ${adjElegidos.length === 1 ? '1 archivo adjunto' : adjElegidos.length + ' archivos adjuntos'}` : ''}. Queda registrado y se agenda el seguimiento.`, aceptar: 'Enviar' }))) return
     setMandando(true)
     try {
-      await llamarFuncion('correo', { modo: 'enviar', mensaje_id: m.id })
+      await llamarFuncion('correo', { modo: 'enviar', mensaje_id: m.id, adjuntos: tab === 'email' ? adjElegidos.filter(id => arch.adjuntos.some(a => a.id === id)) : [] })
       toast(`Email enviado a ${p.email}`)
       await Promise.all([cargar(), refrescar()])
     } catch (e) { setAviso(mensajeError(e)) }
@@ -310,6 +316,21 @@ export default function Prospecto() {
             <p>{tab !== 'whatsapp' && correo
               ? <>Revisá el texto. <b>Enviar email</b> lo manda desde {correo.email} y queda registrado. WhatsApp e Instagram se abren con el mensaje cargado y el envío lo hacés vos.</>
               : <>Revisá el texto. El botón abre la app con el mensaje cargado: <b>el envío lo hacés vos</b> y después lo confirmás acá.{!correo && tab !== 'whatsapp' && <> Para mandar emails directo desde acá, <Link to="/conexiones">conectá tu email</Link>.</>}</>}</p>
+            {tab === 'email' && correo && (arch.adjuntos.length > 0 || arch.firma) && (
+              <div className="adjuntar">
+                {arch.adjuntos.length > 0 && <>
+                  <small><Paperclip size={13} /> Adjuntar{msgs.email?.adjuntos?.length && adj === null ? ' · Claude eligió los marcados' : ''}</small>
+                  <div className="adjuntar-lista">
+                    {arch.adjuntos.map(a => (
+                      <button key={a.id} type="button" className={'chip-adj' + (adjElegidos.includes(a.id) ? ' on' : '')} onClick={() => alternarAdj(a.id)} title={a.descripcion}>
+                        {adjElegidos.includes(a.id) ? <CheckCircle2 size={13} /> : <Paperclip size={13} />} {a.nombre} <span className="muted">{tamanoLegible(a.tamano)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>}
+                {arch.firma && <small className="muted">Lleva tu firma con imagen al final. <Link to="/cuenta">Cambiarla</Link></small>}
+              </div>
+            )}
             <div className="acciones">
               {tab !== 'email' && (
                 <button className="btn wa" onClick={() => abrir('whatsapp')} disabled={optOut || !tieneWA || sinCupo} title={!tieneWA ? 'No hay un celular válido' : ''}>

@@ -10,7 +10,7 @@ import { borradoresPlantilla, situacionHoy, nombreCorto } from '../_shared/plant
 let MODELO = 'claude-haiku-5-5'
 const MAX_POR_LLAMADA = 25
 
-type Borradores = { whatsapp: string; email: { asunto: string; cuerpo: string }; seguimiento: string }
+type Borradores = { whatsapp: string; email: { asunto: string; cuerpo: string; adjuntos?: string[] }; seguimiento: string }
 type Dic = Record<string, unknown>
 
 const TONO_WEB = `Reglas de tono (obligatorias):
@@ -22,6 +22,14 @@ const TONO_WEB = `Reglas de tono (obligatorias):
 
 // Perfil comercial del usuario (qué vende y a quién). Si no lo completó, se asume un estudio de diseño web.
 let COMERCIAL: Dic | null = null
+// Archivos del usuario: los que se pueden adjuntar (con su descripción) y si tiene firma con imagen
+let ADJUNTOS: { id: string, nombre: string, descripcion: string }[] = []
+let FIRMA_IMAGEN = false
+function textoAdjuntos() {
+  if (!ADJUNTOS.length) return ''
+  return `\nArchivos que podés adjuntar al email (elegí 0, 1 o 2 que de verdad sumen para ESTE negocio; si adjuntás alguno, mencionalo con naturalidad en el cuerpo, ej. "te adjunto el catálogo"):
+${ADJUNTOS.map((a, i) => `[${i + 1}] ${a.nombre}${a.descripcion ? ` — ${a.descripcion}` : ''}`).join('\n')}`
+}
 const oferta = () => (COMERCIAL?.respuestas as Dic)?.que_vende as string || 'una página web'
 function tono() {
   const e = (COMERCIAL?.estrategia ?? {}) as Dic
@@ -46,7 +54,7 @@ ${p.encaje ? `- Por qué es buen prospecto: ${p.encaje}` : ''}
 - Notas del vendedor: ${p.notas || '—'}
 
 Quien escribe: ${perfil.nombre || '[tu nombre]'}, de ${(COMERCIAL?.respuestas as Dic)?.empresa || perfil.estudio || '[tu empresa]'}${COMERCIAL ? `. Qué ofrecemos: ${oferta()}${(COMERCIAL.respuestas as Dic)?.diferencial ? `. Diferencial: ${(COMERCIAL.respuestas as Dic).diferencial}` : ''}` : ' (estudio de diseño web de Mendoza)'}.
-Firma de email: ${perfil.firma || perfil.nombre || ''}
+${FIRMA_IMAGEN ? `Firma: el email ya lleva al final la firma con logo y datos de contacto (como imagen). Cerrá sólo con un saludo y tu nombre, sin repetir teléfono, web ni cargo.` : `Firma de email: ${perfil.firma || perfil.nombre || ''}`}${textoAdjuntos()}
 ${perfil.portfolio_url ? `Portfolio (mencionalo sólo si suma): ${perfil.portfolio_url}` : ''}
 ${perfil.instrucciones_ia ? `Indicaciones del usuario para todos sus mensajes: ${perfil.instrucciones_ia}` : ''}`
 }
@@ -105,9 +113,11 @@ ${tono()}
 - Seguimiento (para quien no respondió en unos días): 1 a 3 oraciones, amable, ofrece algo concreto y deja la puerta abierta a decir que no.
 
 Respondé SOLO con JSON válido, sin texto antes ni después:
-{"whatsapp": "...", "email": {"asunto": "...", "cuerpo": "..."}, "seguimiento": "..."}`
+{"whatsapp": "...", "email": {"asunto": "...", "cuerpo": "..."${ADJUNTOS.length ? ', "adjuntos": [números de los archivos que adjuntás, o vacío]' : ''}}, "seguimiento": "..."}`
   const b = extraerJSON(await claude(key, prompt))
   if (!b.whatsapp || !b.email?.cuerpo || !b.seguimiento) throw new Error('JSON incompleto')
+  const nums = Array.isArray(b.email.adjuntos) ? b.email.adjuntos : []
+  b.email.adjuntos = [...new Set(nums.map((n: unknown) => ADJUNTOS[Number(n) - 1]?.id).filter(Boolean))].slice(0, 3)
   return b
 }
 
@@ -149,6 +159,9 @@ Deno.serve(async req => {
     const { data: perfil } = await supabase.from('perfiles').select('*').eq('id', user.id).single()
     const { data: com } = await supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', user.id).maybeSingle()
     COMERCIAL = (com?.respuestas as Dic)?.que_vende ? com : null
+    const { data: archivos } = await supabase.from('archivos').select('id, tipo, nombre, descripcion').eq('owner_id', user.id)
+    ADJUNTOS = (archivos ?? []).filter(a => a.tipo === 'adjunto').map(a => ({ id: a.id, nombre: a.nombre, descripcion: a.descripcion }))
+    FIRMA_IMAGEN = (archivos ?? []).some(a => a.tipo === 'firma')
 
     if (body.modo === 'reescribir') {
       const { prospecto_id, tipo = 'whatsapp', cuerpo = '', asunto = '', instruccion = '' } = body
@@ -184,9 +197,9 @@ Deno.serve(async req => {
       }
 
       const filas = [
-        { tipo: 'whatsapp', asunto: '', cuerpo: b.whatsapp },
-        { tipo: 'email', asunto: b.email.asunto, cuerpo: b.email.cuerpo },
-        { tipo: 'seguimiento', asunto: `Re: ${b.email.asunto || nombreCorto(p.nombre)}`, cuerpo: b.seguimiento },
+        { tipo: 'whatsapp', asunto: '', cuerpo: b.whatsapp, adjuntos: [] as string[] },
+        { tipo: 'email', asunto: b.email.asunto, cuerpo: b.email.cuerpo, adjuntos: b.email.adjuntos ?? [] },
+        { tipo: 'seguimiento', asunto: `Re: ${b.email.asunto || nombreCorto(p.nombre)}`, cuerpo: b.seguimiento, adjuntos: [] as string[] },
       ].filter(f => forzar || !editados.has(f.tipo))
         .map(f => ({ ...f, prospecto_id: p.id, owner_id: user.id, generado_por: origen, editado: false }))
 

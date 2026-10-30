@@ -28,15 +28,36 @@ export default function Conexiones() {
   )
 }
 
+const PROVEEDORES = [
+  { id: 'gmail', nombre: 'Gmail', sub: 'o Google Workspace', smtp: 'smtp.gmail.com', imap: 'imap.gmail.com', clave: 'Contraseña de aplicación', ph: 'abcd efgh ijkl mnop',
+    pasos: [<><b>Activá la verificación en 2 pasos</b> en tu cuenta de Google (si ya la tenés, saltá este paso).<br /><a href="https://myaccount.google.com/signinoptions/twosv" target="_blank" rel="noreferrer">Abrir verificación en 2 pasos <ExternalLink size={11} /></a></>,
+      <><b>Creá una contraseña de aplicación</b>: ponele de nombre "Prospecta" y copiá las 16 letras que te da.<br /><a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">Crear contraseña de aplicación <ExternalLink size={11} /></a></>] },
+  { id: 'privateemail', nombre: 'Private Email', sub: 'Namecheap', smtp: 'mail.privateemail.com', imap: 'mail.privateemail.com', clave: 'Contraseña de la casilla', ph: 'La misma con la que entrás al webmail',
+    pasos: [<><b>Usá tu email completo</b> (ej.: vos@tuempresa.com) y <b>la contraseña de esa casilla</b>, la misma con la que entrás a <a href="https://privateemail.com" target="_blank" rel="noreferrer">privateemail.com <ExternalLink size={11} /></a>.</>] },
+  { id: 'zoho', nombre: 'Zoho Mail', sub: '', smtp: 'smtp.zoho.com', imap: 'imap.zoho.com', clave: 'Contraseña (o de aplicación si usás 2 pasos)', ph: 'Contraseña de Zoho',
+    pasos: [<><b>Activá IMAP</b> en Zoho Mail → Configuración → Cuentas de correo → IMAP.</>,
+      <>Si tenés verificación en 2 pasos, <b>generá una contraseña de aplicación</b>.<br /><a href="https://accounts.zoho.com/home#security/app_password" target="_blank" rel="noreferrer">Crear contraseña de aplicación <ExternalLink size={11} /></a></>] },
+  { id: 'hostinger', nombre: 'Hostinger', sub: '', smtp: 'smtp.hostinger.com', imap: 'imap.hostinger.com', clave: 'Contraseña de la casilla', ph: 'La del webmail de Hostinger',
+    pasos: [<><b>Usá tu email completo y la contraseña de la casilla</b> (la que usás en el webmail de Hostinger).</>] },
+  { id: 'godaddy', nombre: 'GoDaddy', sub: 'Workspace Email', smtp: 'smtpout.secureserver.net', imap: 'imap.secureserver.net', clave: 'Contraseña de la casilla', ph: 'La del webmail de GoDaddy',
+    pasos: [<><b>Usá tu email completo y la contraseña de la casilla.</b> Si tu correo de GoDaddy es de Microsoft 365, por ahora no se puede conectar.</>] },
+  { id: 'yahoo', nombre: 'Yahoo', sub: '', smtp: 'smtp.mail.yahoo.com', imap: 'imap.mail.yahoo.com', clave: 'Contraseña de aplicación', ph: 'Contraseña de aplicación de Yahoo',
+    pasos: [<><b>Generá una contraseña de aplicación</b> en Seguridad de tu cuenta de Yahoo.<br /><a href="https://login.yahoo.com/account/security" target="_blank" rel="noreferrer">Abrir seguridad de Yahoo <ExternalLink size={11} /></a></>] },
+  { id: 'otro', nombre: 'Otro', sub: 'mi dominio / cPanel', smtp: '', imap: '', clave: 'Contraseña de la casilla', ph: 'Contraseña del correo',
+    pasos: [<><b>Buscá los datos de tu correo</b> en el panel de tu hosting ("Configurar cliente de correo"): servidor SMTP con SSL (puerto 465) e IMAP con SSL (puerto 993).</>,
+      <>Completalos abajo con tu email y la contraseña de la casilla.</>] },
+]
+const detectar = email => /@(gmail|googlemail)\.com$/i.test(email) ? 'gmail' : /@yahoo\./i.test(email) ? 'yahoo' : /@zoho(mail)?\.com$/i.test(email) ? 'zoho' : null
+
 function CorreoCard() {
   const { correo, setCorreo, perfil } = useApp()
   const toast = useToast()
   const confirmar = useConfirmar()
   const [f, setF] = useState({ email: perfil?.email_contacto || '', clave: '', nombre: perfil?.nombre || '', smtp_host: '', smtp_puerto: 465, imap_host: '', imap_puerto: 993 })
-  const [avanzado, setAvanzado] = useState(false)
+  const [prov, setProv] = useState(detectar(perfil?.email_contacto || '') || 'gmail')
+  const P = PROVEEDORES.find(x => x.id === prov)
   const [cargando, setCargando] = useState('')
   const [error, setError] = useState('')
-  const esGmail = /@(gmail|googlemail)\.com$/i.test(f.email)
   const noSoportado = /@(outlook|hotmail|live|msn)\.|@(icloud|me)\.com$/i.test(f.email)
 
   async function accion(modo, extra = {}) {
@@ -80,26 +101,30 @@ function CorreoCard() {
     <section className="tarjeta conexion">
       <div className="conexion-cab"><span className="conexion-icono mail"><Mail size={20} /></span><div><h3>Email</h3><span className="chip">No conectado</span></div></div>
       <p>Mandá los emails desde tu propia cuenta sin salir de Prospecta, y enterate solo cuando alguien te responde.</p>
-      <div className="conexion-pasos">
-        <div><span>1</span><div><b>Activá la verificación en 2 pasos</b> en tu cuenta de Google (si ya la tenés, saltá este paso).<br /><a href="https://myaccount.google.com/signinoptions/twosv" target="_blank" rel="noreferrer">Abrir verificación en 2 pasos <ExternalLink size={11} /></a></div></div>
-        <div><span>2</span><div><b>Creá una contraseña de aplicación</b>: ponele de nombre "Prospecta" y copiá las 16 letras que te da.<br /><a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">Crear contraseña de aplicación <ExternalLink size={11} /></a></div></div>
-        <div><span>3</span><div><b>Pegala acá abajo</b> junto con tu email y listo.</div></div>
+      <div className="proveedores" role="radiogroup" aria-label="Dónde tenés tu correo">
+        {PROVEEDORES.map(x => (
+          <button key={x.id} type="button" role="radio" aria-checked={prov === x.id} className={'proveedor' + (prov === x.id ? ' on' : '')} onClick={() => { setProv(x.id); setError('') }}>
+            <b>{x.nombre}</b>{x.sub && <small>{x.sub}</small>}
+          </button>
+        ))}
       </div>
-      <form className="conexion-form" onSubmit={e => { e.preventDefault(); accion('conectar', f) }}>
-        <label>Tu email<input type="email" required value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="vos@gmail.com" /></label>
-        <label>Contraseña de aplicación<input required value={f.clave} onChange={e => setF({ ...f, clave: e.target.value })} placeholder={esGmail || !f.email ? 'abcd efgh ijkl mnop' : 'Contraseña de aplicación o del correo'} autoComplete="off" /></label>
+      <div className="conexion-pasos">
+        {[...P.pasos, <><b>Completá tus datos acá abajo</b> y tocá Conectar: probamos la conexión al toque.</>].map((paso, n) => <div key={prov + n}><span>{n + 1}</span><div>{paso}</div></div>)}
+      </div>
+      <form className="conexion-form" onSubmit={e => { e.preventDefault(); accion('conectar', { ...f, smtp_host: f.smtp_host || P.smtp, imap_host: f.imap_host || P.imap }) }}>
+        <label>Tu email<input type="email" required value={f.email} onChange={e => { const v = e.target.value; setF({ ...f, email: v }); const d = detectar(v); if (d && d !== prov && prov !== 'otro') setProv(d) }} placeholder={prov === 'gmail' || prov === 'yahoo' ? `vos@${prov}.com` : 'vos@tuempresa.com'} /></label>
+        <label>{P.clave}<input required type={prov === 'gmail' ? 'text' : 'password'} value={f.clave} onChange={e => setF({ ...f, clave: e.target.value })} placeholder={P.ph} autoComplete="off" /></label>
         <label>Nombre que ve el cliente <span className="muted">(opcional)</span><input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej.: Vincenzo de Bombas Cuyo" /></label>
-        {noSoportado && <Aviso>Outlook, Hotmail e iCloud no se pueden conectar por ahora: sólo envían por un puerto que nuestro servidor no puede usar. Usá una cuenta de Gmail o el correo de tu dominio.</Aviso>}
-        <button type="button" className="link chico" onClick={() => setAvanzado(a => !a)}><ChevronDown size={13} style={{ verticalAlign: -2, transform: avanzado ? 'rotate(180deg)' : '' }} /> Uso el correo de mi dominio (opciones avanzadas)</button>
-        {avanzado && (
+        {noSoportado && <Aviso>Outlook, Hotmail e iCloud no se pueden conectar por ahora: sólo envían por un puerto que nuestro servidor no puede usar. Usá Gmail, Private Email, Zoho o el correo de tu dominio.</Aviso>}
+        {prov === 'otro' && (
           <div className="form-grid">
-            <label>Servidor de salida (SMTP)<input value={f.smtp_host} onChange={e => setF({ ...f, smtp_host: e.target.value })} placeholder={`mail.${f.email.split('@')[1] || 'tudominio.com'}`} /><small>Puerto 465 (SSL).</small></label>
-            <label>Servidor de entrada (IMAP)<input value={f.imap_host} onChange={e => setF({ ...f, imap_host: e.target.value })} placeholder={`mail.${f.email.split('@')[1] || 'tudominio.com'}`} /><small>Puerto 993 (SSL).</small></label>
+            <label>Servidor de salida (SMTP)<input required value={f.smtp_host} onChange={e => setF({ ...f, smtp_host: e.target.value })} placeholder={`mail.${f.email.split('@')[1] || 'tudominio.com'}`} /><small>Puerto 465 (SSL).</small></label>
+            <label>Servidor de entrada (IMAP)<input value={f.imap_host} onChange={e => setF({ ...f, imap_host: e.target.value })} placeholder={`mail.${f.email.split('@')[1] || 'tudominio.com'}`} /><small>Puerto 993 (SSL). Opcional: sirve para leer respuestas.</small></label>
           </div>
         )}
         {error && <Aviso tipo="error">{error}</Aviso>}
-        <button className="btn primario" disabled={!!cargando || noSoportado}>{cargando === 'conectar' ? <><Loader2 size={15} className="spin" /> Probando la conexión…</> : <><Mail size={15} /> Conectar email</>}</button>
-        <small className="muted">La contraseña se guarda cifrada y sólo la usa el servidor para enviar y leer. Podés revocarla cuando quieras desde tu cuenta de Google.</small>
+        <button className="btn primario" disabled={!!cargando || noSoportado}>{cargando === 'conectar' ? <><Loader2 size={15} className="spin" /> Probando la conexión…</> : <><Mail size={15} /> Conectar {P.nombre === 'Otro' ? 'email' : P.nombre}</>}</button>
+        <small className="muted">La contraseña se guarda cifrada y sólo la usa el servidor para enviar y leer tus respuestas. Podés desconectarla cuando quieras.</small>
       </form>
     </section>
   )
