@@ -12,13 +12,14 @@ import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
 import { useArchivos } from '../lib/archivos.js'
 import { AdjuntarEnEmail } from '../components/ArchivosCorreo.jsx'
+import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEmpresa } from '../components/FichaExtras.jsx'
 import { useApp } from '../App.jsx'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
 const TIPO_INT = {
   enviado: ['Mensaje enviado', Send, '#1d4ed8', '#e8efff'], respuesta: ['Respondió', Reply, '#b45309', '#fdf3e2'],
   nota: ['Nota', StickyNote, '#52525b', '#f0ece5'], cambio_estado: ['Cambio de estado', RefreshCw, '#7c3aed', '#f1ebff'],
-  llamada: ['Llamada', Phone, '#15803d', '#e8f6ec'], rebote: ['Rebotó', MailX, '#c0262d', '#fdeceb'], baja: ['Pidió la baja', ShieldOff, '#7f1d1d', '#f6e9e9'],
+  llamada: ['Llamada', Phone, '#15803d', '#e8f6ec'], tarea: ['Tarea hecha', CheckCircle2, '#15803d', '#e8f6ec'], rebote: ['Rebotó', MailX, '#c0262d', '#fdeceb'], baja: ['Pidió la baja', ShieldOff, '#7f1d1d', '#f6e9e9'],
 }
 const RAPIDOS = ['Más corto', 'Más cálido', 'Más profesional', 'Mencioná su Instagram', 'Otro enfoque', 'Sin signos de exclamación']
 
@@ -282,6 +283,7 @@ export default function Prospecto() {
             <button className="btn" onClick={() => { const m = new Date(Date.now() + 86400000); setAgenda({ titulo: `Llamada con ${p.nombre}`, fecha: m.toLocaleDateString('en-CA'), hora: '10:00', duracion: 30 }) }} disabled={optOut}><CalendarPlus size={15} /> Agendar</button>
             <button className="btn peligro" onClick={() => cambiarEstado('no_interesado')} disabled={optOut}><Ban size={15} /> No interesado</button>
           </div>
+          <SecuenciaDeEmpresa p={p} onCambio={cargar} />
           <button className="btn fantasma chico peligro" style={{ marginTop: 14 }} onClick={borrar}><Trash2 size={14} /> Borrar prospecto</button>
         </section>
 
@@ -381,6 +383,12 @@ export default function Prospecto() {
         </section>
       </div>
 
+      <RespuestasDeEmpresa p={p} />
+      <div className="grilla-ficha-extra">
+        <ContactosDeEmpresa p={p} />
+        <TareasDeEmpresa p={p} />
+      </div>
+
       <section className="tarjeta">
         <div className="tarjeta-titulo"><h3><Clock size={16} /> Historial</h3></div>
         <form className="nota-rapida" onSubmit={async e => { e.preventDefault(); if (nota.trim()) { await registrar('nota', nota.trim()); setNota(''); toast('Nota agregada') } }}>
@@ -390,7 +398,7 @@ export default function Prospecto() {
         {hist.length === 0 ? <p className="muted">Sin interacciones todavía.</p> : (
           <ul className="timeline">
             {hist.map(h => {
-              const [label, Icono, color, fondo] = TIPO_INT[h.tipo]
+              const [label, Icono, color, fondo] = TIPO_INT[h.tipo] ?? TIPO_INT.nota
               return (
                 <li key={h.id}>
                   <span className="tl-icono" style={{ color, background: fondo }}><Icono size={15} /></span>

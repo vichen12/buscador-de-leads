@@ -20,6 +20,8 @@ import Asistente from './pages/Asistente.jsx'
 import MiNegocio from './pages/MiNegocio.jsx'
 import Conexiones from './pages/Conexiones.jsx'
 import { Baja, Terminos, Privacidad } from './pages/Publico.jsx'
+import Respuestas from './pages/Respuestas.jsx'
+import Secuencias from './pages/Secuencias.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -57,6 +59,7 @@ function Privada() {
   const [acceso, setAcceso] = useState(null)
   const [correo, setCorreo] = useState(null)
   const [porRevisar, setPorRevisar] = useState(0)
+  const [contadores, setContadores] = useState({})
   const [comercial, setComercial] = useState(undefined) // perfil comercial: undefined = cargando, null = sin completar
 
   useEffect(() => {
@@ -76,6 +79,7 @@ function Privada() {
     ])
     setComercial(c ?? null)
     contarPorRevisar().then(setPorRevisar)
+    supabase.rpc('contadores').then(({ data }) => setContadores(data ?? {}))
     supabase.from('conexiones_correo').select('*').eq('owner_id', session.user.id).maybeSingle().then(({ data }) => setCorreo(data ?? null))
     setPerfil(p)
     setTablero(t)
@@ -98,7 +102,7 @@ function Privada() {
   if (!acceso) return <div className="centro-pantalla"><Cargando /></div>
   if (acceso.habilitado === false) return <Suspendido acceso={acceso} email={session.user.email} />
 
-  const valor = { session, perfil, tablero, enviadosHoy: tablero?.enviados_hoy ?? 0, refrescar, servicios, refrescarServicios, acceso, comercial, setComercial, correo, setCorreo, porRevisar, setPorRevisar }
+  const valor = { session, perfil, tablero, enviadosHoy: tablero?.enviados_hoy ?? 0, refrescar, servicios, refrescarServicios, acceso, comercial, setComercial, correo, setCorreo, porRevisar, setPorRevisar, contadores }
   return (
     <Ctx.Provider value={valor}>
       <Layout>
@@ -107,6 +111,8 @@ function Privada() {
           <Route path="/prospectos" element={<Prospectos />} />
           <Route path="/prospectos/:id" element={<Prospecto />} />
           <Route path="/seguimientos" element={<Seguimientos />} />
+          <Route path="/respuestas" element={<Respuestas />} />
+          <Route path="/secuencias" element={<Secuencias />} />
           <Route path="/importar" element={<Importar />} />
           <Route path="/buscar" element={<BuscarPlaces />} />
           <Route path="/revisar" element={<Revisar />} />

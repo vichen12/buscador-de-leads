@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot } from 'lucide-react'
+import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot, Workflow } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, fecha, mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
@@ -9,6 +9,7 @@ import NuevoProspecto from '../components/NuevoProspecto.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
 import EnvioMasivo from '../components/EnvioMasivo.jsx'
+import { InscribirEnSecuencia } from './Secuencias.jsx'
 import { useApp } from '../App.jsx'
 
 export default function Prospectos() {
@@ -18,6 +19,7 @@ export default function Prospectos() {
   const confirmar = useConfirmar()
   const { refrescar, porRevisar, correo } = useApp()
   const [envio, setEnvio] = useState(null)
+  const [inscribir, setInscribir] = useState(null)
   const [lista, setLista] = useState([])
   const [cargando, setCargando] = useState(true)
   const [sel, setSel] = useState(new Set())
@@ -116,12 +118,28 @@ export default function Prospectos() {
     refrescar()
   }
 
-  async function exportar() {
-    await descargarExcel(`mi_lista_${new Date().toISOString().slice(0, 10)}.xlsx`, filtrados.map(p => filaEmpresa(p, {
+  async function estadoEnLote(nuevo) {
+    const elegidos = lista.filter(p => sel.has(p.id) && p.estado !== nuevo)
+    if (!nuevo || !elegidos.length) return
+    if (!(await confirmar({ titulo: `¿Pasar ${elegidos.length} ${elegidos.length === 1 ? 'empresa' : 'empresas'} a "${ESTADOS[nuevo].label}"?`, texto: ESTADOS[nuevo].ayuda, aceptar: 'Cambiar' }))) return
+    const antes = elegidos.map(p => ({ id: p.id, estado: p.estado }))
+    const { error } = await supabase.from('prospectos').update({ estado: nuevo }).in('id', elegidos.map(p => p.id))
+    if (error) { toast(mensajeError(error), 'error'); return }
+    await supabase.from('interacciones').insert(elegidos.map(p => ({ prospecto_id: p.id, tipo: 'cambio_estado', detalle: `${ESTADOS[p.estado].label} → ${ESTADOS[nuevo].label}` })))
+    toast(`${elegidos.length} pasaron a "${ESTADOS[nuevo].label}"`, 'ok', { deshacer: async () => {
+      for (const a of antes) await supabase.from('prospectos').update({ estado: a.estado }).eq('id', a.id)
+      cargar(); refrescar()
+    } })
+    setSel(new Set()); cargar(); refrescar()
+  }
+
+  async function exportar(ids) {
+    const base = Array.isArray(ids) ? lista.filter(p => ids.includes(p.id)) : filtrados
+    await descargarExcel(`mi_lista_${new Date().toISOString().slice(0, 10)}.xlsx`, base.map(p => filaEmpresa(p, {
       Estado: ESTADOS[p.estado].label, 'Último contacto': p.ultimo_contacto ? p.ultimo_contacto.slice(0, 10) : '',
       'Próximo seguimiento': p.proximo_seguimiento ?? '', Notas: p.notas || '',
     })))
-    toast(`Descargaste ${filtrados.length} empresas en Excel`)
+    toast(`Descargaste ${base.length} empresas en Excel`)
   }
 
   const opcionesEstado = Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.label, nodo: <EstadoBadge estado={k} /> }))
@@ -136,7 +154,7 @@ export default function Prospectos() {
             <button className={vista === 'pipeline' ? 'activo' : ''} onClick={() => set('vista', 'pipeline')}><Columns3 size={15} /> Pipeline</button>
           </div>
           <Link className="btn" to="/envios"><Send size={16} /> Envío masivo</Link>
-          <button className="btn" onClick={exportar} disabled={!filtrados.length}><Download size={16} /> Descargar Excel</button>
+          <button className="btn" onClick={() => exportar()} disabled={!filtrados.length}><Download size={16} /> Descargar Excel</button>
           <button className="btn primario" onClick={() => setNuevo(true)}><Plus size={16} /> Agregar</button>
         </div>
       </header>
@@ -186,6 +204,9 @@ export default function Prospectos() {
           {correo
             ? <button className="btn primario" onClick={() => setEnvio(lista.filter(p => sel.has(p.id)))}><Send size={16} /> Enviar emails</button>
             : <Link className="btn" to="/email"><Send size={16} /> Conectá tu email para enviar de a varios</Link>}
+          <button className="btn" onClick={() => setInscribir([...sel])}><Workflow size={16} /> Secuencia</button>
+          <Desplegable compacto ariaLabel="Cambiar estado de los seleccionados" value="" placeholder="Cambiar estado" onChange={v => estadoEnLote(v)} anchoMenu={210} opciones={opcionesEstado} />
+          <button className="btn" onClick={() => exportar([...sel])}><Download size={16} /> Exportar</button>
           <span className="espacio" />
           <button className="link" onClick={() => setSel(new Set())}><X size={14} style={{ verticalAlign: -2 }} /> Limpiar</button>
         </div>
@@ -264,6 +285,7 @@ export default function Prospectos() {
           </div>
         </div>
       )}
+      {inscribir && <InscribirEnSecuencia ids={inscribir} onCerrar={() => setInscribir(null)} onListo={() => { setSel(new Set()); cargar() }} />}
       {envio && <EnvioMasivo prospectos={envio} onCerrar={() => { setEnvio(null); cargar() }} onListo={() => { setSel(new Set()); cargar() }} />}
       {nuevo && <NuevoProspecto onCerrar={() => setNuevo(false)} onCreado={p => { setNuevo(false); toast('Prospecto creado'); nav(`/prospectos/${p.id}`) }} />}
     </>

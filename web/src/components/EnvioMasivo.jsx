@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { X, Send, Loader2, Sparkles, CheckCircle2, AlertTriangle, ChevronDown, Paperclip, Mail } from 'lucide-react'
+import { X, Send, Loader2, Sparkles, CheckCircle2, AlertTriangle, ChevronDown, Paperclip, Mail, Pause, Play, Workflow, Clock } from 'lucide-react'
+import { InscribirEnSecuencia } from '../pages/Secuencias.jsx'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { useArchivos } from '../lib/archivos.js'
@@ -18,14 +19,11 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
   const [abierto, setAbierto] = useState(null)
   const [error, setError] = useState('')
   const [progreso, setProgreso] = useState('')
-  const [espera, setEspera] = useState(0)
-  const [sinCopia, setSinCopia] = useState(0)
   const [total, setTotal] = useState(0)
   const [sinBorrador, setSinBorrador] = useState([])
 
   const [excluidos, setExcluidos] = useState([]) // [{ p, motivo }]
   const [conEmail, setConEmail] = useState([])
-  const [pausaRebotes, setPausaRebotes] = useState(null) // { rebotes, enviados } si se pausó por rebotes
   const lim = tablero?.email
   const cupo = lim ? Math.max(0, lim.limite_hoy - lim.enviados_hoy) : Math.max(0, (perfil?.limite_diario ?? 15) - (tablero?.enviados_hoy ?? 0))
 
@@ -88,44 +86,49 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
   const elegidos = items.filter(x => x.incluir && x.estado === 'listo')
   const pasaCupo = elegidos.length > cupo
 
-  async function enviar(ignorarRebotes = false) {
-    const lote = items.filter(x => x.incluir && x.estado === 'listo')
-    setFase('enviando'); setPausaRebotes(null); setTotal(t => ignorarRebotes ? t : lote.length)
-    let enviados = items.filter(x => x.estado === 'ok').length, faltaCopia = sinCopia
-    const enviadosIds = items.filter(x => x.estado === 'ok').map(x => x.p.id)
-    const inicio = new Date().toISOString()
-    for (const [n, it] of lote.entries()) {
-      // Pausa aleatoria entre mails (45 a 120 s): una ráfaga de emails en frío seguidos es lo que más manda a spam
-      if (n > 0 || enviados > 0) {
-        const seg = 45 + Math.floor(Math.random() * 76)
-        for (let t = seg; t > 0; t--) { setEspera(t); await new Promise(r => setTimeout(r, 1000)) }
-        setEspera(0)
+  // Envío en el servidor: se puede cerrar la pestaña. Acá sólo se muestra el avance.
+  const [lote, setLote] = useState(null)
+  const [ab, setAb] = useState({ on: false, asuntoB: '' })
+  const [inscribir, setInscribir] = useState(false)
+  async function enviar() {
+    const lote0 = items.filter(x => x.incluir && x.estado === 'listo')
+    if (!lote0.length) return
+    setFase('enviando'); setTotal(lote0.length); setError('')
+    try {
+      // Guardar lo que se editó a mano
+      for (const it of lote0) if (it.asunto !== it.m.asunto || it.cuerpo !== it.m.cuerpo) {
+        const { error } = await supabase.from('mensajes').update({ asunto: it.asunto, cuerpo: it.cuerpo, editado: true }).eq('id', it.m.id)
+        if (error) throw error
       }
-      // Cada 5 envíos se revisa la casilla: si rebotan más del 5 %, se pausa solo
-      if (!ignorarRebotes && enviadosIds.length >= 5 && enviadosIds.length % 5 === 0) {
-        await llamarFuncion('correo', { modo: 'revisar' }).catch(() => {})
-        const { data: reb } = await supabase.from('prospectos').select('id').in('id', enviadosIds).eq('email_estado', 'invalido').gte('email_verificado_at', inicio)
-        const rebotes = reb?.length ?? 0
-        if (rebotes / enviadosIds.length > 0.05) { setPausaRebotes({ rebotes, enviados: enviadosIds.length }); setFase('pausado'); refrescar(); return }
-      }
-      if (enviados >= cupo) { cambiar(it.p.id, { estado: 'error', error: 'Llegaste al límite de hoy' }); continue }
-      cambiar(it.p.id, { estado: 'enviando' })
-      try {
-        if (it.asunto !== it.m.asunto || it.cuerpo !== it.m.cuerpo) {
-          const { error } = await supabase.from('mensajes').update({ asunto: it.asunto, cuerpo: it.cuerpo, editado: true }).eq('id', it.m.id)
-          if (error) throw error
-        }
-        const r = await llamarFuncion('correo', { modo: 'enviar', mensaje_id: it.m.id, adjuntos: it.adjuntos.filter(id => arch.adjuntos.some(a => a.id === id)) })
-        if (r?.en_enviados === false) setSinCopia(++faltaCopia)
-        enviados++; enviadosIds.push(it.p.id)
-        cambiar(it.p.id, { estado: 'ok' })
-      } catch (e) {
-        const msg = mensajeError(e)
-        cambiar(it.p.id, { estado: 'error', error: msg })
-        if (/límite/i.test(msg)) break
-      }
+      const usarB = ab.on && ab.asuntoB.trim()
+      const r = await llamarFuncion('correo', {
+        modo: 'encolar', asunto_b: usarB ? ab.asuntoB.trim() : null,
+        items: lote0.map((it, i) => ({ mensaje_id: it.m.id, asunto: usarB && i % 2 ? ab.asuntoB.trim() : it.asunto, cuerpo: it.cuerpo, adjuntos: it.adjuntos.filter(id => arch.adjuntos.some(a => a.id === id)), variante: usarB ? (i % 2 ? 'b' : 'a') : null })),
+      })
+      setLote(r.lote)
+      lote0.forEach(it => cambiar(it.p.id, { estado: 'en_cola' }))
+    } catch (e) { setError(mensajeError(e)); setFase('revisar') }
+  }
+  // Avance en vivo
+  useEffect(() => {
+    if (!lote?.id) return
+    let vivo = true
+    const leer = async () => {
+      const [{ data: l }, { data: cola }] = await Promise.all([
+        supabase.from('lotes_envio').select('*').eq('id', lote.id).single(),
+        supabase.from('envios_cola').select('prospecto_id, estado, error, proximo_at').eq('lote_id', lote.id),
+      ])
+      if (!vivo) return
+      if (l) setLote(l)
+      for (const c of cola ?? []) cambiar(c.prospecto_id, { estado: c.estado === 'enviado' ? 'ok' : c.estado === 'fallido' || c.estado === 'cancelado' ? 'error' : c.estado, error: c.estado === 'enviado' ? '' : c.error, proximo: c.proximo_at })
+      if (l?.estado === 'terminado' || l?.estado === 'cancelado') { setFase('listo'); refrescar(); onListo?.() }
+      if (l?.estado === 'pausado') setFase('pausado'); else if (l?.estado === 'activo') setFase('enviando')
     }
-    setFase('listo'); refrescar(); onListo?.()
+    leer(); const t = setInterval(leer, 4000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [lote?.id])
+  async function controlar(accion) {
+    try { const r = await llamarFuncion('correo', { modo: 'lote', lote_id: lote.id, accion }); setLote(r.lote) } catch (e) { setError(mensajeError(e)) }
   }
 
   const nombreArch = id => arch.adjuntos.find(a => a.id === id)?.nombre
@@ -139,7 +142,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
           <div>
             <h2><Mail size={19} /> Enviar emails personalizados</h2>
             <p className="muted">{fase === 'preparando' ? 'Claude escribe un email distinto para cada empresa, con tu negocio, tu firma y los archivos que sumen.'
-              : fase === 'listo' ? `Listo: ${ok} enviados${fallaron ? `, ${fallaron} con problemas` : ''}. ${sinCopia ? `Salieron bien, pero ${sinCopia} no se pudieron copiar a tu carpeta Enviados (quedan registrados acá).` : 'Están en tu carpeta Enviados'} y quedan registrados con el seguimiento agendado.`
+              : fase === 'listo' ? `Listo: ${ok} enviados${fallaron ? `, ${fallaron} con problemas` : ''}. Están en tu carpeta Enviados y quedan registrados con el seguimiento agendado.`
                 : `Salen desde ${correo?.email}. Revisalos y tocá enviar: cada uno es distinto.`}</p>
           </div>
           <button className="btn fantasma chico" onClick={onCerrar} disabled={fase === 'enviando'} aria-label="Cerrar"><X size={17} /></button>
@@ -152,7 +155,15 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
           )}
           {fase !== 'preparando' && <>
             {excluidos.length > 0 && <div className="nota-info"><AlertTriangle size={15} /><span>{excluidos.length} {excluidos.length === 1 ? 'queda' : 'quedan'} afuera: {excluidos.map(x => `${x.p.nombre} (${x.motivo})`).join(', ')}.</span></div>}
-            {pausaRebotes && <div className="nota-info aviso"><AlertTriangle size={15} /><span>Pausamos el envío: rebotaron {pausaRebotes.rebotes} de {pausaRebotes.enviados} mails (más del 5 %). Muchos rebotes dañan la reputación de tu casilla. Revisá esos emails antes de seguir.</span></div>}
+            {lote?.estado === 'pausado' && <div className="nota-info aviso"><AlertTriangle size={15} /><span>Envío pausado. {lote.motivo_pausa}</span></div>}
+            {error && fase !== 'preparando' && <div className="nota-info aviso"><AlertTriangle size={15} /><span>{error}</span></div>}
+            {fase === 'revisar' && items.length > 1 && (
+              <div className="nota-info ab-test">
+                <label className="interruptor-linea"><input type="checkbox" checked={ab.on} onChange={e => setAb({ ...ab, on: e.target.checked })} /> Probar dos asuntos</label>
+                {ab.on ? <><input value={ab.asuntoB} onChange={e => setAb({ ...ab, asuntoB: e.target.value })} placeholder="Asunto B (la mitad de los mails sale con este)" aria-label="Asunto B" /><small className="muted">La mitad lleva el asunto que escribió Claude y la otra mitad este. En Reportes ves cuál tuvo más respuestas.</small></>
+                  : <small className="muted">Mandá la mitad con otro asunto y mirá en Reportes cuál responde más.</small>}
+              </div>
+            )}
             {lim && fase === 'revisar' && <div className="nota-info"><Mail size={15} /><span>Hoy: {lim.enviados_hoy} de {lim.limite_hoy} envíos{lim.calentando ? ` · tu casilla está en calentamiento (semana ${lim.etapa} de 3)` : ''}. Entre mail y mail hay una pausa de 45 segundos a 2 minutos para que no caigan en spam.</span></div>}
             {sinBorrador.length > 0 && fase === 'revisar' && <div className="nota-info aviso"><AlertTriangle size={15} /><span>Claude no pudo escribir el email de {sinBorrador.map(p => p.nombre).join(', ')}. <button type="button" className="link" onClick={() => { setFase('preparando'); preparar() }}>Probar de nuevo</button></span></div>}
             {pasaCupo && fase === 'revisar' && <div className="nota-info aviso"><AlertTriangle size={15} /><span>Hoy podés mandar {cupo} más (el límite de tu casilla). Destildá algunos o seguí mañana. <Link to="/email">Ver el límite</Link></span></div>}
@@ -164,7 +175,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
                     <div className="envio-item-cab">
                       {fase === 'revisar' && it.estado === 'listo'
                         ? <input type="checkbox" checked={it.incluir} onChange={e => cambiar(it.p.id, { incluir: e.target.checked })} aria-label={'Incluir ' + it.p.nombre} />
-                        : <span className="envio-estado">{it.estado === 'ok' ? <CheckCircle2 size={17} /> : it.estado === 'enviando' ? <Loader2 size={17} className="spin" /> : it.estado === 'error' ? <AlertTriangle size={17} /> : it.estado === 'ya' ? <CheckCircle2 size={17} /> : <Mail size={16} />}</span>}
+                        : <span className="envio-estado">{it.estado === 'ok' ? <CheckCircle2 size={17} /> : it.estado === 'enviando' ? <Loader2 size={17} className="spin" /> : it.estado === 'error' ? <AlertTriangle size={17} /> : it.estado === 'ya' ? <CheckCircle2 size={17} /> : it.estado === 'en_cola' ? <Clock size={16} /> : <Mail size={16} />}</span>}
                       <button type="button" className="envio-item-resumen" onClick={() => setAbierto(ab ? null : it.p.id)}>
                         <b>{it.p.nombre}</b>
                         <span className="muted">{it.p.email}</span>
@@ -205,14 +216,21 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
             <span className="muted chico">{elegidos.length} de {items.length} seleccionados · hoy te quedan {cupo} envíos</span>
             <span className="espacio" />
             <button className="btn" onClick={onCerrar}>Cancelar</button>
+            <button className="btn" onClick={() => setInscribir(true)} disabled={!elegidos.length} title="En vez de un solo mail: mail inicial, seguimientos y cierre automáticos"><Workflow size={15} /> Secuencia</button>
             <button className="btn primario" onClick={() => enviar()} disabled={!elegidos.length || pasaCupo}><Send size={15} /> Enviar {elegidos.length} {elegidos.length === 1 ? 'email' : 'emails'}</button>
           </>}
-          {fase === 'enviando' && <span className="muted"><Loader2 size={14} className="spin" style={{ verticalAlign: -2 }} /> {espera ? `Enviado ${items.filter(x => x.estado === 'ok').length} de ${total}. El próximo sale en ${espera >= 60 ? `${Math.floor(espera / 60)} min ${espera % 60} s` : `${espera} s`} (así no cae en spam)` : `Enviando ${Math.min(total, items.filter(x => x.estado === 'ok' || x.estado === 'error').length + 1)} de ${total}…`} No cierres esta ventana.</span>}
+          {fase === 'enviando' && <>
+            <span className="muted chico"><Loader2 size={14} className="spin" style={{ verticalAlign: -2 }} /> Enviados {items.filter(x => x.estado === 'ok').length} de {total}. Salen de a uno, con 45 segundos a 2 minutos entre cada uno. <b>Podés cerrar esta ventana:</b> sigue en el servidor.</span>
+            <span className="espacio" />
+            {lote && <button className="btn" onClick={() => controlar('pausar')}><Pause size={14} /> Pausar</button>}
+            {lote && <button className="btn fantasma" onClick={() => controlar('cancelar')}>Cancelar</button>}
+          </>}
           {fase === 'listo' && <><span className="espacio" /><button className="btn primario" onClick={onCerrar}>Listo</button></>}
-          {fase === 'pausado' && <><span className="muted chico">Quedan {items.filter(x => x.incluir && x.estado === 'listo').length} sin enviar</span><span className="espacio" /><button className="btn" onClick={() => { setFase('listo'); onListo?.() }}>Terminar acá</button><button className="btn primario" onClick={() => enviar(true)}>Seguir igual</button></>}
+          {fase === 'pausado' && <><span className="muted chico">Quedan {items.filter(x => x.estado === 'en_cola').length} sin enviar</span><span className="espacio" /><button className="btn" onClick={() => controlar('cancelar')}>Cancelar el resto</button><button className="btn primario" onClick={() => controlar('reanudar')}><Play size={14} /> Seguir</button></>}
           {fase === 'preparando' && <><span className="muted chico"><Sparkles size={13} style={{ verticalAlign: -2 }} /> Usa tu negocio, tu firma y tus archivos de la sección Email</span><span className="espacio" /><button className="btn" onClick={onCerrar}>Cancelar</button></>}
         </footer>
       </div>
+      {inscribir && <InscribirEnSecuencia ids={elegidos.map(x => x.p.id)} onCerrar={() => setInscribir(false)} onListo={() => { onListo?.(); onCerrar() }} />}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, Inbox, Mail, Send } from 'lucide-react'
+import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, Inbox, Mail, Send, MessageSquareReply, Workflow } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { Avatar, useToast } from './ui.jsx'
@@ -8,7 +8,7 @@ import Logo from './Logo.jsx'
 import AsistenteFlotante from './AsistenteFlotante.jsx'
 
 export default function Layout({ children }) {
-  const { perfil, tablero, session, servicios, acceso, correo, refrescar, porRevisar } = useApp()
+  const { perfil, tablero, session, servicios, acceso, correo, refrescar, porRevisar, contadores } = useApp()
   const toastRevision = useToast()
   // Si el email está conectado, revisar respuestas al entrar (como mucho cada 15 minutos)
   useEffect(() => {
@@ -30,21 +30,22 @@ export default function Layout({ children }) {
   const nombre = perfil?.nombre || session.user.email
   const loc = useLocation()
 
-  const trabajo = [
-    ['/', 'Tablero', LayoutDashboard],
-    ['/prospectos', 'Para contactar', Users],
-    ['/envios', 'Envío masivo', Send],
-    ['/seguimientos', 'Seguimientos', CalendarClock, vencidos],
-    ['/asistente', 'Asistente IA', Bot],
-  ]
+  const inicio = [['/', 'Tablero', LayoutDashboard]]
   const cargar = [
     ['/negocio', 'Mi negocio', Store],
     ['/buscar', 'Buscar clientes', Search, 0, 'solo-escritorio'],
     ['/revisar', 'Por revisar', Inbox, porRevisar],
     ['/importar', 'Importar', Upload, 0, 'solo-escritorio'],
   ]
-  const cuenta = [['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : ''], ['/email', 'Email', Mail, 0, 'solo-escritorio'], ['/conexiones', 'Conexiones', Plug, 0, 'solo-escritorio']]
-  if (perfil?.es_admin) cuenta.push(['/admin', 'Super admin', Crown])
+  const trabajo = [
+    ['/prospectos', 'Pipeline', Users],
+    ['/seguimientos', 'Seguimientos', CalendarClock, vencidos + (contadores?.tareas_hoy ?? 0)],
+    ['/respuestas', 'Respuestas', MessageSquareReply, contadores?.respuestas_sin_leer ?? 0],
+    ['/envios', 'Envío masivo', Send],
+    ['/secuencias', 'Secuencias', Workflow],
+  ]
+  const config = [['/email', 'Email', Mail, 0, 'solo-escritorio'], ['/conexiones', 'Conexiones', Plug, 0, 'solo-escritorio'], ['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : '']]
+  if (perfil?.es_admin) config.push(['/admin', 'Super admin', Crown])
 
   const enlace = ([to, label, Icono, badge, clase]) => (
     <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'activo ' : '') + (clase || '')}>
@@ -58,12 +59,15 @@ export default function Layout({ children }) {
       <aside className="lateral">
         <Link to="/" className="marca"><Logo size={24} /></Link>
         <nav>
-          <div className="nav-titulo">Trabajo</div>
-          {trabajo.map(enlace)}
+          <div className="nav-titulo">Inicio</div>
+          {inicio.map(enlace)}
           <div className="nav-titulo">Prospectar</div>
           {cargar.map(enlace)}
-          <div className="nav-titulo">Cuenta</div>
-          {cuenta.map(enlace)}
+          <div className="nav-titulo">Trabajo diario</div>
+          {trabajo.map(enlace)}
+          {enlace(['/asistente', 'Asistente IA', Bot])}
+          <div className="nav-titulo">Configuración</div>
+          {config.map(enlace)}
         </nav>
         <div className="cupo" title={lim ? 'Emails enviados hoy desde tu casilla / límite de hoy' : 'Envíos confirmados hoy / límite diario'}>
           <div className="cupo-top"><span>{lim ? 'Emails de hoy' : 'Envíos de hoy'}</span><b>{perfil ? `${enviados} / ${limite}` : '…'}</b></div>
