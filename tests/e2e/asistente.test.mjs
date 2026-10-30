@@ -1,12 +1,12 @@
 // Prueba de interfaz del Asistente IA. La cuenta y la base son reales; las respuestas de Claude se simulan
 // (para no depender de una clave ni gastar crédito). La función real se prueba en backend.test.mjs.
-// Uso: APP_URL=http://localhost:4173 CODIGO_INVITACION=... node asistente.test.mjs
+// Uso: APP_URL=http://localhost:4173 node asistente.test.mjs
 import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright')
+import { prepararCuenta } from './cuentas.mjs'
 
 const APP = process.env.APP_URL || 'http://localhost:4173'
-const CODIGO = process.env.CODIGO_INVITACION
 const SHOTS = process.env.SHOTS || '/tmp'
 let fallas = 0
 const ok = (c, m) => { console.log((c ? 'ok   - ' : 'FALLA- ') + m); if (!c) fallas++ }
@@ -18,14 +18,13 @@ const page = await ctx.newPage()
 page.on('pageerror', e => errores.push(e.message))
 const ver = async (t, timeout = 10000) => page.getByText(t, { exact: false }).first().waitFor({ timeout }).then(() => true).catch(() => false)
 
+const EMAIL = process.env.TEST_EMAIL || 'prospecta.chat.1793330945945@example.com'
+const PASS = await prepararCuenta(EMAIL, ['Prueba-Chat-2026!'], { nombre: 'Chat UI' })
 await page.goto(APP)
-await page.getByRole('button', { name: 'Crear una' }).click()
-await page.getByLabel('Tu nombre').fill('Chat UI')
-await page.getByLabel('Código de invitación').fill(CODIGO)
-await page.getByLabel('Email').fill(`prospecta.chat.${Date.now()}@example.com`)
-await page.locator('input[autocomplete$=password]').fill('Prueba-Chat-2026!')
-await page.getByRole('button', { name: 'Crear cuenta' }).click()
-ok(await ver('Todavía no cargaste prospectos', 20000), 'cuenta creada')
+await page.getByLabel('Email').fill(EMAIL)
+await page.locator('input[autocomplete$=password]').fill(PASS)
+await page.getByRole('button', { name: 'Entrar' }).click()
+ok(await ver('Todavía no cargaste prospectos', 20000), 'login con la cuenta de prueba')
 
 // Simulación de Claude y de lo que la función guardaría
 const st = { cupo: { limite: 4, usados: 0 }, convs: [], msjs: {}, pedidos: [], falla: false }
@@ -136,7 +135,27 @@ await page.getByRole('button', { name: 'Borrar', exact: true }).click()
 await page.waitForTimeout(500)
 ok(await page.locator('.chat-conv').count() === 1, 'la conversación se borra')
 
-// 8. Celular
+// 8. Buscar negocios con Claude (respuesta simulada; la importación es real)
+await page.route('**/functions/v1/buscar-negocios', async r => {
+  st.busqueda = r.request().postDataJSON()
+  await new Promise(res => setTimeout(res, 800))
+  json(r, { busquedas: 4, cupo: { limite: 4, usados: 4 }, resultados: [
+    { id: 'ia-0', nombre: 'Barbería Prueba Uno ' + Date.now(), rubro: 'barbería', zona: 'Godoy Cruz', direccion: 'San Martín 100', telefono: '261 555-1234', instagram: 'https://www.instagram.com/barberiauno/', que_tiene_hoy: 'Instagram', web_actual: 'https://instagram.com/barberiauno', fuente: 'https://example.com/guia', nota: 'Mucho movimiento en Instagram', es_prospecto: true },
+    { id: 'ia-1', nombre: 'Barbería Con Web ' + Date.now(), rubro: 'barbería', zona: 'Godoy Cruz', direccion: '', telefono: '', instagram: '', que_tiene_hoy: 'Dominio propio', web_actual: 'https://conweb.com.ar', fuente: '', nota: '', es_prospecto: false },
+  ] })
+})
+await page.locator('nav').getByRole('link', { name: 'Buscar negocios' }).click()
+await page.getByLabel('Rubro').fill('barbería')
+await page.getByRole('button', { name: 'Buscar con Claude' }).click()
+ok(await page.locator('.buscando').isVisible(), 'muestra el progreso mientras Claude busca')
+ok(await ver('Mucho movimiento en Instagram'), 'lista los negocios con la nota de Claude')
+ok(st.busqueda?.rubro === 'barbería' && st.busqueda?.zona === 'Godoy Cruz, Mendoza', 'manda rubro y zona')
+ok(await page.locator('tbody input[type=checkbox]:checked').count() === 1, 'preselecciona sólo los que no tienen web propia')
+await page.getByRole('button', { name: 'Importar 1' }).click()
+ok(await ver('Importados 1'), 'importa el elegido a Prospectos')
+
+// 9. Celular
+await page.locator('nav').getByRole('link', { name: 'Asistente IA' }).click()
 await page.setViewportSize({ width: 390, height: 844 })
 await page.waitForTimeout(400)
 ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 392, 'sin desborde horizontal en celular')

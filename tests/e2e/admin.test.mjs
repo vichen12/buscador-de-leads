@@ -1,13 +1,13 @@
 // Prueba de interfaz del panel de Super admin.
 // La cuenta de prueba es común: para no darle permisos reales, las respuestas de admin se simulan
 // (las reglas reales de la base se prueban en tests/sql y tests/e2e/backend.test.mjs).
-// Uso: APP_URL=http://localhost:4173 CODIGO_INVITACION=... node admin.test.mjs
+// Uso: APP_URL=http://localhost:4173 node admin.test.mjs
 import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright')
+import { prepararCuenta } from './cuentas.mjs'
 
 const APP = process.env.APP_URL || 'http://localhost:4173'
-const CODIGO = process.env.CODIGO_INVITACION
 const SHOTS = process.env.SHOTS || '/tmp'
 let fallas = 0
 const ok = (c, m) => { console.log((c ? 'ok   - ' : 'FALLA- ') + m); if (!c) fallas++ }
@@ -19,14 +19,13 @@ page.on('pageerror', e => errores.push(e.message))
 const ver = async (t, timeout = 10000) => page.getByText(t, { exact: false }).first().waitFor({ timeout }).then(() => true).catch(() => false)
 
 // 1. Alta real de una cuenta común
+const EMAIL = process.env.TEST_EMAIL || 'prospecta.admin.1793331046262@example.com'
+const PASS = await prepararCuenta(EMAIL, ['Prueba-Admin-2026!'], { nombre: 'Admin UI' })
 await page.goto(APP)
-await page.getByRole('button', { name: 'Crear una' }).click()
-await page.getByLabel('Tu nombre').fill('Admin UI')
-await page.getByLabel('Código de invitación').fill(CODIGO)
-await page.getByLabel('Email').fill(`prospecta.admin.${Date.now()}@example.com`)
-await page.locator('input[autocomplete$=password]').fill('Prueba-Admin-2026!')
-await page.getByRole('button', { name: 'Crear cuenta' }).click()
-ok(await ver('Todavía no cargaste prospectos', 20000), 'cuenta creada')
+await page.getByLabel('Email').fill(EMAIL)
+await page.locator('input[autocomplete$=password]').fill(PASS)
+await page.getByRole('button', { name: 'Entrar' }).click()
+ok(await ver('Todavía no cargaste prospectos', 20000), 'login con la cuenta de prueba')
 const miId = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.endsWith('-auth-token')))).user.id)
 
 // 2. Simulación del backend de admin
@@ -81,6 +80,16 @@ await page.route('**/rest/v1/codigos_invitacion*', async route => {
   if (req.method() === 'PATCH') { const c = estado.codigos.find(x => req.url().includes(x.codigo)); Object.assign(c, req.postDataJSON()); return route.fulfill({ status: 204, body: '' }) }
   route.continue()
 })
+await page.route('**/functions/v1/admin-usuarios', async route => {
+  const args = route.request().postDataJSON() ?? {}
+  if (args.modo === 'crear') {
+    llamadas.push({ fn: 'crear_usuario', args })
+    if (args.email === 'marta@x.com') return json(route, { error: 'Ya existe una cuenta con ese email' }, 409)
+    return json(route, { id: 'u9', email: args.email, password: 'Abcd-Efgh-2345' })
+  }
+  if (args.modo === 'restablecer') { llamadas.push({ fn: 'restablecer', args }); return json(route, { id: args.id, email: 'marta@x.com', password: 'Zyxw-Vuts-9876' }) }
+  json(route, { error: 'x' }, 400)
+})
 await page.route('**/functions/v1/generar-mensajes', async route => {
   const args = route.request().postDataJSON() ?? {}
   if (args.modo === 'estado') return json(route, { ia: !!estado.ia, modelo: estado.ia ? (estado.claves[2].final || 'claude-sonnet-5-5') : null, places: false })
@@ -99,15 +108,20 @@ ok(/Empresas activas 1 de 2/.test(resumen) && /Prospectos 150/.test(resumen) && 
 ok(await page.locator('.empresa').count() === 2 && await page.locator('.empresa.suspendida').count() === 1, 'muestra las empresas y marca la suspendida')
 await page.screenshot({ path: `${SHOTS}/admin_empresas.png` })
 
-// Nueva empresa → invitación
+// Nueva empresa → alta de su primer usuario
 await page.getByRole('button', { name: 'Nueva empresa' }).click()
 await page.getByLabel('Nombre').fill('Inmobiliaria Sol')
 await page.getByLabel('Contacto').fill('Pedro 261 555')
 await page.getByRole('button', { name: 'Crear empresa' }).click()
-ok(await ver('Invitación lista para Inmobiliaria Sol'), 'crear empresa ofrece la invitación')
-const insert = llamadas.find(l => l.fn === 'insert_codigo')
-ok(insert?.args.empresa_id === '33333333-3333-3333-3333-333333333333' && /^MZA-[A-Z2-9]{8}$/.test(insert.args.codigo), 'el código queda atado a la empresa nueva')
-ok((await page.getByLabel('Link').inputValue()).endsWith('/?invitacion=' + insert.args.codigo), 'muestra el link de invitación')
+ok(await ver('Nuevo usuario'), 'crear empresa abre el alta de su usuario')
+ok(await page.getByLabel('Empresa del usuario').inputValue() === '33333333-3333-3333-3333-333333333333', 'con la empresa nueva ya elegida')
+await page.getByRole('dialog').getByLabel('Nombre').fill('Pedro Sol')
+await page.getByRole('dialog').getByLabel('Email').fill('pedro@sol.com')
+await page.getByRole('button', { name: 'Crear cuenta' }).click()
+ok(await ver('Cuenta creada'), 'muestra los datos de la cuenta nueva')
+const alta = llamadas.find(l => l.fn === 'crear_usuario')
+ok(alta?.args.email === 'pedro@sol.com' && alta.args.empresa_id === '33333333-3333-3333-3333-333333333333', 'crea la cuenta en esa empresa')
+ok(await page.getByLabel('Contraseña generada').inputValue() === 'Abcd-Efgh-2345', 'muestra la contraseña generada una sola vez')
 await page.getByRole('dialog').getByRole('button', { name: 'Cerrar' }).click()
 ok(await page.locator('.empresa').count() === 3, 'la empresa nueva aparece en la grilla')
 
@@ -139,16 +153,18 @@ await page.getByRole('switch', { name: 'Suspender a Marta Vendedora' }).click()
 await page.getByRole('button', { name: 'Suspender', exact: true }).click()
 await page.waitForTimeout(400)
 ok(llamadas.some(l => l.fn === 'admin_actualizar_usuario' && l.args.p_id === 'u2' && l.args.p_activo === false), 'suspender usuario')
-
-// Invitaciones
-await page.getByRole('tab', { name: /Invitaciones/ }).click()
-ok(await ver('MZA-ANDES001'), 'lista de códigos con su empresa')
-await page.getByRole('button', { name: 'Nueva invitación' }).click()
-await page.getByLabel('Empresa de la invitación').selectOption({ label: 'Agencia Cuyo' })
-await page.getByLabel('Usos máximos').fill('3')
-await page.getByRole('button', { name: 'Crear invitación' }).click()
-await page.waitForTimeout(400)
-ok(llamadas.some(l => l.fn === 'insert_codigo' && l.args.empresa_id === E2 && l.args.usos_max === 3), 'crea invitación para la empresa elegida')
+await page.getByRole('button', { name: 'Nueva contraseña para Marta Vendedora' }).click()
+await page.getByRole('button', { name: 'Generar contraseña' }).click()
+ok(await ver('Contraseña nueva'), 'restablecer contraseña muestra la nueva')
+ok(llamadas.some(l => l.fn === 'restablecer' && l.args.id === 'u2'), 'restablece la contraseña del usuario elegido')
+await page.getByRole('dialog').getByRole('button', { name: 'Cerrar' }).click()
+ok(await page.getByRole('button', { name: 'Nueva contraseña para Admin UI' }).count() === 0, 'a vos mismo no te la restablece desde acá')
+await page.getByRole('button', { name: 'Nuevo usuario' }).click()
+await page.getByRole('dialog').getByLabel('Nombre').fill('Juan')
+await page.getByRole('dialog').getByLabel('Email').fill('marta@x.com')
+await page.getByRole('button', { name: 'Crear cuenta' }).click()
+ok(await ver('Ya existe una cuenta con ese email'), 'avisa si el email ya tiene cuenta')
+await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click()
 
 // Claves
 await page.getByRole('tab', { name: /Claves/ }).click()

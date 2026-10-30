@@ -16,12 +16,12 @@ Sistema de prospección y contacto para estudios de diseño web: cargás negocio
 |---|---|
 | Base de datos (Supabase `prospecta`, São Paulo, plan gratis) | ✅ esquema, RLS y reglas aplicadas · advisor de seguridad sin observaciones |
 | Funciones `generar-mensajes`, `buscar-places`, `registro` | ✅ desplegadas |
-| Registro de cuentas | ✅ con **código de invitación** (no depende de mails) |
+| Altas de usuarios | ✅ sólo el super admin (Super admin → Usuarios → Nuevo usuario); no hay registro abierto |
 | Super admin (empresas, usuarios, invitaciones, claves) | ✅ panel en `/admin` |
 | Asistente IA (chat con Claude) | ✅ en `/asistente`; funciona en cuanto cargues la clave de Claude |
 | Borradores con IA | ⚙️ funciona con plantillas; para usar Claude, cargá la clave en **Super admin → Claves y servicios** |
-| Buscar en Google | ⚙️ cargá la clave de Google Places en el mismo panel |
-| Web publicada | ⏳ falta un paso (ver "Publicar la web") |
+| Buscar negocios | ✅ con Claude + búsqueda web (sin Google Places) |
+| Web publicada | ✅ https://web-puce-mu-10.vercel.app (Vercel, se publica sola con cada push) |
 
 - URL del proyecto: `https://yggpzstnntjwcxayhcfp.supabase.co`
 - La clave pública (publishable) ya viene en `web/.env.production`. Es pública por diseño: RLS protege los datos.
@@ -44,10 +44,11 @@ Chat con Claude en **Asistente IA** (`/asistente`), la función `asistente`:
 - **Límite por usuario:** 30 consultas por día por defecto. El general se cambia en Super admin → Claves y el de cada usuario en Super admin → Usuarios. El uso queda en `chat_uso`, que sólo escribe el servidor: borrar conversaciones no devuelve cupo.
 - Las conversaciones son privadas de cada usuario: ni el super admin las ve.
 
-### Registro con código de invitación
-El correo por defecto de Supabase sólo manda mails a miembros del equipo y tiene un límite muy bajo, así que un alta con confirmación por mail no funcionaría. Por eso el alta pasa por la función `registro`: valida el código (y que su empresa esté activa), crea la cuenta ya confirmada dentro de esa empresa y descuenta un uso del código.
+### Altas y contraseñas
+No hay registro abierto. El super admin crea cada cuenta en **Super admin → Usuarios → Nuevo usuario** (o "Agregar usuario" desde una empresa). La función `admin-usuarios` la crea confirmada y devuelve una contraseña inicial que se muestra una sola vez, junto con un mensaje listo para mandarle a la persona. El botón ↻ genera una contraseña nueva si alguien la olvida. Si alguien intentara registrarse directo contra la API de Auth, su perfil nace **sin acceso**: la marca de alta va en `app_metadata`, que sólo escribe el servidor.
 
-Si más adelante configurás un SMTP propio (Resend, Brevo…) en Authentication → SMTP, también funcionan la confirmación por mail y "olvidé mi contraseña".
+### Buscar negocios
+La función `buscar-negocios` le pide a Claude, con la herramienta de búsqueda web (`web_search`), negocios del rubro y la zona que no tengan web propia. Devuelve nombre, teléfono, Instagram, qué tienen hoy, la fuente y una nota. El usuario revisa y elige qué importar. Cada búsqueda usa 1 consulta del cupo diario de IA. Requiere que la búsqueda web esté habilitada en la organización de Anthropic.
 
 ### Publicar la web
 `prospecta-web-listo.zip` es la web ya compilada y apuntando a este Supabase. Cualquiera de estas opciones la deja online:
