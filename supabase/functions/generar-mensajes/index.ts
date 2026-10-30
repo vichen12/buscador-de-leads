@@ -7,7 +7,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
 import { borradoresPlantilla, nombreCorto } from '../_shared/plantillas.js'
-import { cargarContexto, borradores, reescribir, responder, fijos, textoB2C } from '../_shared/redactar.ts'
+import { cargarContexto, borradores, reescribir, responder, fijos, textoB2C, guionLlamada, briefReunion } from '../_shared/redactar.ts'
 
 const MAX_POR_LLAMADA = 25
 type Dic = Record<string, any>
@@ -45,6 +45,27 @@ Deno.serve(async req => {
       const r = await textoB2C(ctx, { tipo, subtipo: String(body.subtipo ?? ''), canal: body.canal === 'whatsapp' ? 'whatsapp' : 'email', detalle: String(body.detalle ?? '').slice(0, 600), datos })
       await admin().from('chat_uso').insert({ owner_id: user.id, tokens_in: 0, tokens_out: 0 })
       return json({ ok: true, ...r })
+    }
+
+    // Guion de llamada o brief de reunión para una empresa (no guarda nada)
+    if (body.modo === 'guion' || body.modo === 'brief') {
+      if (!key) return json({ error: 'Para esto falta cargar la clave de Claude (Super admin → Claves).' }, 400)
+      const { data: cupo } = await admin().rpc('cupo_chat', { p_usuario: user.id })
+      if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Llegaste al límite de IA de hoy.', codigo: 'LIMITE_CHAT' }, 429)
+      const [{ data: p }, { data: hs }, { data: cs }, { data: rs }] = await Promise.all([
+        supabase.from('prospectos').select('*').eq('id', body.prospecto_id).maybeSingle(),
+        supabase.from('interacciones').select('tipo, detalle, created_at').eq('prospecto_id', body.prospecto_id).order('created_at').limit(40),
+        supabase.from('contactos').select('nombre, cargo, email').eq('prospecto_id', body.prospecto_id).order('principal', { ascending: false }),
+        supabase.from('respuestas').select('texto, recibida_at').eq('prospecto_id', body.prospecto_id).order('recibida_at').limit(5),
+      ])
+      if (!p) return json({ error: 'No encontré la empresa' }, 404)
+      const historial = [
+        ...(hs ?? []).map((h: Dic) => `- ${h.created_at.slice(0, 10)} ${h.tipo}: ${String(h.detalle ?? '').slice(0, 300)}`),
+        ...(rs ?? []).map((r: Dic) => `- ${String(r.recibida_at).slice(0, 10)} nos respondieron: ${String(r.texto ?? '').slice(0, 500)}`),
+      ].join('\n')
+      const r = body.modo === 'guion' ? await guionLlamada(ctx, p, historial, cs?.[0]) : await briefReunion(ctx, p, historial, cs ?? [])
+      await admin().from('chat_uso').insert({ owner_id: user.id, tokens_in: 0, tokens_out: 0 })
+      return json({ ok: true, [body.modo]: r })
     }
 
     if (body.modo === 'reescribir') {

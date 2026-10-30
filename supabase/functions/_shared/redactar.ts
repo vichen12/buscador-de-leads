@@ -321,3 +321,48 @@ Respondé SOLO con JSON válido: {"cuerpo": "..."${email ? ', "asunto": "..."' :
   if (!r.cuerpo) throw new Error('La IA no devolvió el texto')
   return { cuerpo: String(r.cuerpo), asunto: r.asunto ? String(r.asunto) : '' }
 }
+
+/** Guion de llamada en frío o de seguimiento, con preguntas y respuestas a objeciones */
+export async function guionLlamada(c: Contexto, p: Dic, historial: string, contacto?: Dic | null) {
+  const prompt = `Armá un GUION DE LLAMADA breve para que una persona de ventas llame a esta empresa.
+
+${ficha(c, p, contacto)}
+
+Historial con la empresa:
+${historial || '(sin contacto previo: es una llamada en frío)'}
+
+${tono(c, p)}
+
+Formato: JSON válido con esta forma exacta:
+{"apertura": "las primeras 2 frases, naturales, presentándose y diciendo por qué llama",
+ "preguntas": ["3 a 5 preguntas abiertas para entender su situación"],
+ "propuesta": "cómo contar en 2 frases lo que ofrecemos, conectado con lo que respondan",
+ "objeciones": [{"dicen": "objeción típica", "respuesta": "cómo responder sin presionar"}],
+ "cierre": "cómo pedir el siguiente paso (reunión, visita, envío de info)",
+ "si_no_atiende": "mensaje corto para dejar en el contestador o por WhatsApp"}
+Incluí 3 objeciones. Todo en español, sin inventar datos de la empresa.`
+  return extraerJSON(await claude(c, prompt))
+}
+
+/** Resumen antes de una reunión: quién es, qué pasó, qué preguntar y qué llevar */
+export async function briefReunion(c: Contexto, p: Dic, historial: string, contactos: Dic[]) {
+  const prompt = `Armá un BRIEF de una página para preparar una reunión con esta empresa.
+
+${ficha(c, p, contactos[0] ?? null)}
+Contactos: ${contactos.map(x => [x.nombre, x.cargo].filter(Boolean).join(' – ')).join('; ') || 'sin cargar'}
+
+Historial completo:
+${historial || '(sin historial)'}
+
+Lo que vendemos: ${(c.comercial?.respuestas as Dic)?.que_vende || (c.comercial?.estrategia as Dic)?.resumen || 'ver ficha'}
+
+Respondé SOLO con JSON válido:
+{"resumen": "2-3 frases: quiénes son y en qué punto está la conversación",
+ "lo_que_sabemos": ["hechos concretos del historial y la ficha (sin inventar)"],
+ "objetivo": "qué conviene lograr en esta reunión",
+ "preguntas": ["4 a 6 preguntas para hacerles"],
+ "riesgos": ["posibles objeciones o frenos y cómo encararlos"],
+ "llevar": ["qué material o datos llevar"],
+ "siguiente_paso": "qué proponer al final"}`
+  return extraerJSON(await claude(c, prompt))
+}
