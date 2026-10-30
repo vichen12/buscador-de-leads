@@ -10,6 +10,7 @@ import Prospecto from './pages/Prospecto.jsx'
 import Seguimientos from './pages/Seguimientos.jsx'
 import Importar from './pages/Importar.jsx'
 import Revisar from './pages/Revisar.jsx'
+import Email from './pages/Email.jsx'
 import { contarPorRevisar } from './lib/hallazgos.js'
 import BuscarPlaces from './pages/BuscarPlaces.jsx'
 import Cuenta from './pages/Cuenta.jsx'
@@ -93,6 +94,7 @@ function Raiz() {
           <Route path="/importar" element={<Importar />} />
           <Route path="/buscar" element={<BuscarPlaces />} />
           <Route path="/revisar" element={<Revisar />} />
+          <Route path="/email" element={<Email />} />
           <Route path="/cuenta" element={<Cuenta />} />
           <Route path="/negocio" element={<MiNegocio />} />
           <Route path="/conexiones" element={<Conexiones />} />

@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { KeyRound, Sparkles, Loader2, IdCard, Store, Gauge, ShieldCheck, Plus, ArrowRight, Mail, Globe, Eye, EyeOff, LogOut, Paperclip } from 'lucide-react'
-import { useArchivos } from '../lib/archivos.js'
-import { EditorFirma, ArchivosAdjuntos } from '../components/ArchivosCorreo.jsx'
 import { supabase } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { mensajeError } from '../lib/util.js'
@@ -18,7 +16,6 @@ export default function Cuenta() {
   const [pass, setPass] = useState({ nueva: '', repetir: '' })
   const [verPass, setVerPass] = useState(false)
   const [guardando, setGuardando] = useState(false)
-  const arch = useArchivos(session?.user?.id)
   // Se carga una sola vez por cuenta: si el perfil se refresca mientras escribís, no te pisa lo tipeado
   useEffect(() => { if (perfil && f?.id !== perfil.id) setF(perfil) }, [perfil])
   if (!f) return <Cargando />
@@ -65,38 +62,14 @@ export default function Cuenta() {
       <div className="cuenta-grid">
         <section className="tarjeta">
           <div className="tarjeta-titulo"><h3><IdCard size={16} /> Cómo te presentás</h3></div>
-          <p className="muted chico ayuda">Claude usa estos datos para firmar tus mensajes.</p>
+          <p className="muted chico ayuda">Claude usa estos datos para presentarte en tus mensajes.</p>
           <div className="form-grid">
             <label>Tu nombre<input value={f.nombre} onChange={c('nombre')} placeholder="Ej.: Vincenzo" /></label>
             <label>Empresa<input value={f.estudio} onChange={c('estudio')} placeholder={comercial?.respuestas?.empresa || 'Ej.: Bombas Cuyo'} /></label>
             <label>Email de contacto<input type="email" value={f.email_contacto} onChange={c('email_contacto')} /></label>
             <label>Web o portfolio <span className="muted">(opcional)</span><input value={f.portfolio_url} onChange={c('portfolio_url')} placeholder="tuempresa.com" /></label>
           </div>
-          <div className="firma-grid">
-            <div className="campo" style={{ marginBottom: 0 }}>Firma de email
-              <EditorFirma arch={arch} valor={f.firma} onChange={c('firma')} placeholder={'Vincenzo\nBombas Cuyo\n261 555-1234'} />
-            </div>
-            <div>
-              <div className="etiqueta">Así lo recibe tu cliente</div>
-              <div className="mail-vista">
-                <div className="mail-vista-cab">
-                  <span className="mail-vista-avatar">{(f.nombre || 'T').trim().charAt(0).toUpperCase()}</span>
-                  <div>
-                    <b>{f.nombre || 'Tu nombre'}{empresa ? <span> · {empresa}</span> : null}</b>
-                    <small>{f.email_contacto || session?.user?.email} → cliente@empresa.com</small>
-                  </div>
-                </div>
-                <div className="mail-vista-asunto">Una propuesta para su empresa</div>
-                <div className="mail-vista-cuerpo">
-                  <p>Hola, ¿cómo están?</p>
-                  <p className="mail-vista-gris">…y quedo atento a lo que necesiten.</p>
-                  <p>Saludos,</p>
-                  <div className="mail-vista-firma">{firmaVista || 'Tu nombre'}</div>
-                  {arch.firmaUrl && <img src={arch.firmaUrl} alt="Imagen de tu firma" />}
-                </div>
-              </div>
-            </div>
-          </div>
+          <div className="nota-info"><Mail size={15} /><span>La firma, la conexión de tu casilla y los archivos para adjuntar están en <Link to="/email">Email</Link>.</span></div>
         </section>
 
         <div className="cuenta-col">
@@ -128,12 +101,6 @@ export default function Cuenta() {
           </section>
         </div>
       </div>
-
-      <section className="tarjeta">
-        <div className="tarjeta-titulo"><h3><Paperclip size={16} /> Archivos para tus emails</h3>{arch.adjuntos.length > 0 && <span className="chip">{arch.adjuntos.length}</span>}</div>
-        <p className="muted chico ayuda">Subí tus PDF, brochures o presentaciones (hasta 20 MB) y contá de qué se tratan. Claude los adjunta en el email cuando suman, y antes de enviar podés sacarlos o sumar otro.</p>
-        {arch.lista ? <ArchivosAdjuntos arch={arch} /> : <Cargando />}
-      </section>
 
       <div className="cuenta-grid">
         <section className="tarjeta">

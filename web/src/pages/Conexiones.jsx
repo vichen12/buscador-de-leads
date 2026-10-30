@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Mail, MessageCircle, CalendarDays, Loader2, CheckCircle2, ExternalLink, Send, RefreshCw, Unplug, ChevronDown, AlertTriangle, Info, Eye, EyeOff, Check } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Mail, MessageCircle, CalendarDays, Loader2, CheckCircle2, ExternalLink, Send, RefreshCw, Unplug, ChevronDown, AlertTriangle, Info, Eye, EyeOff, Check, ArrowRight } from 'lucide-react'
 import { llamarFuncion } from '../lib/supabase.js'
 import { fechaHora, mensajeError } from '../lib/util.js'
 import { Aviso, useConfirmar, useToast } from '../components/ui.jsx'
@@ -11,7 +12,11 @@ export default function Conexiones() {
       <header className="cabecera">
         <div><h1>Conexiones</h1><p>Conectá tus cuentas para enviar y seguir a tus prospectos sin salir de Prospecta.</p></div>
       </header>
-      <CorreoCard />
+      <Link to="/email" className="aviso-revisar">
+        <Mail size={18} />
+        <span><b>El email se configura en la sección Email</b>: ahí conectás tu casilla, armás la firma y subís tus archivos.</span>
+        <span className="espacio" /><span className="link">Ir a Email <ArrowRight size={14} /></span>
+      </Link>
       <div className="grilla-2">
         <section className="tarjeta conexion">
           <div className="conexion-cab"><span className="conexion-icono wa"><MessageCircle size={20} /></span><div><h3>WhatsApp</h3><span className="chip ok"><CheckCircle2 size={12} /> Listo para usar</span></div></div>
@@ -49,7 +54,7 @@ const PROVEEDORES = [
 ]
 const detectar = email => /@(gmail|googlemail)\.com$/i.test(email) ? 'gmail' : /@yahoo\./i.test(email) ? 'yahoo' : /@zoho(mail)?\.com$/i.test(email) ? 'zoho' : null
 
-function CorreoCard() {
+export function CorreoCard() {
   const { correo, setCorreo, perfil } = useApp()
   const toast = useToast()
   const confirmar = useConfirmar()

@@ -1020,3 +1020,11 @@ tr:hover .desplegable.estado-celda .chev { opacity: 1; }
 body:has(.barra-guardar, .barra-armar) .flotante-boton { bottom: 100px; }
 .barra-guardar, .barra-armar { scroll-margin-bottom: 90px; }
 body:has(.barra-guardar, .barra-armar) .flotante-panel { bottom: 166px; height: min(620px, calc(100vh - 200px)); }
+
+/* ---------- Página Email ---------- */
+.email-paso { display: flex; align-items: center; gap: 10px; margin: 26px 0 12px; }
+.email-paso:first-of-type { margin-top: 6px; }
+.email-paso > span { width: 26px; height: 26px; border-radius: 99px; display: grid; place-items: center; background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.email-paso h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; }
+.email-paso h2 svg { color: var(--acc); }
+.pagina-email .tarjeta { margin-bottom: 0; }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, Inbox } from 'lucide-react'
+import { Plug, Store, Bot, LayoutDashboard, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, Inbox, Mail } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { Avatar, useToast } from './ui.jsx'
@@ -39,7 +39,7 @@ export default function Layout({ children }) {
     ['/revisar', 'Por revisar', Inbox, porRevisar],
     ['/importar', 'Importar', Upload, 0, 'solo-escritorio'],
   ]
-  const cuenta = [['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : ''], ['/conexiones', 'Conexiones', Plug, 0, 'solo-escritorio']]
+  const cuenta = [['/cuenta', 'Mi cuenta', UserCircle, 0, perfil?.es_admin ? 'solo-escritorio' : ''], ['/email', 'Email', Mail, 0, 'solo-escritorio'], ['/conexiones', 'Conexiones', Plug, 0, 'solo-escritorio']]
   if (perfil?.es_admin) cuenta.push(['/admin', 'Super admin', Crown])
 
   const enlace = ([to, label, Icono, badge, clase]) => (

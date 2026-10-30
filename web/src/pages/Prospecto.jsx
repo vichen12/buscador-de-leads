@@ -316,12 +316,12 @@ export default function Prospecto() {
           <div className="envio">
             <p>{tab !== 'whatsapp' && correo
               ? <>Revisá el texto. <b>Enviar email</b> lo manda desde {correo.email} y queda registrado. WhatsApp e Instagram se abren con el mensaje cargado y el envío lo hacés vos.</>
-              : <>Revisá el texto. El botón abre la app con el mensaje cargado: <b>el envío lo hacés vos</b> y después lo confirmás acá.{!correo && tab !== 'whatsapp' && <> Para mandar emails directo desde acá, <Link to="/conexiones">conectá tu email</Link>.</>}</>}</p>
+              : <>Revisá el texto. El botón abre la app con el mensaje cargado: <b>el envío lo hacés vos</b> y después lo confirmás acá.{!correo && tab !== 'whatsapp' && <> Para mandar emails directo desde acá, <Link to="/email">conectá tu email</Link>.</>}</>}</p>
             {tab === 'email' && correo && (
               <div className="adjuntar-bloque">
                 <small className="adjuntar-titulo"><Paperclip size={13} /> Adjuntos{msgs.email?.adjuntos?.length && adj === null ? ' · Claude eligió los marcados' : ''}</small>
                 <AdjuntarEnEmail arch={arch} elegidos={adjElegidos} onAlternar={alternarAdj} onSubido={id => setAdj([...new Set([...adjElegidos, id])])} />
-                {arch.firma && <small className="muted">Tu firma lleva la imagen al final. <Link to="/cuenta">Cambiarla</Link></small>}
+                {arch.firma && <small className="muted">Tu firma lleva la imagen al final. <Link to="/email">Cambiarla</Link></small>}
               </div>
             )}
             <div className="acciones">
