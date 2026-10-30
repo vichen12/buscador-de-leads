@@ -36,3 +36,11 @@ Fuente: los tres documentos "Mejoras para Prospecta" (parte 1: completar y orden
 - B2B/B2C: `perfiles.modo` + `perfiles.modos`, `cambiar_modo`, `habilitar_modo`; tabla `clientes` (B2C) con consentimiento documentado por constraint; `tablero_b2c()`. En B2C el menú, el color (violeta), la búsqueda global y "Nuevo" son propios.
 - Sigue: P6 (seguridad/robustez), B2C aliados/creadores/campañas, Parte 2.
 - Pendiente de decisión: si B2C es un plan pago (hoy lo habilita el admin sin costo).
+
+## 30/10 (noche) — P6, P7, B2C completo, tablero con gráficos
+- P6: auditoría, recuperar contraseña, 2FA (TOTP), exportar .zip, borrar cuenta (admin-usuarios modo borrar_mi_cuenta), cupo visible antes de buscar, test RLS en supabase/tests/aislamiento.sql.
+- P7: primeros pasos, atajos J/K/S/N/X en Por revisar, PWA.
+- B2C: aliados, creadores, campañas + campana_envios (trigger que bloquea envíos sin permiso), correo modo `cliente`, generar-mensajes modo `b2c`. Bajas por link también marcan clientes. limite_email cuenta mails de campañas.
+- Color B2C: verde azulado (#0d9488). B2B: naranja.
+- Pendiente de verificar: URL de Vercel en Supabase Auth → URL Configuration para el mail de recuperación.
+- Sigue: P8 (integraciones CRM, plantillas, búsquedas guardadas, notificaciones), Parte 2 (Tu día, guion de llamada, brief de reunión, propuestas, visitas, multi-casilla, inbound, etiquetas, vistas, comentarios, metas, resumen semanal, coach, admin, ayuda, API), Parte 3 resto (bandeja unificada, planes, landing, demo, LANZAMIENTO.md).
