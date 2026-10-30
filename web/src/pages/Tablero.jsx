@@ -19,7 +19,7 @@ export default function Tablero() {
     refrescar()
     const hoy = hoyLocal(), menos = n => { const d = new Date(hoy + 'T12:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10) }
     Promise.all([7, 30].map(n => supabase.rpc('reporte', { p_desde: menos(n - 1), p_hasta: hoy, p_owner: session.user.id })))
-      .then(([a, b]) => a.data && b.data && setTasas({ d7: a.data.totales, d30: b.data.totales, r30: b.data }))
+      .then(([a, b]) => a.data?.totales && b.data?.totales && setTasas({ d7: a.data.totales, d30: b.data.totales, r30: b.data }))
     supabase.from('tareas').select('id, titulo, tipo, vence, prospecto_id, prospectos(nombre)').eq('owner_id', session.user.id).is('hecha_at', null)
       .lte('vence', hoyLocal()).order('vence').limit(5).then(({ data }) => setTareas(data ?? []))
     supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', session.user.id)

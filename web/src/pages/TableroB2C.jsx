@@ -52,13 +52,7 @@ export default function TableroB2C() {
         </div>
       </header>
 
-      {comercial === null && (
-        <div className="aviso-negocio">
-          <Store size={22} />
-          <div style={{ flex: 1 }}><b>Contanos de tu negocio</b><p>Qué vendés y a quién. Claude lo usa para escribirles a tus clientes con tu estilo.</p></div>
-          <Link className="btn primario" to="/negocio">Completar mi negocio <ArrowRight size={15} /></Link>
-        </div>
-      )}
+      <PrimerosPasosB2C t={t} comercial={comercial} />
 
       {t.total === 0 ? (
         <div className="tarjeta vacio">
@@ -146,5 +140,27 @@ function Kpi({ icono: Icono, titulo, valor, pie }) {
       <b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>
       {pie && <small>{pie}</small>}
     </div>
+  )
+}
+
+function PrimerosPasosB2C({ t, comercial }) {
+  const [oculto, setOculto] = useState(() => { try { return localStorage.getItem('prospecta-pasos-b2c') === '1' } catch { return false } })
+  const pasos = [
+    ['Contanos de tu negocio', 'Qué vendés y a quién: Claude escribe con tu estilo.', '/negocio', comercial != null],
+    ['Cargá tus clientes', 'Importá la lista de tu sistema o tienda online.', '/clientes?importar=1', t.total > 0],
+    ['Marcá quién te dio permiso', 'Sin permiso no se le puede escribir a nadie.', '/clientes', t.con_consentimiento > 0],
+    ['Mandá tu primera campaña', 'Por ejemplo, a los que compraron una sola vez.', '/campanas', (t.campanas_30 ?? 0) > 0],
+    ['Sumá un aliado', 'Un negocio que te pueda recomendar.', '/aliados', (t.aliados_activos ?? 0) > 0 || (t.por_origen?.aliado ?? 0) > 0],
+  ]
+  const hechos = pasos.filter(p => p[3]).length
+  if (comercial === undefined || oculto || hechos === pasos.length) return null
+  return (
+    <section className="tarjeta primeros-pasos">
+      <div className="tarjeta-titulo"><h3>Primeros pasos <span className="chip">{hechos} de {pasos.length}</span></h3><button type="button" className="btn fantasma chico" onClick={() => { try { localStorage.setItem('prospecta-pasos-b2c', '1') } catch {} setOculto(true) }}>Ocultar</button></div>
+      <div className="cupo-barra" style={{ marginBottom: 12 }}><span style={{ width: (hechos / pasos.length) * 100 + '%' }} /></div>
+      <ol className="pasos-lista">{pasos.map(([titulo, sub, to, ok], i) => (
+        <li key={to} className={ok ? 'hecho' : ''}><span className="paso-num">{ok ? '✓' : i + 1}</span><div><b>{titulo}</b><small className="muted">{sub}</small></div>{!ok && <Link to={to} className="btn chico primario">Hacerlo <ArrowRight size={13} /></Link>}</li>
+      ))}</ol>
+    </section>
   )
 }

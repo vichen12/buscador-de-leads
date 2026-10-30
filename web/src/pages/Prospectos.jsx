@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePaginado, Paginador, traerTodo } from '../components/Paginador.jsx'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot, Workflow, Merge } from 'lucide-react'
+import { Search, Plus, Download, Send, Flame, List, Columns3, Sparkles, Loader2, Star, CalendarClock, X, Phone, Mail, Inbox, ArrowRight, Tag, ArrowDownUp, CircleDot, Workflow, Merge, RotateCcw } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, ESTADOS_VISIBLES, fecha, mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
+import { descargarCSV } from '../lib/util.js'
 import { Avatar, Esqueleto, EstadoBadge, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
 import NuevoProspecto from '../components/NuevoProspecto.jsx'
 import Desplegable from '../components/Desplegable.jsx'
@@ -157,6 +158,27 @@ export default function Prospectos() {
     toast(`Descargaste ${base.length} empresas en Excel`)
   }
 
+  // Exportar al formato de importación de cada CRM (CSV)
+  function exportarCRM(crm) {
+    const base = filtrados, hoy = new Date().toISOString().slice(0, 10)
+    const dominio = p => p.dominio_norm || ''
+    const filas = base.map(p => crm === 'hubspot' ? {
+      'Company name': p.nombre, 'Company domain name': dominio(p), 'Phone Number': p.telefono || '', City: p.zona || '', 'Street Address': p.direccion || '',
+      Industry: p.rubro || '', 'Lifecycle Stage': p.estado === 'cliente' ? 'customer' : ['respondio', 'reunion', 'propuesta'].includes(p.estado) ? 'opportunity' : 'lead',
+      Description: [p.encaje, p.notas].filter(Boolean).join(' · '), Email: p.email || '',
+    } : crm === 'pipedrive' ? {
+      'Organization - Name': p.nombre, 'Organization - Address': [p.direccion, p.zona].filter(Boolean).join(', '), 'Person - Name': p.nombre, 'Person - Email': p.email || '', 'Person - Phone': p.telefono || '',
+      'Deal - Title': `${p.nombre} – oportunidad`, 'Deal - Value': p.valor_estimado || '', 'Deal - Currency': p.moneda || 'ARS', 'Deal - Stage': ESTADOS[p.estado]?.label ?? p.estado, 'Note - Content': p.notas || '',
+    } : {
+      'Account Name': p.nombre, Website: p.web_actual || '', Phone: p.telefono || '', 'Billing Street': p.direccion || '', 'Billing City': p.zona || '', Industry: p.rubro || '',
+      'Account Type': p.estado === 'cliente' ? 'Customer' : 'Prospect', Description: [p.encaje, p.notas].filter(Boolean).join(' · '), Email: p.email || '',
+    })
+    descargarCSV(`${crm}_${hoy}.csv`, filas)
+    toast(`Descargaste ${base.length} empresas para ${crm === 'hubspot' ? 'HubSpot' : crm === 'pipedrive' ? 'Pipedrive' : 'Zoho'}. Importalo desde su menú de importación.`)
+  }
+  // Perdidas hace más de 60 días: se pueden volver a contactar con una secuencia nueva
+  const perdidasViejas = lista.filter(p => p.estado === 'perdido' && p.owner_id === session.user.id && p.perdido_motivo !== 'no_interesado' && new Date(p.updated_at) < new Date(Date.now() - 60 * 864e5))
+
   const opcionesEstado = Object.entries(ESTADOS_VISIBLES).map(([k, v]) => ({ value: k, label: v.label, nodo: <EstadoBadge estado={k} /> }))
 
   return (
@@ -176,7 +198,8 @@ export default function Prospectos() {
           </div>
           <Link className="btn" to="/envios"><Send size={16} /> Envío masivo</Link>
           <button className="btn" onClick={() => setDuplicados(true)}><Merge size={16} /> Unir duplicados</button>
-          <button className="btn" onClick={() => exportar()} disabled={!filtrados.length}><Download size={16} /> Descargar Excel</button>
+          <Desplegable compacto ariaLabel="Exportar" value="" anchoMenu={230} alinear="der" onChange={v => (!v ? null : v === 'excel' ? exportar() : exportarCRM(v))}
+            opciones={[{ value: '', label: 'Exportar', icono: <Download size={14} /> }, { value: 'excel', label: 'Excel' }, { value: 'hubspot', label: 'Para HubSpot (CSV)' }, { value: 'pipedrive', label: 'Para Pipedrive (CSV)' }, { value: 'zoho', label: 'Para Zoho CRM (CSV)' }]} />
           <button className="btn primario" onClick={() => setNuevo(true)}><Plus size={16} /> Agregar</button>
         </div>
       </header>
@@ -217,6 +240,20 @@ export default function Prospectos() {
           <span className="muted chico">Vistas:</span>
           {vistas.map(v => <span key={v.id} className="vista-chip"><button type="button" onClick={() => aplicarVista(v)}>{v.nombre}</button><button type="button" onClick={() => borrarVista(v)} aria-label={`Borrar vista ${v.nombre}`}><X size={11} /></button></span>)}
           {hayFiltros && <button type="button" onClick={guardarVista}>+ Guardar esta vista</button>}
+        </div>
+      )}
+
+      {perdidasViejas.length > 0 && !busqueda && (
+        <div className="aviso-revisar">
+          <RotateCcw size={18} />
+          <span><b>{perdidasViejas.length} {perdidasViejas.length === 1 ? 'empresa perdida' : 'empresas perdidas'} hace más de 2 meses.</b> Muchas veces el "no" era "ahora no". Podés volver a escribirles con una secuencia.</span>
+          <span className="espacio" /><button type="button" className="btn chico" onClick={async () => {
+            const ids = perdidasViejas.map(p => p.id)
+            const { error } = await supabase.from('prospectos').update({ estado: 'contactado' }).in('id', ids)
+            if (error) return toast(mensajeError(error), 'error')
+            await supabase.from('interacciones').insert(ids.map(id => ({ prospecto_id: id, tipo: 'cambio_estado', detalle: 'Se reactivó después de más de 2 meses como perdida' })))
+            setInscribir(ids)
+          }}>Reactivarlas</button>
         </div>
       )}
 

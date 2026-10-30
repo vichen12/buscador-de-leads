@@ -27,7 +27,9 @@ export function Soporte() {
   const toast = useToast()
   const [fb, setFb] = useState(null)
   const [errores, setErrores] = useState(null)
+  const [solicitudes, setSolicitudes] = useState(null)
   const cargar = () => {
+    supabase.from('solicitudes').select('*').order('created_at', { ascending: false }).limit(100).then(({ data }) => setSolicitudes(data ?? []))
     supabase.from('feedback').select('*, perfiles:owner_id(nombre)').order('created_at', { ascending: false }).limit(100).then(({ data, error }) => setFb(error ? [] : data))
     supabase.from('errores_app').select('*').order('created_at', { ascending: false }).limit(100).then(({ data }) => setErrores(data ?? []))
   }
@@ -36,7 +38,17 @@ export function Soporte() {
     const { error } = await supabase.from('feedback').update({ estado }).eq('id', f.id)
     if (error) toast(mensajeError(error), 'error'); else cargar()
   }
+  async function marcarSol(x, estado) { await supabase.from('solicitudes').update({ estado }).eq('id', x.id); cargar() }
   return (
+    <>
+    <section className="tarjeta">
+      <h3 className="titulo-tarjeta">Pedidos de acceso (página pública)</h3>
+      {!solicitudes ? <Loader2 size={16} className="spin" /> : !solicitudes.length ? <p className="muted">Todavía nadie pidió acceso desde /conoce.</p> : (
+        <div className="scroll-x"><table className="tabla compacta"><thead><tr><th>Persona</th><th>Contacto</th><th>Modo / plan</th><th>Mensaje</th><th>Fecha</th><th>Estado</th></tr></thead>
+          <tbody>{solicitudes.map(x => <tr key={x.id}><td><b>{x.nombre}</b><div className="muted chico">{x.empresa}</div></td><td className="chico">{x.email}<div>{x.telefono}</div></td><td className="chico">{x.modo.toUpperCase()} · {x.plan || '—'}</td><td className="chico">{x.mensaje}</td><td className="chico">{fechaHora(x.created_at)}</td>
+            <td><select value={x.estado} onChange={e => marcarSol(x, e.target.value)}><option value="nueva">Nueva</option><option value="contactada">Contactada</option><option value="alta">Le di el alta</option><option value="descartada">Descartada</option></select></td></tr>)}</tbody></table></div>
+      )}
+    </section>
     <div className="dos-col">
       <section className="tarjeta">
         <h3 className="titulo-tarjeta"><MessageSquareHeart size={16} /> Sugerencias y consultas</h3>
@@ -55,6 +67,7 @@ export function Soporte() {
         ))}
       </section>
     </div>
+    </>
   )
 }
 

@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase.js'
 import { EstadoBadge } from './ui.jsx'
 
 const PAGINAS = [
-  ['/hoy', 'Tu día', Sun], ['/', 'Tablero', LayoutDashboard], ['/reportes', 'Reportes', BarChart3], ['/metas', 'Metas', Target], ['/visitas', 'Visitas', MapPin], ['/catalogo', 'Catálogo', Package], ['/prospectos', 'Pipeline', Users], ['/seguimientos', 'Seguimientos', CalendarClock],
+  ['/hoy', 'Tu día', Sun], ['/', 'Tablero', LayoutDashboard], ['/reportes', 'Reportes', BarChart3], ['/metas', 'Metas', Target], ['/visitas', 'Visitas', MapPin], ['/catalogo', 'Catálogo', Package], ['/plantillas', 'Plantillas', Workflow], ['/interesados', 'Interesados', Inbox], ['/ayuda', 'Ayuda', Bot], ['/prospectos', 'Pipeline', Users], ['/seguimientos', 'Seguimientos', CalendarClock],
   ['/respuestas', 'Respuestas', MessageSquareReply], ['/envios', 'Envío masivo', Send], ['/secuencias', 'Secuencias', Workflow],
   ['/buscar', 'Buscar clientes', Search], ['/revisar', 'Por revisar', Inbox], ['/importar', 'Importar', Upload],
   ['/negocio', 'Mi negocio', Store], ['/email', 'Email', Mail], ['/asistente', 'Asistente IA', Bot],
