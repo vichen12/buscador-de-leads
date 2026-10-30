@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase.js'
 import { ESTADOS, ESTADOS_VISIBLES, fecha, hoyLocal, saludoHora } from '../lib/util.js'
 import { Avatar, Esqueleto, Aviso, Contador } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
+import { AreaDoble, Dona, BarrasH, Sparkline } from '../components/Graficos.jsx'
 
 export default function Tablero() {
   const { perfil, tablero: t, refrescar, servicios, comercial, porRevisar, session } = useApp()
@@ -18,7 +19,7 @@ export default function Tablero() {
     refrescar()
     const hoy = hoyLocal(), menos = n => { const d = new Date(hoy + 'T12:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10) }
     Promise.all([7, 30].map(n => supabase.rpc('reporte', { p_desde: menos(n - 1), p_hasta: hoy, p_owner: session.user.id })))
-      .then(([a, b]) => a.data && b.data && setTasas({ d7: a.data.totales, d30: b.data.totales }))
+      .then(([a, b]) => a.data && b.data && setTasas({ d7: a.data.totales, d30: b.data.totales, r30: b.data }))
     supabase.from('tareas').select('id, titulo, tipo, vence, prospecto_id, prospectos(nombre)').eq('owner_id', session.user.id).is('hecha_at', null)
       .lte('vence', hoyLocal()).order('vence').limit(5).then(({ data }) => setTareas(data ?? []))
     supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', session.user.id)
@@ -89,7 +90,7 @@ export default function Tablero() {
         <div className="kpis stagger">
           <Kpi icono={Users} color="#52525b" fondo="#f1f1f3" titulo="Prospectos" valor={t.total} />
           {lim
-            ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
+            ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" grafico={<Sparkline valores={t.envios_7_dias.map(d => d.envios)} />} valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
             : <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />}
           {tasas
             ? <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Respuesta · 30 días" valor={`${tasas.d30.contactados ? Math.round((tasas.d30.respondieron / tasas.d30.contactados) * 100) : 0}%`} pie={`${tasas.d30.respondieron} de ${tasas.d30.contactados} · últimos 7 días: ${tasas.d7.contactados ? Math.round((tasas.d7.respondieron / tasas.d7.contactados) * 100) + '%' : '—'}`} />
@@ -115,18 +116,13 @@ export default function Tablero() {
             </div>
           </section>
           <section className="tarjeta">
-            <div className="tarjeta-titulo"><h3>Envíos de los últimos 7 días</h3><span className="chip">{t.envios_7_dias.reduce((a, d) => a + d.envios, 0)} en total</span></div>
-            <div className="columnas">
-              {t.envios_7_dias.map(d => (
-                <div key={d.dia} className="col">
-                  <span className="col-n">{d.envios || ''}</span>
-                  <span className={'col-b' + (d.envios ? '' : ' vacia')} style={{ height: Math.max(3, (d.envios / maxDia) * 100) + '%' }} />
-                  <span className="col-l">{new Date(d.dia + 'T12:00').toLocaleDateString('es-AR', { weekday: 'short' })}</span>
-                </div>
-              ))}
-            </div>
+            <div className="tarjeta-titulo"><h3>Actividad de los últimos 30 días</h3>{tasas && <span className="chip">{tasas.d30.enviados} envíos · {tasas.r30.totales.respuestas} respuestas</span>}</div>
+            {tasas ? <AreaDoble datos={tasas.r30.por_dia.map(d => ({ ...d, etiqueta: new Date(d.dia + 'T12:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }), titulo: new Date(d.dia + 'T12:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) }))}
+              series={[{ clave: 'enviados', nombre: 'Envíos', color: '#ff9a7a' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#7c3aed' }]} /> : <Esqueleto filas={3} />}
           </section>
         </div>
+
+        {tasas && <Analitica r={tasas.r30} />}
 
         <div className="grilla-2">
           <section className="tarjeta">
@@ -183,6 +179,51 @@ export default function Tablero() {
   )
 }
 
+const CLASES = [['interesado', 'Interesados', '#15803d'], ['pide_info', 'Piden info', '#1d4ed8'], ['reunion', 'Quieren reunión', '#7c3aed'], ['derivar', 'Derivaron', '#0e7490'], ['no_interesado', 'No interesados', '#c0262d'], ['baja', 'Pidieron baja', '#7f1d1d'], ['otro', 'Otras', '#a8a196']]
+const plata = n => '$ ' + Math.round(Number(n) || 0).toLocaleString('es-AR')
+
+/** Fila de análisis: cómo responden, cuánto vale el pipeline y qué rubros funcionan */
+function Analitica({ r }) {
+  const clases = CLASES.map(([k, label, color]) => ({ label, color, valor: r.clasificacion_respuestas[k] ?? 0 })).filter(x => x.valor > 0)
+  const v = r.valor_por_estado
+  const abierto = ['contactado', 'respondio', 'reunion', 'propuesta'].reduce((a, k) => a + Number(v[k] ?? 0), 0)
+  const ganado = Number(v.cliente ?? 0), perdido = Number(v.perdido ?? 0)
+  const rubros = r.por_rubro.filter(x => x.contactados >= 1).map(x => ({ label: x.clave, valor: Math.round((x.respondieron / x.contactados) * 100), sub: `${x.respondieron} de ${x.contactados} respondieron` }))
+    .sort((a, b) => b.valor - a.valor).slice(0, 5)
+  const e = r.embudo, t = r.totales
+  const etapas = [['Contactadas', t.contactados], ['Respondieron', t.respondieron], ['Reunión', t.reuniones], ['Clientes', t.clientes]]
+  return (
+    <div className="grilla-3">
+      <section className="tarjeta">
+        <div className="tarjeta-titulo"><h3>Cómo te responden</h3><Link to="/respuestas" className="chico">Ver respuestas</Link></div>
+        {clases.length ? <Dona items={clases} sub="respuestas" /> : <p className="muted">Cuando te contesten, Claude clasifica cada respuesta y la ves acá.</p>}
+      </section>
+      <section className="tarjeta">
+        <div className="tarjeta-titulo"><h3>Conversión en 30 días</h3></div>
+        <div className="conversion">
+          {etapas.map(([label, n], i) => (
+            <div key={label} className="conv-paso">
+              <div className="conv-barra"><span style={{ height: `${etapas[0][1] ? Math.max(4, (n / etapas[0][1]) * 100) : 4}%` }} /></div>
+              <b>{n}</b><small>{label}</small>
+              {i > 0 && <em>{etapas[i - 1][1] ? Math.round((n / etapas[i - 1][1]) * 100) : 0}%</em>}
+            </div>
+          ))}
+        </div>
+        <div className="valor-pipeline">
+          <div><small>En juego</small><b>{plata(abierto)}</b></div>
+          <div><small>Ganado</small><b className="ok">{plata(ganado)}</b></div>
+          <div><small>Perdido</small><b className="mal">{plata(perdido)}</b></div>
+        </div>
+        {!abierto && !ganado && <p className="muted chico" style={{ marginTop: 8 }}>Cargá el valor estimado en cada empresa para ver cuánto hay en juego.</p>}
+      </section>
+      <section className="tarjeta">
+        <div className="tarjeta-titulo"><h3>Rubros que más responden</h3><Link to="/reportes" className="chico">Reportes</Link></div>
+        {rubros.length ? <BarrasH items={rubros} formato={n => n + '%'} /> : <p className="muted">Todavía no hay contactos en estos 30 días.</p>}
+      </section>
+    </div>
+  )
+}
+
 const PASOS_KEY = 'prospecta-primeros-pasos-oculto'
 function PrimerosPasos() {
   const { comercial, correo, tablero: t, porRevisar } = useApp()
@@ -212,11 +253,11 @@ function PrimerosPasos() {
   )
 }
 
-function Kpi({ icono: Icono, color, fondo, titulo, valor, pie, alerta }) {
+function Kpi({ icono: Icono, color, fondo, titulo, valor, pie, alerta, grafico }) {
   return (
     <div className={'kpi' + (alerta ? ' alerta' : '')}>
       <div className="kpi-top"><span>{titulo}</span><span className="kpi-icono" style={{ color, background: fondo }}><Icono size={16} /></span></div>
-      <b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>
+      <div className="kpi-valor"><b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>{grafico}</div>
       {pie && <small>{pie}</small>}
     </div>
   )
