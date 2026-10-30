@@ -25,7 +25,7 @@ const ENFOQUES = [
 function contextoEmpresa(c: Dic | null) {
   const e = c?.estrategia ?? {}, r = c?.respuestas ?? {}
   if (!e.resumen && !r.que_vende) return ''
-  return `Quién busca clientes: ${r.empresa ? r.empresa + '. ' : ''}${e.resumen || r.que_vende}
+  return `Quién busca clientes: ${r.empresa ? r.empresa + '. ' : ''}${e.resumen || String(r.que_vende).slice(0, 600)}
 Cliente ideal: ${e.cliente_ideal || r.cliente_ideal || 's/d'}
 ${e.criterios?.length ? `Señales de buen prospecto: ${e.criterios.join('; ')}\n` : ''}${e.descartar?.length ? `Descartá: ${e.descartar.join('; ')}\n` : ''}`
 }
@@ -35,7 +35,7 @@ function prompt(o: { rubro: string, zona: string, cuantos: number, enfoque: stri
     ? o.filtros.map(f => `${f.titulo}${f.descripcion ? ` (${f.descripcion})` : ''}`)
     : []
   const b = o.brief
-  return `Buscá en la web empresas reales y activas en "${o.zona}" (Argentina) que sean clientes potenciales.
+  return `Buscá en la web empresas reales y activas en "${o.zona}" (Argentina) que sean clientes potenciales: empresas que COMPRARÍAN lo que vende quien busca, nunca competencia, integradores ni proveedores de lo mismo.
 Pedido original: "${o.rubro}".
 Qué buscamos exactamente: ${b.interpretacion}
 ${b.incluir.length ? `Tipos de empresa que SÍ entran: ${b.incluir.join('; ')}.
@@ -114,10 +114,10 @@ async function interpretar(key: string, modelo: string, rubro: string, zona: str
   try {
     const r = await llamarClaude(key, modelo, `Sos analista comercial B2B en Argentina. Una persona quiere encontrar clientes potenciales y escribió: "${rubro}" (zona: ${zona}).
 ${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}${aprendido ? `\n${aprendido}\n` : ''}
-Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende. Las palabras ambiguas se resuelven por lo que vende: por ejemplo, si vende automatización de almacenes y escribe "depósito", busca empresas que TIENEN un depósito o centro de distribución propio (distribuidoras, mayoristas, fábricas, operadores logísticos, e-commerce grandes), NO empresas de mudanzas, guardamuebles, alquiler de bauleras o self storage. Si no hay contexto, elegí la lectura comercial más probable y descartá las lecturas que se confunden.
+Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende. Las palabras ambiguas se resuelven por lo que vende: por ejemplo, si vende automatización de almacenes y escribe "depósito", busca empresas que TIENEN un depósito o centro de distribución propio (distribuidoras, mayoristas, fábricas, operadores logísticos, e-commerce grandes), NO empresas de mudanzas, guardamuebles, alquiler de bauleras o self storage. Si no hay contexto, elegí la lectura comercial más probable y descartá las lecturas que se confunden. Nunca incluyas como clientes a empresas que venden o instalan lo mismo que quien busca (competencia, integradores, revendedores) ni a sus proveedores: van siempre en "excluir".
 
 Respondé SOLO con JSON:
-{"interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["5 a 8 términos concretos como aparecen en Google Maps o directorios"], "incluir": ["3 a 6 tipos de empresa que sí entran"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 900)
+{"interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["5 a 8 términos concretos como aparecen en Google Maps o directorios"], "incluir": ["3 a 6 tipos de empresa que sí entran"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
     const o = extraerObjeto(r.texto)
     if (!o) return { brief: base, usoIn: r.usoIn, usoOut: r.usoOut }
     return {
@@ -139,9 +139,9 @@ async function verificar(key: string, modelo: string, brief: Brief, items: Dic[]
   try {
     const r = await llamarClaude(key, modelo, `Buscamos: ${brief.interpretacion}
 ${brief.incluir.length ? `Entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}${aprendido ? `${aprendido}\n` : ''}
-Para cada empresa decidí si entra. Ante la duda razonable, que entre. Respondé SOLO con JSON: {"no_entran": [índices]}
+Para cada empresa decidí si entra como CLIENTE. No entran: competencia (venden o instalan lo mismo que quien busca), integradores, revendedores o proveedores del mismo rubro. Ante la duda razonable, que entre. Respondé SOLO con JSON: {"no_entran": [índices]}
 
-${items.map((n, i) => `${i}. ${n.nombre} — ${n.rubro}${n.encaje ? ` — ${n.encaje}` : ''}${n.web_actual ? ` — ${n.web_actual}` : ''}`).join('\n')}`, 600)
+${items.map((n, i) => `${i}. ${n.nombre} — ${n.rubro}${n.encaje ? ` — ${n.encaje}` : ''}${n.web_actual ? ` — ${n.web_actual}` : ''}`).join('\n')}`, 8000)
     const o = extraerObjeto(r.texto)
     const fuera = new Set((Array.isArray(o?.no_entran) ? o!.no_entran : []).map(Number))
     // Si quiere sacar casi todo, probablemente entendió mal: no filtrar

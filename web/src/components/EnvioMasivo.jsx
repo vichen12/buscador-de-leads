@@ -19,6 +19,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
   const [error, setError] = useState('')
   const [progreso, setProgreso] = useState('')
   const [total, setTotal] = useState(0)
+  const [sinBorrador, setSinBorrador] = useState([])
 
   const conEmail = prospectos.filter(p => p.email && p.estado !== 'no_interesado')
   const sinEmail = prospectos.filter(p => !p.email || p.estado === 'no_interesado')
@@ -37,7 +38,8 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
         await llamarFuncion('generar-mensajes', { prospecto_ids: aEscribir.slice(i, i + 4), solo_email: true })
       }
       const { data: ms } = await supabase.from('mensajes').select('*').in('prospecto_id', ids).eq('tipo', 'email')
-      const porId = Object.fromEntries((ms ?? []).map(m => [m.prospecto_id, m]))
+      const porId = Object.fromEntries((ms ?? []).filter(m => m.cuerpo?.trim()).map(m => [m.prospecto_id, m]))
+      setSinBorrador(conEmail.filter(p => !porId[p.id]))
       setItems(conEmail.filter(p => porId[p.id]).map((p, i) => {
         const m = porId[p.id]
         return { p, m, asunto: m.asunto, cuerpo: m.cuerpo, adjuntos: m.adjuntos ?? [], incluir: i < cupo && !m.enviado_at, estado: m.enviado_at ? 'ya' : 'listo', error: '' }
@@ -99,6 +101,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
           )}
           {fase !== 'preparando' && <>
             {sinEmail.length > 0 && <div className="nota-info"><AlertTriangle size={15} /><span>{sinEmail.length} sin email o marcadas como no interesadas quedan afuera: {sinEmail.map(p => p.nombre).join(', ')}.</span></div>}
+            {sinBorrador.length > 0 && fase === 'revisar' && <div className="nota-info aviso"><AlertTriangle size={15} /><span>Claude no pudo escribir el email de {sinBorrador.map(p => p.nombre).join(', ')}. <button type="button" className="link" onClick={() => { setFase('preparando'); preparar() }}>Probar de nuevo</button></span></div>}
             {pasaCupo && fase === 'revisar' && <div className="nota-info aviso"><AlertTriangle size={15} /><span>Hoy podés mandar {cupo} más (tu límite diario). Destildá algunos o subí el límite en <Link to="/cuenta">Mi cuenta</Link>.</span></div>}
             <div className="envio-lista">
               {items.map(it => {

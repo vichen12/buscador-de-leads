@@ -9,6 +9,7 @@ import { borradoresPlantilla, situacionHoy, nombreCorto } from '../_shared/plant
 
 let MODELO = 'claude-haiku-5-5'
 const MAX_POR_LLAMADA = 25
+const TOKENS = 16000 // el modelo puede pensar antes de responder: con poco margen se queda sin espacio y no escribe nada
 
 type Borradores = { whatsapp: string; email: { asunto: string; cuerpo: string; adjuntos?: string[] }; seguimiento: string }
 type Dic = Record<string, unknown>
@@ -38,15 +39,31 @@ function reglasEmail() {
   const largo = CONFIG.largo === 'corto' ? '50 a 90 palabras' : CONFIG.largo === 'largo' ? '150 a 230 palabras' : '80 a 140 palabras'
   return `- Email: asunto corto (máximo 6 palabras, sin mayúsculas sostenidas) y cuerpo de ${largo} con saludo y firma.${CONFIG.estructura ? `\n- Estructura que pidió la persona para el email (seguila en ese orden): ${String(CONFIG.estructura).slice(0, 1200)}` : ''}`
 }
-const oferta = () => (COMERCIAL?.respuestas as Dic)?.que_vende as string || 'una página web'
+// Lo que vende, en corto (el resumen de la estrategia; si no hay, el comienzo de lo que contó)
+const oferta = () => {
+  const e = (COMERCIAL?.estrategia ?? {}) as Dic, r = (COMERCIAL?.respuestas ?? {}) as Dic
+  return String(e.resumen || r.que_vende || 'una página web').replace(/\s+/g, ' ').slice(0, 300)
+}
+// Si la persona pegó un documento largo (brief, manual de estilo), es la guía de la empresa: manda sobre todo
+const guia = () => {
+  const t = String(((COMERCIAL?.respuestas ?? {}) as Dic).que_vende ?? '')
+  return t.length > 400 ? t.slice(0, 14000) : ''
+}
 function tono() {
   const e = (COMERCIAL?.estrategia ?? {}) as Dic
   if (!COMERCIAL) return TONO_WEB + (CONFIG.tono ? `\n- Tono que pidió la persona (manda sobre lo anterior): ${String(CONFIG.tono).slice(0, 400)}` : '')
-  return `Reglas de tono (obligatorias):
-- Español rioplatense, con "vos", natural, como lo escribiría una persona real. Nada corporativo ni de vendedor.${e.tono ? `\n- Tono pedido: ${e.tono}` : ''}
+  const g = guia()
+  return `${g ? `GUÍA DE LA EMPRESA (es la regla principal: registro usted/vos, estructura, qué se puede y qué NO se puede decir, cifras permitidas. Si algo de abajo la contradice, gana la guía. Usala para entender el negocio, pero NUNCA la copies ni la resumas en el email):
+<<<
+${g}
+>>>
+
+` : ''}Reglas de tono:
+- Español natural, como lo escribiría una persona real. Nada de frases de vendedor ni jerga exagerada.${g ? ' Usá el registro que pida la guía (si pide usted, nada de voseo).' : ' Con "vos", rioplatense.'}${e.tono && !g ? `\n- Tono pedido: ${e.tono}` : ''}
 - Entrá por el VALOR para ESE negocio: algo genuino de lo que hacen y cómo lo que ofrecemos les sirve a ellos.${e.angulo ? `\n- Ángulo de entrada recomendado: ${e.angulo}` : ''}
 - NUNCA por el miedo, la culpa o la urgencia falsa. No critiques su negocio. No prometas resultados.
-- Una sola pregunta al final, liviana y sin compromiso.
+- Un solo paso siguiente al final, liviano y sin compromiso.
+- Frases cortas y bien escritas, sin repetir ideas. Hablá de ELLOS (su rubro, su problema probable) antes que de nosotros.
 - No inventes datos que no estén en la ficha (premios, años, precios, clientes).${CONFIG.tono ? `\n- Tono que pidió la persona (manda sobre lo anterior): ${String(CONFIG.tono).slice(0, 400)}` : ''}`
 }
 
@@ -67,7 +84,7 @@ ${perfil.portfolio_url ? `Portfolio (mencionalo sólo si suma): ${perfil.portfol
 ${perfil.instrucciones_ia ? `Indicaciones del usuario para todos sus mensajes: ${perfil.instrucciones_ia}` : ''}`
 }
 
-async function claude(key: string, prompt: string, maxTokens = 3000): Promise<string> {
+async function claude(key: string, prompt: string, maxTokens = TOKENS): Promise<string> {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -97,21 +114,8 @@ function extraerJSON(texto: string) {
   return JSON.parse(out.replace(/,\s*([}\]])/g, '$1'))
 }
 
-// Respaldo sin IA para cualquier negocio (la plantilla de plantillas.js es para estudios de diseño web)
-function plantillaGenerica(p: Dic, perfil: Dic): Borradores {
-  const nom = nombreCorto(String(p.nombre))
-  const yo = String(perfil.nombre || '[tu nombre]')
-  const empresa = String((COMERCIAL?.respuestas as Dic)?.empresa || perfil.estudio || '[tu empresa]')
-  const que = oferta()
-  return {
-    whatsapp: `¡Hola! ¿Cómo va? Soy ${yo}, de ${empresa}. Trabajamos con ${String(p.rubro || 'negocios')} de la zona: ${que}. Me pareció que a ${nom} le podría servir. ¿Te puedo contar en dos minutos cómo trabajamos?`,
-    email: { asunto: `Una propuesta para ${nom}`, cuerpo: `Hola, ¿cómo están?\n\nSoy ${yo}, de ${empresa}. Nos dedicamos a ${que}.\n\nVimos a ${nom} y creemos que les podría servir. Si les interesa, les cuento cómo trabajamos y armamos una propuesta sin compromiso.\n\n¿Les parece?\n\nSaludos,\n${perfil.firma || yo}` },
-    seguimiento: `¡Hola! Te escribí hace unos días de parte de ${empresa}. Si te sirve, te paso una propuesta concreta para ${nom}, sin compromiso. Y si no es momento, avisame y no insisto. ¡Gracias!`,
-  }
-}
-
 async function generarConIA(p: Dic, perfil: Dic, key: string): Promise<Borradores> {
-  const prompt = `Escribí borradores para contactar a UN negocio y ofrecerle ${COMERCIAL ? `lo nuestro (${oferta()})` : 'una página web'}. Los revisa y envía una persona, a mano.
+  const prompt = `Escribí borradores para contactar a UN negocio${COMERCIAL ? '' : ' y ofrecerle una página web'}. Los revisa y envía una persona.
 
 ${ficha(p, perfil)}
 
@@ -147,7 +151,7 @@ ${tono()}
 ${tipo === 'email' ? '- Devolvé también el asunto.' : '- Máximo 600 caracteres.'}
 
 Respondé SOLO con JSON válido: {"cuerpo": "..."${tipo === 'email' ? ', "asunto": "..."' : ''}}`
-  const r = extraerJSON(await claude(key, prompt, 2000))
+  const r = extraerJSON(await claude(key, prompt))
   if (!r.cuerpo) throw new Error('La IA no devolvió el texto')
   return { cuerpo: String(r.cuerpo), asunto: r.asunto ? String(r.asunto) : asunto }
 }
@@ -200,9 +204,14 @@ Deno.serve(async req => {
       let origen = 'plantilla'
       if (key) {
         try { b = await generarConIA(p, perfil ?? {}, key); origen = 'ia' }
-        catch (e) { errorIA = e instanceof Error ? e.message : String(e); console.error(e); b = COMERCIAL ? plantillaGenerica(p, perfil ?? {}) : borradoresPlantilla(p, perfil ?? {}) }
+        catch (e) {
+          errorIA = e instanceof Error ? e.message : String(e); console.error(e)
+          if (COMERCIAL) { resultados[p.id] = 'error: ' + errorIA; continue } // mejor sin borrador que uno malo
+          b = borradoresPlantilla(p, perfil ?? {})
+        }
       } else {
-        b = COMERCIAL ? plantillaGenerica(p, perfil ?? {}) : borradoresPlantilla(p, perfil ?? {})
+        if (COMERCIAL) { resultados[p.id] = 'error: falta la clave de Claude'; continue }
+        b = borradoresPlantilla(p, perfil ?? {})
       }
 
       if (!b.email.adjuntos?.length) b.email.adjuntos = fijos().map(a => a.id)
@@ -216,7 +225,8 @@ Deno.serve(async req => {
       const { error: e2 } = await supabase.from('mensajes').upsert(filas, { onConflict: 'prospecto_id,tipo' })
       resultados[p.id] = e2 ? 'error: ' + e2.message : `${origen} (${filas.length})`
     }
-    return json({ ok: true, ia: !!key, error_ia: errorIA || undefined, resultados })
+    const fallidos = Object.values(resultados).filter(r => r.startsWith('error')).length
+    return json({ ok: true, ia: !!key, error_ia: errorIA ? `Claude no pudo escribir ${fallidos === 1 ? 'un email' : fallidos + ' emails'}. Probá de nuevo en un momento.` : undefined, resultados })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return json({ error: msg }, msg === 'NO_AUTH' ? 401 : 500)
