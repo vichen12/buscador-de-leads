@@ -29,6 +29,7 @@ import Ayuda from './pages/Ayuda.jsx'
 import Landing from './pages/Landing.jsx'
 import Interesados from './pages/Interesados.jsx'
 import Plantillas from './pages/Plantillas.jsx'
+import ElegirPais from './components/ElegirPais.jsx'
 import Respuestas from './pages/Respuestas.jsx'
 import Secuencias from './pages/Secuencias.jsx'
 import Equipo from './pages/Equipo.jsx'
@@ -131,6 +132,7 @@ function Privada() {
 
   if (!acceso) return <div className="centro-pantalla"><Cargando /></div>
   if (acceso.habilitado === false) return <Suspendido acceso={acceso} email={session.user.email} />
+  if (perfil && !perfil.pais) return <ElegirPais perfil={perfil} onListo={refrescar} />
 
   const valor = { session, perfil, tablero, enviadosHoy: tablero?.enviados_hoy ?? 0, refrescar, servicios, refrescarServicios, acceso, comercial, setComercial, correo, setCorreo, porRevisar, setPorRevisar, contadores }
   return (

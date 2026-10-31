@@ -333,7 +333,7 @@ function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
               {perfil?.es_admin && <Link to="/admin"><Crown size={16} /> Super admin</Link>}
               {(perfil?.modos ?? ['b2b']).length > 1
                 ? <button type="button" onClick={() => cambiarModo(modo === 'b2c' ? 'b2b' : 'b2c')}><ArrowLeftRight size={16} /> Pasar a {MODOS[modo === 'b2c' ? 'b2b' : 'b2c'].titulo} ({modo === 'b2c' ? 'B2B' : 'B2C'})</button>
-                : (perfil?.rol === 'admin' || perfil?.es_admin) && <button type="button" onClick={() => cambiarModo(modo === 'b2c' ? 'b2b' : 'b2c', true)}><ArrowLeftRight size={16} /> Activar también {modo === 'b2c' ? 'ventas a empresas (B2B)' : 'ventas a consumidores (B2C)'}</button>}
+                : <Link to="/cuenta"><ArrowLeftRight size={16} /> Empresas (B2B) o consumidores (B2C)</Link>}
               <button type="button" onClick={() => { const osc = document.documentElement.dataset.tema !== 'oscuro'; if (osc) document.documentElement.dataset.tema = 'oscuro'; else delete document.documentElement.dataset.tema; try { localStorage.setItem('prospecta-tema', osc ? 'oscuro' : 'claro') } catch {} }}><Moon size={16} /> Modo claro / oscuro</button>
               <Link to="/ayuda" state={{ desde: window.location.pathname }}><LifeBuoy size={16} /> Ayuda y novedades</Link>
               <Link to="/terminos"><FileText size={16} /> Términos y privacidad</Link>

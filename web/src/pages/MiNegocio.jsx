@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { zonasDe } from '../lib/catalogo.js'
 import { Link, useNavigate } from 'react-router-dom'
 import { Sparkles, Loader2, Plus, X, Check, Pencil, RotateCcw, Target, MapPin, SlidersHorizontal, ThumbsUp, Ban, MessageSquareText, ArrowRight, Store, Trash2, Globe } from 'lucide-react'
 import SelectorZona from '../components/SelectorZona.jsx'
@@ -28,14 +29,15 @@ const EJEMPLOS = [
   'Distribuyo artículos de limpieza a restaurantes, hoteles y oficinas',
   'Vendo seguros para empresas con flotas de camiones',
 ]
-const ZONAS_RAPIDAS = ['Gran Mendoza', 'Todo Mendoza', 'Argentina', 'Chile', 'Uruguay', 'Latinoamérica']
+const zonasRapidas = (pais, region) => [...new Set([...zonasDe(pais, region).slice(0, 4), ...(pais ? [] : []), 'Latinoamérica'])]
 const webValida = v => /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(String(v ?? '').trim())
 
 function Formulario({ inicial, volver, onListo }) {
   const toast = useToast()
-  const { session } = useApp()
+  const { session, perfil } = useApp()
+  const ZONAS_RAPIDAS = zonasRapidas(perfil?.pais, perfil?.region)
   const [texto, setTexto] = useState(inicial.que_vende ? [inicial.que_vende, inicial.cliente_ideal].filter(Boolean).join('. ') : '')
-  const [zonas, setZonas] = useState(inicial.zonas?.length ? inicial.zonas : ['Gran Mendoza'])
+  const [zonas, setZonas] = useState(inicial.zonas?.length ? inicial.zonas : [zonasDe(perfil?.pais, perfil?.region)[0]])
   const [web, setWeb] = useState(inicial.web || '')
   const [masDatos, setMasDatos] = useState(false)
   const [extra, setExtra] = useState({ empresa: inicial.empresa || '', diferencial: inicial.diferencial || '', no_quiere: inicial.no_quiere || '' })
@@ -87,7 +89,7 @@ function Formulario({ inicial, volver, onListo }) {
         {[...new Set([...ZONAS_RAPIDAS, ...zonas])].map(z => <button type="button" key={z} className={'chip-sel' + (zonas.includes(z) ? ' on' : '')} onClick={() => alternar(z)}>{zonas.includes(z) && <Check size={13} />}{z}</button>)}
       </div>
       <div className="onb-zona">
-        <SelectorZona multi seleccionadas={zonas} onChange={z => alternar(z)} placeholder="+ Sumar otro país, provincia o ciudad" />
+        <SelectorZona pais={perfil?.pais} region={perfil?.region} multi seleccionadas={zonas} onChange={z => alternar(z)} placeholder="+ Sumar otro país, provincia o ciudad" />
       </div>
 
       {masDatos ? (

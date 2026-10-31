@@ -6,6 +6,8 @@ import { useApp } from '../App.jsx'
 import { mensajeError } from '../lib/util.js'
 import { Avatar, Cargando, useToast } from '../components/ui.jsx'
 import { SeguridadCuenta } from '../components/Seguridad.jsx'
+import { CamposPais, guardarPais, SelectorTipoVenta, guardarTipoVenta, tipoDe } from '../components/ElegirPais.jsx'
+import { nombrePais } from '../lib/catalogo.js'
 
 const CAMPOS = ['nombre', 'estudio', 'firma', 'email_contacto', 'portfolio_url', 'limite_diario', 'dias_seguimiento', 'instrucciones_ia']
 const IDEAS_IA = ['Tuteá siempre', 'No hables de precios en el primer mensaje', 'Mencioná que respondemos en el día', 'Mensajes bien cortos', 'Ofrecé una visita o llamada sin compromiso']
@@ -133,6 +135,8 @@ export default function Cuenta() {
           </div>
         </section>
 
+        <TipoVentaCuenta perfil={perfil} onCambio={refrescar} />
+        <PaisCuenta perfil={perfil} onCambio={refrescar} />
         <SeguridadCuenta session={session} perfil={perfil} />
       </div>
 
@@ -144,5 +148,53 @@ export default function Cuenta() {
         </div>
       )}
     </form>
+  )
+}
+
+/** País y provincia de la cuenta: definen las zonas sugeridas y la zona horaria */
+function PaisCuenta({ perfil, onCambio }) {
+  const toast = useToast()
+  const [v, setV] = useState({ pais: perfil?.pais || '', region: perfil?.region || '' })
+  const [guardando, setGuardando] = useState(false)
+  const cambio = v.pais !== (perfil?.pais || '') || v.region !== (perfil?.region || '')
+  async function guardar() {
+    setGuardando(true)
+    const { error } = await guardarPais(perfil.id, v.pais, v.region)
+    setGuardando(false)
+    if (error) toast(mensajeError(error), 'error'); else { toast('Listo: ahora te sugerimos zonas de ' + (v.region || nombrePais(v.pais)), 'ok'); onCambio() }
+  }
+  return (
+    <section className="tarjeta">
+      <div className="tarjeta-titulo"><h3><Globe size={16} /> País y zona</h3></div>
+      <p className="muted chico" style={{ marginTop: 0 }}>Define las zonas que te sugerimos al buscar, la zona horaria de los envíos y el tono de los mensajes.</p>
+      <CamposPais pais={v.pais} region={v.region} onChange={setV} />
+      <button type="button" className="btn oscuro" onClick={guardar} disabled={!cambio || !v.pais || guardando}>{guardando && <Loader2 size={15} className="spin" />} Guardar país</button>
+    </section>
+  )
+}
+
+/** Empresas (B2B), consumidores (B2C) o los dos: lo elige la persona (o el admin, para todo su equipo) */
+function TipoVentaCuenta({ perfil, onCambio }) {
+  const toast = useToast()
+  const [tipo, setTipo] = useState(tipoDe(perfil?.modos))
+  const [guardando, setGuardando] = useState(false)
+  const puede = !perfil?.empresa_id || perfil?.rol === 'admin' || perfil?.es_admin
+  const cambio = tipo !== tipoDe(perfil?.modos)
+  async function guardar() {
+    setGuardando(true)
+    const { error } = await guardarTipoVenta(tipo)
+    setGuardando(false)
+    if (error) return toast(mensajeError(error), 'error')
+    toast(tipo === 'ambos' ? 'Listo: tenés los dos espacios. Cambiás entre uno y otro arriba del menú.' : `Listo: tu cuenta quedó para ${tipo === 'b2c' ? 'consumidores (B2C)' : 'empresas (B2B)'}.`, 'ok')
+    onCambio()
+  }
+  return (
+    <section className="tarjeta">
+      <div className="tarjeta-titulo"><h3><Store size={16} /> ¿A quién le vendés?</h3></div>
+      <p className="muted chico" style={{ marginTop: 0 }}>Cambia el menú, el tablero y las herramientas. Tus datos de cada lado se guardan aunque cambies.{perfil?.empresa_id && ' Vale para todo tu equipo.'}</p>
+      <SelectorTipoVenta valor={tipo} onChange={setTipo} disabled={!puede} />
+      {puede ? <button type="button" className="btn oscuro" style={{ marginTop: 12 }} onClick={guardar} disabled={!cambio || guardando}>{guardando && <Loader2 size={15} className="spin" />} Guardar</button>
+        : <p className="muted chico">Lo define el admin de tu empresa.</p>}
+    </section>
   )
 }

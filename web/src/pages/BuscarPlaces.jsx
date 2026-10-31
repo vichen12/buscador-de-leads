@@ -7,7 +7,7 @@ import { descargarExcel, filaEmpresa } from '../lib/excel.js'
 import { motivoHallazgo, aprobarHallazgos, descartarHallazgos } from '../lib/hallazgos.js'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
-import { RUBROS, ZONAS, zonaCompleta } from '../lib/catalogo.js'
+import { RUBROS, ZONAS, zonaCompleta, zonasDe } from '../lib/catalogo.js'
 import { Aviso, useToast } from '../components/ui.jsx'
 import Autocompletar from '../components/Autocompletar.jsx'
 import SelectorZona from '../components/SelectorZona.jsx'
@@ -45,9 +45,9 @@ export default function BuscarPlaces() {
   const [ocupados, setOcupados] = useState(new Set())
   const est = comercial?.estrategia?.rubros?.length ? comercial.estrategia : null
   const sugRubros = useMemo(() => est ? est.rubros.map(r => r.nombre) : ['barbería', 'centro de estética', 'veterinaria', 'gimnasio', 'estudio contable', 'inmobiliaria', 'restaurante', 'taller mecánico'], [est])
-  const sugZonas = useMemo(() => est?.zonas?.length ? est.zonas : ['Ciudad de Mendoza', 'Godoy Cruz', 'Guaymallén', 'Las Heras', 'Luján de Cuyo', 'Maipú'], [est])
+  const sugZonas = useMemo(() => est?.zonas?.length ? est.zonas : zonasDe(perfil?.pais, perfil?.region), [est, perfil?.pais, perfil?.region])
   const todosRubros = useMemo(() => [...new Set([...sugRubros, ...RUBROS.flatMap(g => g.items)])], [sugRubros])
-  const todasZonas = useMemo(() => [...new Set([...sugZonas, ...ZONAS.flatMap(g => g.items), 'Gran Mendoza', 'Todo Mendoza', 'San Juan', 'San Luis', 'Neuquén', 'Córdoba', 'Rosario', 'Buenos Aires', 'CABA', 'Todo el país'])], [sugZonas])
+  const todasZonas = useMemo(() => [...new Set([...sugZonas, ...(perfil?.pais === 'AR' && perfil?.region === 'Mendoza' ? ZONAS.flatMap(g => g.items) : []), ...zonasDe(perfil?.pais, null), 'Todo el país'])], [sugZonas, perfil?.pais, perfil?.region])
   const filtros = est?.filtros?.length ? est.filtros : FILTROS_DEFECTO
 
   const [rubro, setRubro] = useState('')
@@ -153,7 +153,7 @@ export default function BuscarPlaces() {
         </label>
         <label className="bb-campo">
           <span><MapPin size={14} /> Dónde</span>
-          <SelectorZona value={zona} onChange={v => { setZona(v); setBrief(null) }} sugeridas={sugZonas} disabled={cargando} />
+          <SelectorZona pais={perfil?.pais} region={perfil?.region} value={zona} onChange={v => { setZona(v); setBrief(null) }} sugeridas={sugZonas} disabled={cargando} />
         </label>
         <label className="bb-campo bb-chico">
           <span>Cuántos</span>
@@ -192,7 +192,8 @@ export default function BuscarPlaces() {
 
       {!cargando && !res && !brief && !entendiendo && (() => {
         const ejemplos = ['empresas grandes con depósito', 'locales que venden celulares', 'constructoras medianas', 'clínicas privadas', 'distribuidoras de alimentos'].filter(x => !sugRubros.some(r => r.toLowerCase() === x.toLowerCase() || r.toLowerCase() + 's' === x.toLowerCase()))
-        const zonasSug = [...sugZonas.slice(0, 5), ...['Argentina', 'Chile', 'Uruguay', 'Perú', 'México'].filter(z => !sugZonas.includes(z))]
+        const vecinos = { AR: ['Chile', 'Uruguay', 'Paraguay'], CL: ['Argentina', 'Perú'], UY: ['Argentina', 'Brasil'], PE: ['Chile', 'Colombia', 'Ecuador'], CO: ['Ecuador', 'Perú', 'Panamá'], MX: ['Guatemala', 'Estados Unidos'] }[perfil?.pais] ?? ['Latinoamérica']
+        const zonasSug = [...new Set([...sugZonas.slice(0, 8), ...vecinos])]
         return (
           <div className="bb-sugerencias">
             <div className="sug-bloque">

@@ -86,6 +86,11 @@ Deno.serve(async req => {
     const rol = body.rol === 'admin' ? 'admin' : (empresaPropia ? 'vendedor' : 'admin')
     const { error: ep } = await admin.from('perfiles').upsert({ id: data.user.id, nombre, email_contacto: email, empresa_id: empresa, activo: true, rol }, { onConflict: 'id' })
     if (ep) console.error('activar perfil', ep)
+    // La persona nueva hereda el país, la zona y el tipo de venta (B2B/B2C) de su empresa
+    if (empresa) {
+      const { data: ref } = await admin.from('perfiles').select('pais, region, zona_horaria, modos, modo').eq('empresa_id', empresa).neq('id', data.user.id).not('pais', 'is', null).order('rol').limit(1).maybeSingle()
+      if (ref) await admin.from('perfiles').update({ pais: ref.pais, region: ref.region, zona_horaria: ref.zona_horaria, modos: ref.modos, modo: ref.modos?.includes(ref.modo) ? ref.modo : ref.modos?.[0] }).eq('id', data.user.id)
+    }
     return json({ id: data.user.id, email, password })
   }
 

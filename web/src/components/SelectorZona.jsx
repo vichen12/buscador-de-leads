@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import { Globe2, MapPin, Star, X, Building2 } from 'lucide-react'
-import { PAISES, REGIONES, PROVINCIAS_AR, CIUDADES, ZONAS } from '../lib/catalogo.js'
+import { PAISES, REGIONES, PROVINCIAS_AR, CIUDADES, ZONAS, REGIONES_PAIS, nombrePais } from '../lib/catalogo.js'
 
 const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
 
@@ -8,7 +8,7 @@ const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀
  * "Dónde": país, provincia, ciudad o lo que escribas. Al abrir muestra todo agrupado (tus zonas, países,
  * provincias, ciudades); al escribir filtra en todos los grupos.
  */
-const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, sugeridas = [], disabled, multi = false, seleccionadas = [], placeholder = 'País, provincia o ciudad' }, ref) {
+const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, sugeridas = [], disabled, multi = false, seleccionadas = [], placeholder = 'País, provincia o ciudad', pais = '', region = '' }, ref) {
   const [abierto, setAbierto] = useState(false)
   const [texto, setTexto] = useState(multi ? '' : value)
   const [activo, setActivo] = useState(0)
@@ -23,10 +23,12 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
     { titulo: 'Tus zonas', icono: Star, items: sugeridas.map(z => ({ v: z })), chips: true },
     { titulo: 'Países', icono: Globe2, items: PAISES.map(p => ({ v: p.nombre })), chips: true },
     { titulo: 'Varios países', icono: Globe2, items: REGIONES.map(v => ({ v })), chips: true },
+    ...(pais && pais !== 'AR' && REGIONES_PAIS[pais] ? [{ titulo: `Regiones · ${nombrePais(pais)}`, icono: MapPin, items: REGIONES_PAIS[pais].map(r => ({ v: `${r}, ${nombrePais(pais)}`, label: r })), chips: true }] : []),
     { titulo: 'Provincias de Argentina', icono: MapPin, items: PROVINCIAS_AR.map(p => ({ v: p === 'CABA' ? 'CABA, Argentina' : `${p}, Argentina`, label: p })), chips: true },
-    ...CIUDADES.map(c => ({ titulo: `Ciudades · ${c.pais}`, icono: Building2, items: c.items.map(x => ({ v: c.pais === 'Argentina' ? x : `${x}, ${c.pais}`, label: x })), chips: true })),
-    { titulo: 'Mendoza', icono: MapPin, items: ZONAS.flatMap(g => g.items).map(x => ({ v: x })), chips: true },
-  ].filter(g => g.items.length), [sugeridas])
+    // Primero las ciudades del país de la cuenta
+    ...[...CIUDADES].sort((a, b) => (b.pais === nombrePais(pais)) - (a.pais === nombrePais(pais))).map(c => ({ titulo: `Ciudades · ${c.pais}`, icono: Building2, items: c.items.map(x => ({ v: c.pais === 'Argentina' ? x : `${x}, ${c.pais}`, label: x })), chips: true })),
+    ...(pais === 'AR' && region === 'Mendoza' ? [{ titulo: 'Mendoza', icono: MapPin, items: ZONAS.flatMap(g => g.items).map(x => ({ v: x })), chips: true }] : []),
+  ].filter(g => g.items.length), [sugeridas, pais, region])
 
   const t = limpiar(texto)
   const filtrando = !!t && (multi || limpiar(texto) !== limpiar(value))

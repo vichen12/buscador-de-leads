@@ -48,3 +48,42 @@ export const CIUDADES = [
   { pais: 'Paraguay', items: ['Asunción', 'Ciudad del Este'] },
   { pais: 'Bolivia', items: ['Santa Cruz de la Sierra', 'La Paz', 'Cochabamba'] },
 ]
+
+// ---------- País de la cuenta ----------
+// Provincias / regiones / estados principales de cada país (para el alta y para sugerir zonas)
+export const REGIONES_PAIS = {
+  AR: PROVINCIAS_AR,
+  CL: ['Región Metropolitana', 'Valparaíso', 'Biobío', 'Antofagasta', 'Maule', 'Los Lagos', 'La Araucanía', "O'Higgins", 'Coquimbo', 'Tarapacá'],
+  UY: ['Montevideo', 'Canelones', 'Maldonado', 'Colonia', 'Salto', 'Paysandú'],
+  PY: ['Asunción', 'Central', 'Alto Paraná', 'Itapúa'],
+  BO: ['Santa Cruz', 'La Paz', 'Cochabamba', 'Tarija'],
+  PE: ['Lima', 'Arequipa', 'La Libertad', 'Piura', 'Cusco', 'Lambayeque'],
+  CO: ['Bogotá', 'Antioquia', 'Valle del Cauca', 'Atlántico', 'Santander', 'Cundinamarca'],
+  EC: ['Pichincha', 'Guayas', 'Azuay', 'Manabí'],
+  MX: ['Ciudad de México', 'Estado de México', 'Nuevo León', 'Jalisco', 'Querétaro', 'Puebla', 'Guanajuato', 'Baja California', 'Yucatán'],
+  BR: ['São Paulo', 'Rio de Janeiro', 'Minas Gerais', 'Paraná', 'Rio Grande do Sul', 'Santa Catarina'],
+  VE: ['Caracas', 'Zulia', 'Carabobo', 'Lara'],
+  CR: ['San José', 'Alajuela', 'Heredia', 'Cartago'],
+  PA: ['Panamá', 'Colón', 'Chiriquí'],
+  GT: ['Guatemala', 'Quetzaltenango', 'Escuintla'],
+  DO: ['Santo Domingo', 'Santiago', 'La Altagracia'],
+  ES: ['Madrid', 'Cataluña', 'Andalucía', 'Comunidad Valenciana', 'País Vasco', 'Galicia'],
+  US: ['Florida', 'Texas', 'California', 'Nueva York', 'Illinois'],
+}
+export const ZONA_HORARIA_PAIS = {
+  AR: 'America/Argentina/Buenos_Aires', CL: 'America/Santiago', UY: 'America/Montevideo', PY: 'America/Asuncion', BO: 'America/La_Paz',
+  PE: 'America/Lima', CO: 'America/Bogota', EC: 'America/Guayaquil', MX: 'America/Mexico_City', BR: 'America/Sao_Paulo', VE: 'America/Caracas',
+  CR: 'America/Costa_Rica', PA: 'America/Panama', GT: 'America/Guatemala', DO: 'America/Santo_Domingo', ES: 'Europe/Madrid', US: 'America/New_York',
+}
+export const nombrePais = code => PAISES.find(p => p.code === code)?.nombre ?? ''
+
+/** Zonas para sugerir según el país y la provincia de la cuenta (la primera es la zona por defecto de las búsquedas) */
+export function zonasDe(pais, region) {
+  const nombre = nombrePais(pais)
+  if (!nombre) return ['Argentina', 'Chile', 'Uruguay', 'Perú', 'México', 'Colombia']
+  if (pais === 'AR' && region === 'Mendoza') return ['Gran Mendoza', 'Ciudad de Mendoza', 'Godoy Cruz', 'Guaymallén', 'Las Heras', 'Luján de Cuyo', 'Maipú', 'Todo Mendoza', 'Argentina']
+  const conPais = z => (pais === 'AR' ? (z === 'CABA' ? 'CABA, Argentina' : `${z}, Argentina`) : `${z}, ${nombre}`)
+  const ciudades = (CIUDADES.find(c => c.pais === nombre)?.items ?? []).map(c => (pais === 'AR' ? c : `${c}, ${nombre}`))
+  const regiones = (REGIONES_PAIS[pais] ?? []).filter(r => r !== region).slice(0, 5).map(conPais)
+  return [...new Set([...(region ? [conPais(region)] : []), ...ciudades.slice(0, 4), ...regiones, nombre])].slice(0, 10)
+}
