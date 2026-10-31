@@ -28,13 +28,11 @@ export const zonaCompleta = z => (/,/.test(z) || !MENDOZA.has(z.trim().toLowerCa
 export const PAISES = [
   ...[['Argentina', 'AR'], ['Chile', 'CL'], ['Uruguay', 'UY'], ['Paraguay', 'PY'], ['Bolivia', 'BO'], ['Perú', 'PE'], ['Colombia', 'CO'], ['Ecuador', 'EC'], ['Venezuela', 'VE'], ['México', 'MX'], ['Guatemala', 'GT'], ['El Salvador', 'SV'], ['Honduras', 'HN'], ['Nicaragua', 'NI'], ['Costa Rica', 'CR'], ['Panamá', 'PA'], ['República Dominicana', 'DO'], ['Puerto Rico', 'PR'], ['Brasil', 'BR']].map(([nombre, code]) => ({ nombre, code, grupo: 'Latinoamérica' })),
   ...[['Estados Unidos', 'US'], ['Canadá', 'CA']].map(([nombre, code]) => ({ nombre, code, grupo: 'Norteamérica' })),
-  ...[['España', 'ES'], ['Portugal', 'PT'], ['Italia', 'IT'], ['Francia', 'FR'], ['Alemania', 'DE'], ['Reino Unido', 'GB'], ['Irlanda', 'IE'], ['Países Bajos', 'NL'], ['Bélgica', 'BE'], ['Suiza', 'CH'], ['Austria', 'AT'], ['Suecia', 'SE'], ['Polonia', 'PL']].map(([nombre, code]) => ({ nombre, code, grupo: 'Europa' })),
-  ...[['Australia', 'AU'], ['Nueva Zelanda', 'NZ'], ['Emiratos Árabes', 'AE'], ['Israel', 'IL'], ['Sudáfrica', 'ZA'], ['Japón', 'JP'], ['India', 'IN']].map(([nombre, code]) => ({ nombre, code, grupo: 'Resto del mundo' })),
 ]
-export const GRUPOS_PAISES = ['Latinoamérica', 'Norteamérica', 'Europa', 'Resto del mundo']
+export const GRUPOS_PAISES = ['Latinoamérica', 'Norteamérica']
 
 // Para empresas que trabajan en varios países a la vez
-export const REGIONES = ['Latinoamérica', 'Sudamérica', 'Europa', 'Unión Europea', 'Norteamérica', 'Cono Sur (Argentina, Chile, Uruguay, Paraguay)', 'Centroamérica', 'Argentina, Chile y Uruguay', 'México y Centroamérica']
+export const REGIONES = ['Latinoamérica', 'Sudamérica', 'Cono Sur (Argentina, Chile, Uruguay, Paraguay)', 'Centroamérica', 'Argentina, Chile y Uruguay', 'México y Centroamérica']
 
 export const PROVINCIAS_AR = ['Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 'San Juan', 'San Luis', 'Neuquén', 'Río Negro',
   'Chubut', 'Santa Cruz', 'Tierra del Fuego', 'La Pampa', 'Entre Ríos', 'Corrientes', 'Misiones', 'Chaco', 'Formosa',
@@ -94,26 +92,6 @@ export const ZONA_HORARIA_PAIS = {
   BR: 'America/Sao_Paulo',
   US: 'America/New_York',
   CA: 'America/Toronto',
-  ES: 'Europe/Madrid',
-  PT: 'Europe/Lisbon',
-  IT: 'Europe/Rome',
-  FR: 'Europe/Paris',
-  DE: 'Europe/Berlin',
-  GB: 'Europe/London',
-  IE: 'Europe/Dublin',
-  NL: 'Europe/Amsterdam',
-  BE: 'Europe/Brussels',
-  CH: 'Europe/Zurich',
-  AT: 'Europe/Vienna',
-  SE: 'Europe/Stockholm',
-  PL: 'Europe/Warsaw',
-  AU: 'Australia/Sydney',
-  NZ: 'Pacific/Auckland',
-  AE: 'Asia/Dubai',
-  IL: 'Asia/Jerusalem',
-  ZA: 'Africa/Johannesburg',
-  JP: 'Asia/Tokyo',
-  IN: 'Asia/Kolkata',
 }
 export const nombrePais = code => PAISES.find(p => p.code === code)?.nombre ?? ''
 

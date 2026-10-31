@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Globe2, Loader2, MapPin, Building2, Heart, Layers, Check } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Globe2, Loader2, MapPin, Building2, Heart, Layers, Check, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { PAISES, GRUPOS_PAISES, REGIONES_PAIS, ZONA_HORARIA_PAIS } from '../lib/catalogo.js'
 import Desplegable from './Desplegable.jsx'
@@ -35,22 +35,63 @@ export function CamposPais({ pais, region, otros = [], onChange, compacto }) {
       </div>
       {pais && (
         <div className="otros-paises">
-          <div className="otros-cab"><span>¿Vende también en otros países? <span className="muted">(opcional · {otros.length ? `${otros.length} elegido${otros.length === 1 ? '' : 's'}` : 'ninguno'})</span></span>
-            {otros.length > 0 && <button type="button" className="link chico" onClick={() => cambiarOtros([])}>Quitar todos</button>}</div>
-          {GRUPOS_PAISES.map(g => {
-            const del = paises.filter(p => p.grupo === g && p.code !== pais)
-            const todos = del.length > 0 && del.every(p => otros.includes(p.code))
-            return (
-              <div key={g} className="otros-grupo">
-                <div className="otros-grupo-cab"><span>{g}</span>
-                  <button type="button" className="link chico" onClick={() => cambiarOtros(todos ? otros.filter(c => !del.some(p => p.code === c)) : [...otros, ...del.map(p => p.code)])}>{todos ? 'Quitar' : 'Todos'}</button></div>
-                <div className="otros-chips">{del.map(p => {
-                  const on = otros.includes(p.code)
-                  return <button key={p.code} type="button" className={'pais-chip' + (on ? ' on' : '')} aria-pressed={on} onClick={() => cambiarOtros(on ? otros.filter(x => x !== p.code) : [...otros, p.code])}><Bandera code={p.code} />{p.nombre}{on && <Check size={12} />}</button>
-                })}</div>
-              </div>
-            )
-          })}
+          <div className="otros-cab">¿Vende también en otros países? <span className="muted">(opcional)</span></div>
+          <ListaPaises pais={pais} otros={otros} onChange={cambiarOtros} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Lista desplegable con casillas: toda Latinoamérica de una o sólo algunos países */
+function ListaPaises({ pais, otros, onChange }) {
+  const [abierta, setAbierta] = useState(false)
+  const caja = useRef(null)
+  useEffect(() => {
+    if (!abierta) return
+    const fuera = e => { if (!caja.current?.contains(e.target)) setAbierta(false) }
+    const esc = e => { if (e.key === 'Escape') setAbierta(false) }
+    document.addEventListener('mousedown', fuera); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('keydown', esc) }
+  }, [abierta])
+  const lista = PAISES.filter(p => p.code !== pais)
+  const latam = lista.filter(p => p.grupo === 'Latinoamérica').map(p => p.code)
+  const todaLatam = latam.length > 0 && latam.every(c => otros.includes(c))
+  const nombres = lista.filter(p => otros.includes(p.code))
+  const resumen = !nombres.length ? 'Sólo en ' + (PAISES.find(p => p.code === pais)?.nombre ?? 'su país')
+    : todaLatam && nombres.length === latam.length ? 'Toda Latinoamérica'
+    : nombres.length <= 3 ? nombres.map(p => p.nombre).join(', ') : `${nombres.slice(0, 2).map(p => p.nombre).join(', ')} y ${nombres.length - 2} más`
+  return (
+    <div className="lista-paises" ref={caja}>
+      <button type="button" className={'lista-paises-boton' + (abierta ? ' abierta' : '')} aria-expanded={abierta} onClick={() => setAbierta(a => !a)}>
+        <span className="lista-paises-banderas">{nombres.slice(0, 4).map(p => <Bandera key={p.code} code={p.code} />)}{!nombres.length && <Globe2 size={15} className="muted" />}</span>
+        <span className="lista-paises-resumen">{resumen}</span>
+        <ChevronDown size={15} className="muted" />
+      </button>
+      {abierta && (
+        <div className="lista-paises-menu" role="listbox" aria-multiselectable="true">
+          <label className="lista-paises-item destacado">
+            <input type="checkbox" checked={todaLatam} onChange={() => onChange(todaLatam ? otros.filter(c => !latam.includes(c)) : [...otros, ...latam])} />
+            <Globe2 size={15} /> Toda Latinoamérica
+          </label>
+          {GRUPOS_PAISES.map(g => (
+            <div key={g}>
+              <div className="lista-paises-grupo">{g}</div>
+              {lista.filter(p => p.grupo === g).map(p => {
+                const on = otros.includes(p.code)
+                return (
+                  <label key={p.code} className={'lista-paises-item' + (on ? ' on' : '')}>
+                    <input type="checkbox" checked={on} onChange={() => onChange(on ? otros.filter(x => x !== p.code) : [...otros, p.code])} />
+                    <Bandera code={p.code} /> {p.nombre}
+                  </label>
+                )
+              })}
+            </div>
+          ))}
+          <div className="lista-paises-pie">
+            {otros.length > 0 ? <button type="button" className="link chico" onClick={() => onChange([])}>Ninguno</button> : <span />}
+            <button type="button" className="btn chico" onClick={() => setAbierta(false)}>Listo</button>
+          </div>
         </div>
       )}
     </div>

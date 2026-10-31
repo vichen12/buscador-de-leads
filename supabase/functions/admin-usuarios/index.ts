@@ -55,7 +55,7 @@ function configDe(body: Record<string, unknown>) {
   const region = pais ? String(body.region ?? '').trim().slice(0, 80) || null : null
   const modos: string[] = Array.isArray(body.modos) ? [...new Set(body.modos.map(String).filter(m => m === 'b2b' || m === 'b2c'))].sort() : []
   const zona_horaria = pais ? (pais === 'AR' && region === 'Mendoza' ? 'America/Argentina/Mendoza' : ZONAS_HORARIAS[pais] ?? null) : null
-  const paises: string[] = pais && Array.isArray(body.paises) ? [...new Set((body.paises as unknown[]).map(String).filter(x => /^[A-Z]{2}$/.test(x) && x !== pais && x in ZONAS_HORARIAS))].slice(0, 25) : []
+  const paises: string[] = pais && Array.isArray(body.paises) ? [...new Set((body.paises as unknown[]).map(String).filter(x => /^[A-Z]{2}$/.test(x) && x !== pais && x in ZONAS_HORARIAS))].slice(0, 40) : []
   return { pais, region, modos, zona_horaria, paises }
 }
 async function aplicarConfig(admin: any, id: string, empresa: string | null, c: ReturnType<typeof configDe>) {

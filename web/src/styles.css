@@ -1766,3 +1766,19 @@ html[data-tema="oscuro"] .pais-chip.on { background: #f2efe9; color: #16161a; }
 .otros-grupo-cab { display: flex; align-items: center; gap: 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3, #8a8478); margin-bottom: 6px; }
 .otros-grupo-cab .link { text-transform: none; letter-spacing: 0; }
 .otros-cab .link { white-space: nowrap; }
+
+.lista-paises { position: relative; }
+.lista-paises-boton { width: 100%; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-2); background: #fff; border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left; }
+.lista-paises-boton:hover, .lista-paises-boton.abierta { border-color: #c9c1b4; }
+.lista-paises-banderas { display: inline-flex; gap: 3px; }
+.lista-paises-resumen { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lista-paises-menu { position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 12px 32px rgba(20,18,14,.14); max-height: 320px; overflow-y: auto; padding: 6px; }
+.lista-paises-item { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px; font-size: 13.5px; cursor: pointer; }
+.lista-paises-item:hover { background: var(--bg-2, #f5f2ec); }
+.lista-paises-item input { accent-color: var(--acc); margin: 0; }
+.lista-paises-item.destacado { font-weight: 600; border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; margin-bottom: 2px; }
+.lista-paises-grupo { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3, #8a8478); padding: 8px 9px 4px; }
+.lista-paises-pie { position: sticky; bottom: -6px; display: flex; justify-content: space-between; align-items: center; background: #fff; border-top: 1px solid var(--line); margin: 4px -6px -6px; padding: 8px 12px; }
+html[data-tema="oscuro"] .lista-paises-boton, html[data-tema="oscuro"] .lista-paises-menu, html[data-tema="oscuro"] .lista-paises-pie { background: var(--card); color: var(--ink); }
+.lista-paises-menu label.lista-paises-item { margin: 0; min-height: 0; line-height: 1.3; }
+.otros-paises .otros-cab { display: block; }
