@@ -1788,3 +1788,29 @@ html[data-tema="oscuro"] .lista-paises-boton, html[data-tema="oscuro"] .lista-pa
 .opcion-modo .opcion-modo-cab { display: inline-flex; flex-direction: row; align-items: center; gap: 5px; line-height: 1.1; }
 .opcion-modo b { font-size: 13px; letter-spacing: .02em; }
 .opcion-modo small { font-size: 11px; letter-spacing: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Botones X para borrar: centrados con el texto en todos los campos */
+.bb-campo { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-content: center; }
+.bb-campo > span { grid-column: 1 / -1; }
+.bb-campo > :not(span):not(.bb-limpiar) { grid-column: 1; min-width: 0; }
+.bb-limpiar, .busqueda-hero .bb-limpiar { position: static; grid-column: 2; grid-row: 2; align-self: center; margin-top: 4px; }
+.sz-input { display: flex; align-items: center; gap: 8px; }
+.sz-input input { flex: 1; min-width: 0; }
+.sz-limpiar { position: static; transform: none; flex: none; margin-top: 4px; }
+.bb-limpiar, .sz-limpiar, .campo-icono .limpiar { line-height: 0; padding: 0; }
+.bb-limpiar svg, .sz-limpiar svg, .campo-icono .limpiar svg { display: block; }
+.bb-limpiar:hover, .sz-limpiar:hover { background: #e7e1d7; color: var(--ink); }
+
+/* Filtros aplicados: se sacan con un toque */
+button.filtro-activo { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: background .15s; }
+button.filtro-activo .filtro-quitar { opacity: .45; margin-left: 2px; }
+button.filtro-activo:hover { background: #d5efe0; }
+button.filtro-activo:hover .filtro-quitar { opacity: 1; }
+
+/* Lo que aprendió de las empresas que le sirven */
+.aprendio { display: flex; align-items: flex-start; gap: 8px; border-radius: 10px; padding: 9px 12px; line-height: 1.45; }
+.aprendio svg { flex: none; margin-top: 2px; }
+.aprendio.vacio { color: var(--mut); background: #f6f3ee; }
+.onb-extra .ancho-completo { grid-column: 1 / -1; }
+.bb-campo > .autocompletar { margin-top: 0; }
+.bb-campo .sz-input input { padding-right: 0; }

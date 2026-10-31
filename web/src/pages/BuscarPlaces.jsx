@@ -7,7 +7,7 @@ import { descargarExcel, filaEmpresa } from '../lib/excel.js'
 import { motivoHallazgo, aprobarHallazgos, descartarHallazgos } from '../lib/hallazgos.js'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
-import { RUBROS, ZONAS, zonaCompleta, zonasDe } from '../lib/catalogo.js'
+import { RUBROS, ZONAS, zonaCompleta, zonasDe, nombrePais } from '../lib/catalogo.js'
 import { Aviso, useToast } from '../components/ui.jsx'
 import Autocompletar from '../components/Autocompletar.jsx'
 import SelectorZona from '../components/SelectorZona.jsx'
@@ -45,7 +45,12 @@ export default function BuscarPlaces() {
   const [ocupados, setOcupados] = useState(new Set())
   const est = comercial?.estrategia?.rubros?.length ? comercial.estrategia : null
   const sugRubros = useMemo(() => est ? est.rubros.map(r => r.nombre) : ['barbería', 'centro de estética', 'veterinaria', 'gimnasio', 'estudio contable', 'inmobiliaria', 'restaurante', 'taller mecánico'], [est])
-  const sugZonas = useMemo(() => est?.zonas?.length ? est.zonas : zonasDe(perfil?.pais, perfil?.region, perfil?.paises), [est, perfil?.pais, perfil?.region, perfil?.paises])
+  // Zonas sugeridas: si la cuenta vende en varios países, primero todos juntos; después las de su estrategia y las de su país
+  const sugZonas = useMemo(() => {
+    const base = zonasDe(perfil?.pais, perfil?.region, perfil?.paises)
+    const varios = perfil?.pais && perfil?.paises?.length ? [[nombrePais(perfil.pais), ...perfil.paises.map(nombrePais)].filter(Boolean).join(', ')] : []
+    return [...new Set([...varios, ...(varios.length ? base : []), ...(est?.zonas ?? []), ...base])].filter(Boolean)
+  }, [est, perfil?.pais, perfil?.region, perfil?.paises])
   const todosRubros = useMemo(() => [...new Set([...sugRubros, ...RUBROS.flatMap(g => g.items)])], [sugRubros])
   const todasZonas = useMemo(() => [...new Set([...sugZonas, ...(perfil?.pais === 'AR' && perfil?.region === 'Mendoza' ? ZONAS.flatMap(g => g.items) : []), ...zonasDe(perfil?.pais, null), 'Todo el país'])], [sugZonas, perfil?.pais, perfil?.region])
   const filtros = est?.filtros?.length ? est.filtros : FILTROS_DEFECTO
@@ -64,7 +69,10 @@ export default function BuscarPlaces() {
   const resultadosRef = useRef(null)
   const rubroRef = useRef(null)
 
-  useEffect(() => { setActivos(new Set(filtros.filter(f => f.activo).map(f => f.id))); if (est?.zonas?.[0]) setZona(est.zonas[0]) }, [comercial])
+  const zonaTocada = useRef(false)
+  useEffect(() => { setActivos(new Set(filtros.filter(f => f.activo).map(f => f.id))) }, [comercial])
+  // La zona por defecto sigue a la configuración de la cuenta hasta que la persona elige otra
+  useEffect(() => { if (!zonaTocada.current && sugZonas[0]) setZona(sugZonas[0]) }, [sugZonas])
   const cargarHistorial = () => supabase.from('busquedas').select('*').order('created_at', { ascending: false }).limit(6).then(({ data }) => setHistorial(data ?? []))
   useEffect(() => { cargarHistorial() }, [])
 
@@ -153,7 +161,7 @@ export default function BuscarPlaces() {
         </label>
         <label className="bb-campo">
           <span><MapPin size={14} /> Dónde</span>
-          <SelectorZona pais={perfil?.pais} region={perfil?.region} value={zona} onChange={v => { setZona(v); setBrief(null) }} sugeridas={sugZonas} disabled={cargando} />
+          <SelectorZona pais={perfil?.pais} region={perfil?.region} value={zona} onChange={v => { zonaTocada.current = true; setZona(v); setBrief(null) }} sugeridas={sugZonas} disabled={cargando} />
         </label>
         <label className="bb-campo bb-chico">
           <span>Cuántos</span>
@@ -169,7 +177,7 @@ export default function BuscarPlaces() {
         <button type="button" className={'filtros-pill' + (verFiltros ? ' abierto' : '') + (filtrosActivos.length ? ' con' : '')} onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros}>
           <SlidersHorizontal size={14} /> Filtros{filtrosActivos.length ? <span className="filtros-num">{filtrosActivos.length}</span> : ''} <ChevronDown size={13} style={{ transform: verFiltros ? 'rotate(180deg)' : '' }} />
         </button>
-        {!verFiltros && filtrosActivos.map(f => <span key={f.id} className="filtro-activo"><Check size={12} /> {f.titulo}</span>)}
+        {!verFiltros && filtrosActivos.map(f => <button key={f.id} type="button" className="filtro-activo" title={`${f.descripcion || f.titulo} · tocá para sacarlo`} onClick={() => { alternar(f.id); setBrief(null) }} disabled={cargando}><Check size={12} /> {f.titulo}<X size={12} className="filtro-quitar" /></button>)}
         <span className="espacio" />
         <span className="muted chico bb-tiempo">{cantidad <= 10 ? 'Tarda menos de 1 minuto' : cantidad <= 20 ? 'Tarda ≈ 1 minuto' : 'Tarda un par de minutos'} · no repite las que ya tenés</span>
       </div>
@@ -207,7 +215,7 @@ export default function BuscarPlaces() {
               </div>
               <div className="sug-bloque">
                 <div className="sug-titulo"><MapPin size={14} /> Zonas</div>
-                <div className="sug-chips">{zonasSug.map(z => <button key={z} type="button" className={'sug-chip zona' + (zona === z ? ' on' : '')} onClick={() => { setZona(z); setBrief(null) }}>{zona === z && <Check size={12} />}{z}</button>)}</div>
+                <div className="sug-chips">{zonasSug.map(z => <button key={z} type="button" className={'sug-chip zona' + (zona === z ? ' on' : '')} onClick={() => { zonaTocada.current = true; setZona(z); setBrief(null) }}>{zona === z && <Check size={12} />}{z}</button>)}</div>
               </div>
             </div>
           </div>
@@ -227,9 +235,15 @@ export default function BuscarPlaces() {
             </div>
             <Pencil size={14} className="muted" />
           </div>
-          {(brief._aprendizaje?.sirven > 0 || brief._aprendizaje?.no_sirven > 0) && (
-            <span className="aprendio"><Check size={13} /> Aprendí de {brief._aprendizaje.sirven} empresas que te sirvieron y {brief._aprendizaje.no_sirven} que no</span>
-          )}
+          {brief._aprendizaje && (brief._aprendizaje.sirven > 0 || brief._aprendizaje.no_sirven > 0 ? (
+            <div className="aprendio">
+              <Sparkles size={14} />
+              <span>Aprendí de <b>{brief._aprendizaje.sirven} empresa{brief._aprendizaje.sirven === 1 ? '' : 's'} que te sirven</b> y {brief._aprendizaje.no_sirven} que descartaste.
+                {brief._aprendizaje.ejemplos?.length > 0 && <> Busco parecidas a {brief._aprendizaje.ejemplos.slice(0, 3).join(', ')}{brief._aprendizaje.sirven > 3 ? ' y las demás' : ''}.</>}</span>
+            </div>
+          ) : (
+            <div className="aprendio vacio"><Sparkles size={14} /><span>Todavía no tengo de qué aprender: sumá a tu lista las que te sirven y descartá las que no (con el motivo). Cada búsqueda nueva va a traer más parecidas a las buenas.</span></div>
+          ))}
           <div className="brief-grid">
             <div><b className="ok-txt"><Check size={14} /> Sí entran</b><ChipsEditables tipo="si" items={brief.incluir} onChange={v => setBrief({ ...brief, incluir: v })} placeholder="Agregar tipo" /></div>
             <div><b className="no-txt"><X size={14} /> No entran</b><ChipsEditables tipo="no" items={brief.excluir} onChange={v => setBrief({ ...brief, excluir: v })} placeholder="Ej.: mudanzas" /></div>
@@ -267,7 +281,8 @@ export default function BuscarPlaces() {
                 {(res.ya_conocidos > 0 || res.no_encajan > 0 || res.descartados > 0) && <><br />No te mostramos {[
                   res.ya_conocidos > 0 && `${res.ya_conocidos} que ya tenías${res.ya_descartados ? ' o descartaste' : ''}`,
                   res.no_encajan > 0 && `${res.no_encajan} que no encajaban`,
-                  res.descartados > 0 && `${res.descartados} sin los datos pedidos`].filter(Boolean).join(', ')}.</>}
+                  res.descartados > 0 && `${res.descartados} que no cumplían los filtros`].filter(Boolean).join(', ')}.</>}
+                {res.aprendizaje?.parecidas > 0 && <><br /><Sparkles size={12} style={{ verticalAlign: -1 }} /> {res.aprendizaje.parecidas} se parecen a las que ya te sirven: están primeras.</>}
               </p>
             </div>
             <div className="acciones">

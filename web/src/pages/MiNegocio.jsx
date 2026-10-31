@@ -8,7 +8,7 @@ import { mensajeError } from '../lib/util.js'
 import { Aviso, Cargando, useToast } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
 
-const VACIO = { empresa: '', que_vende: '', cliente_ideal: '', tamanos: [], zonas: [], senales: '', no_quiere: '', canales: ['WhatsApp'], diferencial: '', web: '' }
+const VACIO = { empresa: '', que_vende: '', cliente_ideal: '', tamanos: [], zonas: [], senales: '', no_quiere: '', ejemplos: '', canales: ['WhatsApp'], diferencial: '', web: '' }
 
 export default function MiNegocio() {
   const { comercial, setComercial, perfil } = useApp()
@@ -39,8 +39,8 @@ function Formulario({ inicial, volver, onListo }) {
   const [texto, setTexto] = useState(inicial.que_vende ? [inicial.que_vende, inicial.cliente_ideal].filter(Boolean).join('. ') : '')
   const [zonas, setZonas] = useState(inicial.zonas?.length ? inicial.zonas : [zonasDe(perfil?.pais, perfil?.region, perfil?.paises)[0]])
   const [web, setWeb] = useState(inicial.web || '')
-  const [masDatos, setMasDatos] = useState(false)
-  const [extra, setExtra] = useState({ empresa: inicial.empresa || '', diferencial: inicial.diferencial || '', no_quiere: inicial.no_quiere || '' })
+  const [masDatos, setMasDatos] = useState(!!inicial.ejemplos || false)
+  const [extra, setExtra] = useState({ empresa: inicial.empresa || '', diferencial: inicial.diferencial || '', no_quiere: inicial.no_quiere || '', ejemplos: inicial.ejemplos || '' })
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
   const alternar = z => setZonas(x => x.includes(z) ? x.filter(y => y !== z) : [...x, z])
@@ -97,6 +97,7 @@ function Formulario({ inicial, volver, onListo }) {
           <label>Nombre de tu empresa<input value={extra.empresa} onChange={e => setExtra({ ...extra, empresa: e.target.value })} placeholder="Ej.: Bombas Cuyo" /></label>
           <label>¿Por qué te eligen?<input value={extra.diferencial} onChange={e => setExtra({ ...extra, diferencial: e.target.value })} placeholder="Ej.: servicio técnico en 24 hs" /></label>
           <label>¿A quién NO le querés vender?<input value={extra.no_quiere} onChange={e => setExtra({ ...extra, no_quiere: e.target.value })} placeholder="Ej.: particulares" /></label>
+          <label className="ancho-completo">Empresas que ya son tus clientes (o que te encantaría tener)<input value={extra.ejemplos} onChange={e => setExtra({ ...extra, ejemplos: e.target.value })} maxLength={400} placeholder="Ej.: Distrosol, Disur, Andreani Mendoza — el buscador trae parecidas" /></label>
         </div>
       ) : (
         <button type="button" className="link onb-mas" onClick={() => setMasDatos(true)}>+ Sumar más detalles (opcional)</button>

@@ -62,6 +62,7 @@ function paisDe(zona: string): Ubic {
   return p ? { code: p[1], tz: p[2], nombre: NOMBRE_PAIS[p[1]], multi: false } : { code: 'AR', tz: 'America/Argentina/Buenos_Aires', nombre: 'Argentina', multi: false }
 }
 
+const enfoqueParecidas = (ejemplos: string[], z: string) => ({ nombre: 'parecidas', texto: () => `Enfoque: empresas PARECIDAS a las que ya le sirven a esta persona: ${ejemplos.join('; ')}. Buscá en ${z} empresas del mismo tipo, tamaño y forma de operar (sus competidores directos, las del mismo parque industrial o polo, las que aparecen junto a ellas en directorios y en "empresas similares"). No traigas esas mismas.` })
 const ENFOQUES = [
   { nombre: 'mapas', texto: (r: string, z: string) => `Enfoque: Google Maps y fichas de negocios. Buscá cada término útil + "${z}" (ej. "${r} ${z}").` },
   { nombre: 'directorios', texto: (r: string, z: string) => `Enfoque: directorios de empresas, parques industriales, cámaras empresariales y del sector, guías comerciales y listados ("${r} ${z}", "empresas de <rubro> ${z}", "parque industrial ${z}", "cámara de <rubro> ${z}").` },
@@ -75,7 +76,7 @@ function contextoEmpresa(c: Dic | null) {
   if (!e.resumen && !r.que_vende) return ''
   return `Quién busca clientes: ${r.empresa ? r.empresa + '. ' : ''}${e.resumen || String(r.que_vende).slice(0, 600)}
 Cliente ideal: ${e.cliente_ideal || r.cliente_ideal || 's/d'}
-${e.criterios?.length ? `Señales de buen prospecto: ${e.criterios.join('; ')}\n` : ''}${e.descartar?.length ? `Descartá: ${e.descartar.join('; ')}\n` : ''}`
+${e.criterios?.length ? `Señales de buen prospecto: ${e.criterios.join('; ')}\n` : ''}${e.descartar?.length ? `Descartá: ${e.descartar.join('; ')}\n` : ''}${r.no_quiere ? `NO quiere: ${String(r.no_quiere).slice(0, 300)}\n` : ''}${r.ejemplos ? `Empresas que ya son sus clientes o que le encantaría tener (buscá parecidas): ${String(r.ejemplos).slice(0, 400)}\n` : ''}`
 }
 
 function prompt(o: { pais: string, multi?: boolean, rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string }) {
@@ -94,14 +95,14 @@ ${o.contexto || 'Objetivo: armar una lista de prospectos comerciales para contac
 ${o.aprendido}
 ${o.enfoque}
 
-${reglas.length ? `Requisitos que TIENEN que cumplir (si no podés comprobarlo con lo que ves públicamente, no lo incluyas):\n- ${reglas.join('\n- ')}\n` : ''}
+${reglas.length ? `Requisitos que TIENEN que cumplir TODOS (si no podés comprobarlo con lo que ves públicamente, no lo incluyas):\n- ${reglas.join('\n- ')}\nEn cada empresa completá "cumple" con cada requisito: true si lo comprobaste, false si no lo cumple.\n` : ''}
 Reglas:
 - Si de un negocio encontraste el nombre pero no el teléfono, hacé una búsqueda más con su nombre para completarlo.
 - Usá sólo información pública. No inventes datos: si no encontrás algo, dejalo vacío.
 ${o.pedido ? `- Pedido especial del usuario (respetalo): ${o.pedido}\n` : ''}${o.excluir.length ? `- Ya los tengo cargados, NO los repitas: ${o.excluir.join('; ')}.\n` : ''}
 Buscá hasta ${o.cuantos} negocios. Al final respondé SOLO con un bloque JSON (sin texto después) con este formato:
 \`\`\`json
-[{"nombre": "nombre comercial tal como lo conoce la gente", "tipo": "qué es, en 2-4 palabras (ej.: Distribuidora mayorista)", "direccion": "calle y número, localidad", "telefono": "", "email": "", "web": "https://...", "google_maps": "https://maps.google.com/... o https://maps.app.goo.gl/...", "instagram": "https://www.instagram.com/usuario/", "facebook": "https://www.facebook.com/...", "linkedin": "https://www.linkedin.com/company/...", "rating": "", "resenas": "", "fuente": "url donde lo encontraste", "encaje": "por qué es buen cliente para quien busca, concreto, en una frase", "puntaje": 4, "razones": {"a_favor": ["razón concreta y verificable, ej. Tiene depósito propio", "3 sucursales"], "en_contra": ["señal en contra si la hay"]}, "senales": "novedad reciente que da motivo para escribir ahora (está contratando, abrió sucursal, salió en noticias), o vacío", "decisor": {"nombre": "", "cargo": "", "linkedin": "", "fuente": "url donde lo viste"}, "nota": "dato útil para el primer contacto (opcional)"}]
+[{"nombre": "nombre comercial tal como lo conoce la gente", "tipo": "qué es, en 2-4 palabras (ej.: Distribuidora mayorista)", "direccion": "calle y número, localidad", "telefono": "", "email": "", "web": "https://...", "google_maps": "https://maps.google.com/... o https://maps.app.goo.gl/...", "instagram": "https://www.instagram.com/usuario/", "facebook": "https://www.facebook.com/...", "linkedin": "https://www.linkedin.com/company/...", "rating": "", "resenas": "", "fuente": "url donde lo encontraste", "encaje": "por qué es buen cliente para quien busca, concreto, en una frase", "puntaje": 4, "razones": {"a_favor": ["razón concreta y verificable, ej. Tiene depósito propio", "3 sucursales"], "en_contra": ["señal en contra si la hay"]}, "senales": "novedad reciente que da motivo para escribir ahora (está contratando, abrió sucursal, salió en noticias), o vacío", "decisor": {"nombre": "", "cargo": "", "linkedin": "", "fuente": "url donde lo viste"}, "nota": "dato útil para el primer contacto (opcional)"${o.filtros.length ? `, "cumple": {${o.filtros.map(f => `"${f.id}": true`).join(', ')}}` : ''}}]
 \`\`\`
 "nombre": el nombre comercial limpio, sin sufijos como "- Inicio" o "| Facebook". "web": la URL del sitio propio del negocio (aunque sea un link de reservas), o vacío. "google_maps", "instagram", "facebook" y "linkedin": sólo si viste el link real, si no vacío. "rating" y "resenas" sólo si los viste. "puntaje": de 1 a 5, qué tan buen prospecto es según lo que buscamos; "razones": las razones concretas de ese puntaje (a favor y en contra), sólo cosas que viste. "decisor": la persona que decide la compra de lo que vendemos (dueño, gerente comercial, compras, logística, según el rubro) si aparece en su web, en LinkedIn público o en notas de prensa, con la url donde lo viste; si no lo encontraste, dejalo vacío (no inventes nombres). "senales": sólo novedades reales y recientes que hayas visto.`
 }
@@ -116,23 +117,41 @@ function linkDe(v: unknown, patron: RegExp) {
   return patron.test(u) ? u : ''
 }
 
-/** Lo que la persona ya juzgó: qué empresas le sirvieron (sumadas y calificadas) y cuáles descartó y por qué */
-async function aprendizaje(db: any, owner: string) {
-  const [{ data: buenos }, { data: malos }] = await Promise.all([
-    db.from('prospectos').select('nombre, rubro, encaje, calificacion, estado').eq('owner_id', owner)
-      .order('calificacion', { ascending: false, nullsFirst: false }).order('updated_at', { ascending: false }).limit(60),
-    db.from('hallazgos').select('nombre, rubro, motivo').eq('owner_id', owner).eq('estado', 'descartado').order('revisado_at', { ascending: false }).limit(25),
+/** Lo que la persona (y su equipo) ya juzgó: qué empresas le sirvieron y cuáles descartó y por qué */
+async function aprendizaje(db: any, owner: string, equipo: string[]) {
+  const [{ data: pros }, { data: aprob }, { data: malos }] = await Promise.all([
+    db.from('prospectos').select('nombre, rubro, encaje, calificacion, estado, owner_id, perdido_motivo').in('owner_id', equipo)
+      .order('calificacion', { ascending: false, nullsFirst: false }).order('updated_at', { ascending: false }).limit(120),
+    db.from('hallazgos').select('nombre, rubro, encaje').in('owner_id', equipo).eq('estado', 'aprobado').order('revisado_at', { ascending: false, nullsFirst: false }).limit(30),
+    db.from('hallazgos').select('nombre, rubro, motivo').in('owner_id', equipo).eq('estado', 'descartado').order('revisado_at', { ascending: false, nullsFirst: false }).limit(30),
   ])
   const linea = (p: Dic) => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.encaje ? ` — ${String(p.encaje).slice(0, 90)}` : ''}`
-  const muy = (buenos ?? []).filter((p: Dic) => p.calificacion === 3 || p.estado === 'cliente').slice(0, 12)
-  const si = (buenos ?? []).filter((p: Dic) => p.calificacion !== 1 && !muy.includes(p)).slice(0, 12)
-  const flojos = (buenos ?? []).filter((p: Dic) => p.calificacion === 1).slice(0, 8)
+  const todos = (pros ?? []) as Dic[]
+  const fuerte = (p: Dic) => p.calificacion === 3 || ['respondio', 'reunion', 'propuesta', 'cliente'].includes(p.estado)
+  const malo = (p: Dic) => p.calificacion === 1 || ['no_interesado', 'no_contactar', 'perdido'].includes(p.estado)
+  const muy = todos.filter(fuerte).slice(0, 15)
+  const vistos = new Set(muy.map(p => String(p.nombre).toLowerCase()))
+  // Las que sumó a su lista (desde la bandeja o a mano): le sirven
+  const si = [...todos.filter(p => !fuerte(p) && !malo(p)), ...((aprob ?? []) as Dic[])]
+    .filter(p => { const k = String(p.nombre).toLowerCase(); if (vistos.has(k)) return false; vistos.add(k); return true }).slice(0, 20)
+  const flojos = todos.filter(malo).slice(0, 10)
   const no = (malos ?? []) as Dic[]
   const total = muy.length + si.length + flojos.length + no.length
-  if (!total) return { texto: '', sirven: 0, noSirven: 0 }
-  const texto = `Lo que aprendimos de esta persona (usalo para buscar parecidas a las que le sirven y evitar las que no):
-${muy.length ? `- Le sirven MUCHO: ${muy.map(linea).join('; ')}\n` : ''}${si.length ? `- Le sirven: ${si.map(linea).join('; ')}\n` : ''}${flojos.length ? `- Le sirven poco (más o menos): ${flojos.map(linea).join('; ')}\n` : ''}${no.length ? `- NO le sirven (descartadas): ${no.map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.motivo ? ` — motivo: ${p.motivo}` : ''}`).join('; ')}\n` : ''}`
-  return { texto, sirven: muy.length + si.length, noSirven: no.length + flojos.length }
+  const ejemplos = [...muy, ...si].slice(0, 8).map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}`)
+  if (!total) return { texto: '', sirven: 0, noSirven: 0, ejemplos }
+  const texto = `LO MÁS IMPORTANTE — lo que aprendimos de esta persona por las empresas que ya eligió y las que descartó. Buscá empresas PARECIDAS a las que le sirven (mismo tipo, tamaño y forma de operar) y evitá las parecidas a las descartadas:
+${muy.length ? `- Le sirven MUCHO (respondieron, tienen reunión o son clientes): ${muy.map(linea).join('; ')}\n` : ''}${si.length ? `- Le sirven (las sumó a su lista): ${si.map(linea).join('; ')}\n` : ''}${flojos.length ? `- NO le sirvieron después de contactarlas: ${flojos.map(p => `${linea(p)}${p.perdido_motivo ? ` — motivo: ${p.perdido_motivo}` : ''}`).join('; ')}\n` : ''}${no.length ? `- Descartadas (NO le sirven): ${no.map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.motivo ? ` — motivo: ${p.motivo}` : ''}`).join('; ')}\n` : ''}`
+  return { texto, sirven: muy.length + si.length, noSirven: no.length + flojos.length, ejemplos }
+}
+
+/** Filtros de contacto se comprueban con los datos; el resto los evalúa Claude con lo que ve públicamente */
+function tipoFiltro(f: Dic) {
+  const t = `${f.id} ${f.titulo}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (/sin_web|sin (pagina )?web|no tiene (pagina )?web/.test(t)) return 'sin_web'
+  if (/telefono|whatsapp|celular/.test(t)) return 'telefono'
+  if (/e-?mail|correo/.test(t)) return 'email'
+  if (/instagram/.test(t)) return 'instagram'
+  return 'ia'
 }
 
 type Brief = { interpretacion: string, buscar: string[], incluir: string[], excluir: string[] }
@@ -183,21 +202,25 @@ function briefDesde(b: unknown, rubro: string): Brief | null {
   return { interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 8).length ? lista(o.buscar, 8) : [rubro], incluir: lista(o.incluir, 10), excluir: lista(o.excluir, 10) }
 }
 
-/** Segunda mirada: descarta los resultados que no son el tipo de empresa pedido */
-async function verificar(key: string, modelo: string, brief: Brief, items: Dic[], aprendido = '') {
-  if (!items.length) return { quedan: new Set(items.map((_, i) => i)), usoIn: 0, usoOut: 0 }
+/** Segunda mirada: descarta lo que no es el tipo de empresa pedido o no cumple los filtros, y marca las más parecidas a las que le sirven */
+async function verificar(key: string, modelo: string, brief: Brief, items: Dic[], aprendido = '', requisitos: Dic[] = []) {
+  const todos = new Set(items.map((_, i) => i))
+  if (!items.length) return { quedan: todos, parecidas: new Set<number>(), noCumplen: 0, usoIn: 0, usoOut: 0 }
   try {
     const r = await llamarClaude(key, modelo, `Buscamos: ${brief.interpretacion}
-${brief.incluir.length ? `Entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}${aprendido ? `${aprendido}\n` : ''}
-Para cada empresa decidí si entra como CLIENTE. No entran: competencia (venden o instalan lo mismo que quien busca), integradores, revendedores o proveedores del mismo rubro. Ante la duda razonable, que entre. Respondé SOLO con JSON: {"no_entran": [índices]}
+${brief.incluir.length ? `Entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}${requisitos.length ? `Requisitos OBLIGATORIOS (si por lo que dice de la empresa claramente no cumple alguno, no entra): ${requisitos.map(f => `${f.titulo}${f.descripcion ? ` (${f.descripcion})` : ''}`).join('; ')}\n` : ''}${aprendido ? `${aprendido}\n` : ''}
+Para cada empresa decidí si entra como CLIENTE. No entran: competencia (venden o instalan lo mismo que quien busca), integradores, revendedores o proveedores del mismo rubro, ni las que no cumplen los requisitos. Ante la duda razonable sobre el tipo de empresa, que entre.${aprendido ? ' Además marcá en "parecidas" las que más se parecen a las que le sirven a esta persona.' : ''}
+Respondé SOLO con JSON: {"no_entran": [índices], "no_cumplen": [índices de las que no entran por un requisito]${aprendido ? ', "parecidas": [índices]' : ''}}
 
-${items.map((n, i) => `${i}. ${n.nombre} — ${n.rubro}${n.encaje ? ` — ${n.encaje}` : ''}${n.web_actual ? ` — ${n.web_actual}` : ''}`).join('\n')}`, 8000)
+${items.map((n, i) => `${i}. ${n.nombre} — ${n.rubro}${n.encaje ? ` — ${n.encaje}` : ''}${n.razones?.a_favor?.length ? ` — a favor: ${n.razones.a_favor.join(', ')}` : ''}${n.razones?.en_contra?.length ? ` — en contra: ${n.razones.en_contra.join(', ')}` : ''}${n.web_actual ? ` — ${n.web_actual}` : ''}`).join('\n')}`, 8000)
     const o = extraerObjeto(r.texto)
-    const fuera = new Set((Array.isArray(o?.no_entran) ? o!.no_entran : []).map(Number))
-    // Si quiere sacar casi todo, probablemente entendió mal: no filtrar
-    if (fuera.size > items.length * 0.7) fuera.clear()
-    return { quedan: new Set(items.map((_, i) => i).filter(i => !fuera.has(i))), usoIn: r.usoIn, usoOut: r.usoOut }
-  } catch (e) { console.error('verificar', e); return { quedan: new Set(items.map((_, i) => i)), usoIn: 0, usoOut: 0 } }
+    const nums = (v: unknown) => new Set((Array.isArray(v) ? v : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < items.length))
+    const fuera = nums(o?.no_entran), noCumplen = nums(o?.no_cumplen)
+    for (const n of noCumplen) fuera.add(n)
+    // Si quiere sacar casi todo por el tipo de empresa, probablemente entendió mal: sólo se aplican los requisitos
+    if (fuera.size > items.length * 0.8) { fuera.clear(); for (const n of noCumplen) fuera.add(n) }
+    return { quedan: new Set([...todos].filter(i => !fuera.has(i))), parecidas: nums(o?.parecidas), noCumplen: noCumplen.size, usoIn: r.usoIn, usoOut: r.usoOut }
+  } catch (e) { console.error('verificar', e); return { quedan: todos, parecidas: new Set<number>(), noCumplen: 0, usoIn: 0, usoOut: 0 } }
 }
 
 function extraerLista(texto: string): Dic[] {
@@ -278,6 +301,8 @@ export async function buscar(req: Request, h: Ayudas) {
     filtros = Object.keys(T).filter(k => k === 'sin_web' ? body.requisitos.sin_web !== false : !!body.requisitos[k]).map(k => ({ id: k, titulo: T[k], descripcion: '' }))
   }
   const ids = new Set(filtros.map(f => f.id))
+  const tipos = new Set(filtros.map(tipoFiltro))
+  const filtrosIA = filtros.filter(f => tipoFiltro(f) === 'ia')
   const guardar = body.guardar !== false
   if (!rubro || !zona) return json({ error: 'Escribí qué buscás y dónde.' }, 400)
 
@@ -293,21 +318,21 @@ export async function buscar(req: Request, h: Ayudas) {
 
   // Paso 1: entender qué quiere (y qué NO). Con modo "interpretar" sólo devuelve esto para que la persona lo ajuste.
   let usoIn = 0, usoOut = 0
-  const apr = await aprendizaje(db, user.id)
-  let brief = briefDesde(body.brief, rubro)
-  if (!brief) {
-    const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto, pais.nombre, pais.multi)
-    brief = it.brief; usoIn += it.usoIn; usoOut += it.usoOut
-  }
-  if (body.modo === 'interpretar') return json({ brief, zona, pais: pais.nombre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven } }) // no descuenta cupo: es una consulta chiquita
-
-  // Lo que ya conoce la cuenta y su equipo (en la lista, en la bandeja o descartado): no se vuelve a traer
   const { data: yo } = await db.from('perfiles').select('empresa_id').eq('id', user.id).maybeSingle()
   let equipo = [user.id]
   if (yo?.empresa_id) {
     const { data: comp } = await db.from('perfiles').select('id').eq('empresa_id', yo.empresa_id).limit(200)
     equipo = [...new Set([user.id, ...(comp ?? []).map((c: Dic) => c.id)])]
   }
+  const apr = await aprendizaje(db, user.id, equipo)
+  let brief = briefDesde(body.brief, rubro)
+  if (!brief) {
+    const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto, pais.nombre, pais.multi)
+    brief = it.brief; usoIn += it.usoIn; usoOut += it.usoOut
+  }
+  if (body.modo === 'interpretar') return json({ brief, zona, pais: pais.nombre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, ejemplos: apr.ejemplos.slice(0, 5) } }) // no descuenta cupo: es una consulta chiquita
+
+  // Lo que ya conoce la cuenta y su equipo (en la lista, en la bandeja o descartado): no se vuelve a traer
   const [{ data: hs }, { data: ps }] = await Promise.all([
     db.from('hallazgos').select('nombre, telefono_norm, zona, estado, web').in('owner_id', equipo).order('created_at', { ascending: false }).limit(5000),
     db.from('prospectos').select('nombre, telefono_norm, zona, dominio_norm').in('owner_id', equipo).order('created_at', { ascending: false }).limit(5000),
@@ -322,9 +347,11 @@ export async function buscar(req: Request, h: Ayudas) {
   const excluir = conocidos.filter(c => !zonaClave || clave(c.zona ?? '').includes(zonaClave) || zonaClave.includes(clave(c.zona ?? '') || '~')).map(c => c.nombre).slice(0, 150)
 
   // Paso 2: varias búsquedas en paralelo, cada una con otro enfoque
-  const lotes = Math.min(4, Math.max(1, Math.ceil(cantidad / 10)))
+  // Con empresas que ya le sirven, una de las búsquedas va siempre a buscar parecidas a esas
+  const enfoques = apr.ejemplos.length ? [enfoqueParecidas(apr.ejemplos, zona), ...ENFOQUES] : ENFOQUES
+  const lotes = Math.min(4, Math.max(apr.ejemplos.length ? 2 : 1, Math.ceil(cantidad / 10)))
   const cuantos = Math.ceil(cantidad / lotes) + 3
-  const corridas = await Promise.all(ENFOQUES.slice(0, lotes).map(e =>
+  const corridas = await Promise.all(enfoques.slice(0, lotes).map(e =>
     unaBusqueda(key, modelo, prompt({ pais: pais.nombre, multi: pais.multi, rubro, zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, pais)))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
   const crudos = corridas.flatMap(c => extraerLista(c.salida))
@@ -367,6 +394,7 @@ export async function buscar(req: Request, h: Ayudas) {
       senales: String(n.senales ?? '').slice(0, 300),
       decisor: n.decisor?.nombre ? { nombre: String(n.decisor.nombre).slice(0, 80), cargo: String(n.decisor.cargo ?? '').slice(0, 80), linkedin: linkDe(n.decisor.linkedin, /linkedin\.com\//i), fuente: /^https?:\/\//.test(String(n.decisor.fuente ?? '')) ? String(n.decisor.fuente) : '' } : null,
       es_prospecto: esProspecto,
+      no_cumple: filtrosIA.some(f => n.cumple && typeof n.cumple === 'object' && n.cumple[f.id] === false),
     }
   }).filter(n => {
     const k = clave(n.nombre), t = normalizarTelefono(n.telefono)
@@ -374,26 +402,29 @@ export async function buscar(req: Request, h: Ayudas) {
     vistosNom.add(k); if (t) vistosTel.add(t)
     const dom = n.web_actual && !/facebook|instagram|linktr|wa\.me/i.test(n.web_actual) ? dominio(n.web_actual) : ''
     if (nomConocidos.has(k) || (t && telConocidos.has(t)) || (dom && domConocidos.has(dom))) { yaConocidos++; if (nomDescartados.has(k)) yaDescartados++; return false }
-    if ((ids.has('con_telefono') && !n.telefono) || (ids.has('con_email') && !n.email) || (ids.has('con_instagram') && !n.instagram) || (ids.has('sin_web') && !n.es_prospecto)) { descartados++; return false }
+    if ((tipos.has('telefono') && !n.telefono) || (tipos.has('email') && !n.email) || (tipos.has('instagram') && !n.instagram) || (tipos.has('sin_web') && !n.es_prospecto) || n.no_cumple) { descartados++; return false }
     return true
   })
 
   // Paso 3: segunda mirada contra lo que se pidió
-  const ver = await verificar(key, modeloRapido, brief, candidatos, apr.texto)
+  const ver = await verificar(key, modeloRapido, brief, candidatos, apr.texto, filtrosIA)
   usoIn += ver.usoIn; usoOut += ver.usoOut
-  const noEncajan = candidatos.length - ver.quedan.size
+  const noEncajan = candidatos.length - ver.quedan.size - ver.noCumplen
+  descartados += ver.noCumplen
+  const parecida = new Set(candidatos.filter((_, i) => ver.parecidas.has(i)).map(c => c.nombre))
   const resultados = candidatos.filter((_, i) => ver.quedan.has(i))
-    .sort((a, b) => (b.puntaje ?? 0) - (a.puntaje ?? 0) || Number(!!b.telefono) - Number(!!a.telefono) || Number(!!b.email) - Number(!!a.email))
+    .map(c => parecida.has(c.nombre) ? { ...c, nota: c.nota ? c.nota : 'Parecida a las que te sirven', razones: { ...c.razones, a_favor: ['Parecida a empresas que ya te sirven', ...c.razones.a_favor].slice(0, 5) } } : c)
+    .sort((a, b) => Number(parecida.has(b.nombre)) - Number(parecida.has(a.nombre)) || (b.puntaje ?? 0) - (a.puntaje ?? 0) || Number(!!b.telefono) - Number(!!a.telefono) || Number(!!b.email) - Number(!!a.email))
     .slice(0, cantidad + 5)
   if (usoIn) await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: usoIn, tokens_out: usoOut })
 
   // Guardar en la bandeja "Por revisar"
   let busquedaId: string | null = null
-  let salida: Dic[] = resultados.map(({ es_prospecto, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
+  let salida: Dic[] = resultados.map(({ es_prospecto, no_cumple, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
   if (guardar && resultados.length) {
     const { data: b } = await db.from('busquedas').insert({ owner_id: user.id, rubro, zona, pedido, requisitos: { filtros: [...ids], brief }, cantidad, encontrados: resultados.length }).select('id').single()
     busquedaId = b?.id ?? null
-    const filas = resultados.map(({ es_prospecto, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
+    const filas = resultados.map(({ es_prospecto, no_cumple, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
       google_maps_url: r.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([r.nombre, r.direccion, zona].filter(Boolean).join(' '))}` }))
     const { data: ins, error } = await supabase.from('hallazgos').upsert(filas, { onConflict: 'owner_id,clave_nombre', ignoreDuplicates: true }).select('*')
     if (error) console.error('hallazgos', error)
@@ -404,7 +435,7 @@ export async function buscar(req: Request, h: Ayudas) {
   const { data: cupoNuevo } = await db.rpc('cupo_chat', { p_usuario: user.id })
   return json({
     resultados: salida, busqueda_id: busquedaId, brief, descartados, no_encajan: noEncajan, ya_conocidos: yaConocidos, ya_descartados: yaDescartados, cupo: cupoNuevo,
-    busquedas: corridas.reduce((a, c) => a + c.busquedas, 0), enfoques: lotes, modelo,
+    busquedas: corridas.reduce((a, c) => a + c.busquedas, 0), enfoques: lotes, modelo, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, parecidas: parecida.size },
     aviso: corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : '',
   })
 }
