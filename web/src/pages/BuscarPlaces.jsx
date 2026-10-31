@@ -45,7 +45,7 @@ export default function BuscarPlaces() {
   const [ocupados, setOcupados] = useState(new Set())
   const est = comercial?.estrategia?.rubros?.length ? comercial.estrategia : null
   const sugRubros = useMemo(() => est ? est.rubros.map(r => r.nombre) : ['barbería', 'centro de estética', 'veterinaria', 'gimnasio', 'estudio contable', 'inmobiliaria', 'restaurante', 'taller mecánico'], [est])
-  const sugZonas = useMemo(() => est?.zonas?.length ? est.zonas : zonasDe(perfil?.pais, perfil?.region), [est, perfil?.pais, perfil?.region])
+  const sugZonas = useMemo(() => est?.zonas?.length ? est.zonas : zonasDe(perfil?.pais, perfil?.region, perfil?.paises), [est, perfil?.pais, perfil?.region, perfil?.paises])
   const todosRubros = useMemo(() => [...new Set([...sugRubros, ...RUBROS.flatMap(g => g.items)])], [sugRubros])
   const todasZonas = useMemo(() => [...new Set([...sugZonas, ...(perfil?.pais === 'AR' && perfil?.region === 'Mendoza' ? ZONAS.flatMap(g => g.items) : []), ...zonasDe(perfil?.pais, null), 'Todo el país'])], [sugZonas, perfil?.pais, perfil?.region])
   const filtros = est?.filtros?.length ? est.filtros : FILTROS_DEFECTO
@@ -192,7 +192,7 @@ export default function BuscarPlaces() {
 
       {!cargando && !res && !brief && !entendiendo && (() => {
         const ejemplos = ['empresas grandes con depósito', 'locales que venden celulares', 'constructoras medianas', 'clínicas privadas', 'distribuidoras de alimentos'].filter(x => !sugRubros.some(r => r.toLowerCase() === x.toLowerCase() || r.toLowerCase() + 's' === x.toLowerCase()))
-        const vecinos = { AR: ['Chile', 'Uruguay', 'Paraguay'], CL: ['Argentina', 'Perú'], UY: ['Argentina', 'Brasil'], PE: ['Chile', 'Colombia', 'Ecuador'], CO: ['Ecuador', 'Perú', 'Panamá'], MX: ['Guatemala', 'Estados Unidos'] }[perfil?.pais] ?? ['Latinoamérica']
+        const vecinos = perfil?.paises?.length ? [] : { AR: ['Chile', 'Uruguay', 'Paraguay'], CL: ['Argentina', 'Perú'], UY: ['Argentina', 'Brasil'], PE: ['Chile', 'Colombia', 'Ecuador'], CO: ['Ecuador', 'Perú', 'Panamá'], MX: ['Guatemala', 'Estados Unidos'] }[perfil?.pais] ?? ['Latinoamérica']
         const zonasSug = [...new Set([...sugZonas.slice(0, 8), ...vecinos])]
         return (
           <div className="bb-sugerencias">

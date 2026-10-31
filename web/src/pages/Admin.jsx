@@ -6,6 +6,8 @@ import { Avatar, Esqueleto, Interruptor, Modal, Aviso, Contador, useConfirmar, u
 import Desplegable from '../components/Desplegable.jsx'
 import { useApp } from '../App.jsx'
 import { Metricas, Planes, Soporte } from '../components/AdminExtra.jsx'
+import { CamposPais, SelectorTipoVenta, TIPOS_VENTA, tipoDe, Bandera } from '../components/ElegirPais.jsx'
+import { nombrePais } from '../lib/catalogo.js'
 
 const PLANES = [
   { value: 'prueba', label: 'Prueba', limite: 100, ayuda: '100 consultas de IA por mes' },
@@ -212,6 +214,10 @@ function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales 
   const confirmar = useConfirmar()
   const { session } = useApp()
   const [q, setQ] = useState('')
+  const [cfg, setCfg] = useState({})
+  const [configurando, setConfigurando] = useState(null)
+  const cargarCfg = () => supabase.from('perfiles').select('id, pais, region, modos, paises').in('id', usuarios.map(u => u.id)).then(({ data }) => setCfg(Object.fromEntries((Array.isArray(data) ? data : []).map(x => [x.id, x]))))
+  useEffect(() => { if (usuarios.length) cargarCfg() }, [usuarios])
   const lista = useMemo(() => {
     const t = q.trim().toLowerCase()
     return t ? usuarios.filter(u => [u.nombre, u.email, u.empresa].some(x => x?.toLowerCase().includes(t))) : usuarios
@@ -242,7 +248,7 @@ function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales 
       </div>
       <div className="scroll-x">
         <table className="tabla">
-          <thead><tr><th>Persona</th><th>Empresa</th><th>Prospectos</th><th>Envíos</th><th>Clientes</th><th title="Consultas al asistente hoy / límite diario">Asistente IA</th><th>Último ingreso</th><th>Acceso</th></tr></thead>
+          <thead><tr><th>Persona</th><th>Empresa</th><th>País · venta</th><th>Prospectos</th><th>Envíos</th><th>Clientes</th><th title="Consultas al asistente hoy / límite diario">Asistente IA</th><th>Último ingreso</th><th>Acceso</th></tr></thead>
           <tbody>
             {lista.map(u => {
               const yo = u.id === session.user.id
@@ -262,6 +268,12 @@ function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales 
                       onChange={v => actualizar(u, { empresa: v || null }, 'Empresa actualizada')}
                       opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.map(e => ({ value: e.id, label: e.nombre, ayuda: e.activa ? '' : 'Suspendida', icono: <Building2 size={14} /> }))]} />
                   </td>
+                  <td className="nowrap">
+                    <button type="button" className="btn chico fantasma config-usuario" onClick={() => setConfigurando(u)} title="Cambiar país y tipo de venta">
+                      <Bandera code={cfg[u.id]?.pais} /> {cfg[u.id]?.pais ? (cfg[u.id]?.region || nombrePais(cfg[u.id].pais)) : <span className="muted">Sin configurar</span>}{cfg[u.id]?.paises?.length > 0 && <span className="muted chico">+{cfg[u.id].paises.length}</span>}
+                      <span className={'chip tipo-' + tipoDe(cfg[u.id]?.modos)}>{({ b2b: 'B2B', b2c: 'B2C', ambos: 'B2B + B2C' })[tipoDe(cfg[u.id]?.modos)]}</span>
+                    </button>
+                  </td>
                   <td>{u.prospectos}</td><td>{u.enviados}</td><td>{u.clientes}</td>
                   <td><LimiteChat u={u} onGuardar={async v => {
                     const { error } = await supabase.rpc('admin_limite_chat', { p_id: u.id, p_limite: v })
@@ -278,13 +290,40 @@ function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales 
                 </tr>
               )
             })}
-            {!lista.length && <tr><td colSpan={8} className="muted centrado" style={{ padding: 30 }}>No hay usuarios{q && ' con esa búsqueda'}.</td></tr>}
+            {!lista.length && <tr><td colSpan={9} className="muted centrado" style={{ padding: 30 }}>No hay usuarios{q && ' con esa búsqueda'}.</td></tr>}
           </tbody>
         </table>
       </div>
+      {configurando && <ConfigurarCuenta u={configurando} actual={cfg[configurando.id]} onCerrar={() => setConfigurando(null)} onListo={() => { setConfigurando(null); cargarCfg() }} />}
     </section>
   )
 }
+/** Super admin · país, provincia y tipo de venta (B2B / B2C) de una cuenta */
+function ConfigurarCuenta({ u, actual, onCerrar, onListo }) {
+  const toast = useToast()
+  const [lugar, setLugar] = useState({ pais: actual?.pais || 'AR', region: actual?.region || '', otros: actual?.paises ?? [] })
+  const [tipo, setTipo] = useState(tipoDe(actual?.modos))
+  const [guardando, setGuardando] = useState(false)
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await llamarFuncion('admin-usuarios', { modo: 'configurar', id: u.id, pais: lugar.pais, region: lugar.region, paises: lugar.otros, modos: TIPOS_VENTA.find(t => t[0] === tipo)[1] })
+      toast('Cuenta configurada', 'ok'); onListo()
+    } catch (e) { toast(e.message, 'error') }
+    setGuardando(false)
+  }
+  return (
+    <Modal onCerrar={onCerrar} ancho={620}>
+      <h3 style={{ marginTop: 0 }}>Configurar la cuenta de {u.nombre || u.email}</h3>
+      {u.empresa && <p className="muted chico">Es de {u.empresa}: el tipo de venta se aplica a todo su equipo.</p>}
+      <CamposPais pais={lugar.pais} region={lugar.region} otros={lugar.otros} onChange={setLugar} />
+      <div className="campo" style={{ marginBottom: 6 }}>¿A quién le vende?</div>
+      <SelectorTipoVenta valor={tipo} onChange={setTipo} />
+      <div className="acciones fin"><button type="button" className="btn" onClick={onCerrar}>Cancelar</button><button type="button" className="btn primario" onClick={guardar} disabled={guardando || !lugar.pais}>{guardando && <Loader2 size={15} className="spin" />} Guardar</button></div>
+    </Modal>
+  )
+}
+
 function LimiteChat({ u, onGuardar }) {
   const [v, setV] = useState(u.chat?.limite_propio ?? '')
   useEffect(() => { setV(u.chat?.limite_propio ?? '') }, [u.chat?.limite_propio])
@@ -308,19 +347,22 @@ const SearchIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="n
 function NuevoUsuario({ inicial, empresas, onCerrar, onCreado }) {
   const toast = useToast()
   const [f, setF] = useState({ nombre: '', email: '', empresa_id: inicial.empresa_id ?? '' })
+  const [lugar, setLugar] = useState({ pais: 'AR', region: '', otros: [] })
+  const [tipo, setTipo] = useState('b2b')
   const [creando, setCreando] = useState(false)
   async function crear(e) {
     e.preventDefault()
     setCreando(true)
     try {
-      const r = await llamarFuncion('admin-usuarios', { modo: 'crear', ...f, empresa_id: f.empresa_id || null })
+      const modos = TIPOS_VENTA.find(t => t[0] === tipo)[1]
+      const r = await llamarFuncion('admin-usuarios', { modo: 'crear', ...f, empresa_id: f.empresa_id || null, pais: lugar.pais, region: lugar.region, paises: lugar.otros, modos })
       toast(`Cuenta de ${f.nombre} creada`)
       onCreado({ nombre: f.nombre, email: r.email, password: r.password, nueva: true })
     } catch (err) { toast(err.message, 'error') }
     setCreando(false)
   }
   return (
-    <Modal onCerrar={onCerrar}>
+    <Modal onCerrar={onCerrar} ancho={640}>
       <form onSubmit={crear}>
         <h3>Nuevo usuario</h3>
         <p>Creamos la cuenta con una contraseña inicial que te mostramos una sola vez para que se la pases.</p>
@@ -329,6 +371,13 @@ function NuevoUsuario({ inicial, empresas, onCerrar, onCreado }) {
         <div className="campo">Empresa
           <Desplegable className="ancho" ariaLabel="Empresa del usuario" value={f.empresa_id} onChange={v => setF({ ...f, empresa_id: v })}
             opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.filter(e => e.activa).map(e => ({ value: e.id, label: e.nombre, icono: <Building2 size={14} /> }))]} />
+        </div>
+        <div className="alta-config">
+          <b>Configuración de la cuenta</b>
+          <small className="muted">Con esto entra directo, sin preguntas. Se puede cambiar después.{f.empresa_id && ' El tipo de venta vale para toda la empresa.'}</small>
+          <CamposPais pais={lugar.pais} region={lugar.region} otros={lugar.otros} onChange={setLugar} />
+          <div className="campo" style={{ marginBottom: 6 }}>¿A quién le vende?</div>
+          <SelectorTipoVenta valor={tipo} onChange={setTipo} />
         </div>
         <div className="acciones fin">
           <button type="button" className="btn" onClick={onCerrar}>Cancelar</button>

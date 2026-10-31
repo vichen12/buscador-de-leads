@@ -1739,3 +1739,30 @@ html[data-tema="oscuro"] .barra-busqueda { background: #1c1b19; }
 .tipo-venta-check { position: absolute; top: 10px; right: 10px; color: var(--ok); }
 .tipo-venta:disabled { opacity: .6; cursor: default; }
 html[data-tema="oscuro"] .tipo-venta { background: var(--card); border-color: var(--line-2); }
+
+.campos-pais { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
+.campos-pais .campo { display: block; font-size: 13px; color: var(--ink-2); font-weight: 500; margin-bottom: 10px; }
+.campos-pais .campo > input { margin-top: 6px; }
+@media (max-width: 560px) { .campos-pais { grid-template-columns: 1fr; } }
+.bandera { width: 20px; height: 14px; object-fit: cover; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); flex: none; display: inline-block; }
+
+.alta-config { border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 4px 0 14px; background: #fcfbf9; display: grid; gap: 4px; }
+.alta-config > b { font-size: 14px; } .alta-config > small { margin-bottom: 8px; }
+.config-usuario { gap: 6px !important; font-weight: 400 !important; }
+.chip.tipo-b2b { background: #fff0ea; color: #c8320f; } .chip.tipo-b2c { background: #e5f6f3; color: #0b6f66; } .chip.tipo-ambos { background: #f0ece5; color: var(--ink-2); }
+html[data-tema="oscuro"] .alta-config { background: var(--card); }
+
+.otros-paises { grid-column: 1 / -1; margin-top: 2px; }
+.otros-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 8px; }
+.otros-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pais-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: #fff; border-radius: 999px; padding: 5px 11px 5px 7px; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; transition: all .15s; }
+.pais-chip:hover { border-color: #c9c1b4; }
+.pais-chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.pais-chip .bandera { width: 18px; height: 12px; }
+html[data-tema="oscuro"] .pais-chip { background: var(--card); border-color: var(--line-2); color: var(--ink-2); }
+html[data-tema="oscuro"] .pais-chip.on { background: #f2efe9; color: #16161a; }
+
+.otros-grupo { margin-top: 10px; }
+.otros-grupo-cab { display: flex; align-items: center; gap: 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3, #8a8478); margin-bottom: 6px; }
+.otros-grupo-cab .link { text-transform: none; letter-spacing: 0; }
+.otros-cab .link { white-space: nowrap; }

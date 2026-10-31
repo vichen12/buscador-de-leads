@@ -6,6 +6,72 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, cors, json } from '../_shared/supabase.ts'
 
+const ZONAS_HORARIAS: Record<string, string> = {
+  AR: 'America/Argentina/Buenos_Aires',
+  CL: 'America/Santiago',
+  UY: 'America/Montevideo',
+  PY: 'America/Asuncion',
+  BO: 'America/La_Paz',
+  PE: 'America/Lima',
+  CO: 'America/Bogota',
+  EC: 'America/Guayaquil',
+  VE: 'America/Caracas',
+  MX: 'America/Mexico_City',
+  GT: 'America/Guatemala',
+  SV: 'America/El_Salvador',
+  HN: 'America/Tegucigalpa',
+  NI: 'America/Managua',
+  CR: 'America/Costa_Rica',
+  PA: 'America/Panama',
+  DO: 'America/Santo_Domingo',
+  PR: 'America/Puerto_Rico',
+  BR: 'America/Sao_Paulo',
+  US: 'America/New_York',
+  CA: 'America/Toronto',
+  ES: 'Europe/Madrid',
+  PT: 'Europe/Lisbon',
+  IT: 'Europe/Rome',
+  FR: 'Europe/Paris',
+  DE: 'Europe/Berlin',
+  GB: 'Europe/London',
+  IE: 'Europe/Dublin',
+  NL: 'Europe/Amsterdam',
+  BE: 'Europe/Brussels',
+  CH: 'Europe/Zurich',
+  AT: 'Europe/Vienna',
+  SE: 'Europe/Stockholm',
+  PL: 'Europe/Warsaw',
+  AU: 'Australia/Sydney',
+  NZ: 'Pacific/Auckland',
+  AE: 'Asia/Dubai',
+  IL: 'Asia/Jerusalem',
+  ZA: 'Africa/Johannesburg',
+  JP: 'Asia/Tokyo',
+  IN: 'Asia/Kolkata',
+}
+/** País, provincia y tipo de venta que manda el admin al dar de alta o al configurar una cuenta (validado) */
+function configDe(body: Record<string, unknown>) {
+  const pais = /^[A-Z]{2}$/.test(String(body.pais ?? '')) ? String(body.pais) : null
+  const region = pais ? String(body.region ?? '').trim().slice(0, 80) || null : null
+  const modos: string[] = Array.isArray(body.modos) ? [...new Set(body.modos.map(String).filter(m => m === 'b2b' || m === 'b2c'))].sort() : []
+  const zona_horaria = pais ? (pais === 'AR' && region === 'Mendoza' ? 'America/Argentina/Mendoza' : ZONAS_HORARIAS[pais] ?? null) : null
+  const paises: string[] = pais && Array.isArray(body.paises) ? [...new Set((body.paises as unknown[]).map(String).filter(x => /^[A-Z]{2}$/.test(x) && x !== pais && x in ZONAS_HORARIAS))].slice(0, 25) : []
+  return { pais, region, modos, zona_horaria, paises }
+}
+async function aplicarConfig(admin: any, id: string, empresa: string | null, c: ReturnType<typeof configDe>) {
+  if (c.pais) await admin.from('perfiles').update({ pais: c.pais, region: c.region, paises: c.paises, ...(c.zona_horaria ? { zona_horaria: c.zona_horaria } : {}) }).eq('id', id)
+  if (c.modos.length) {
+    // El tipo de venta es de toda la empresa (si tiene): así el equipo ve lo mismo
+    const q = admin.from('perfiles').update({ modos: c.modos })
+    await (empresa ? q.eq('empresa_id', empresa) : q.eq('id', id))
+    // Quien estaba parado en un modo que ya no tiene, pasa al primero habilitado
+    for (const m of ['b2b', 'b2c'].filter(x => !c.modos.includes(x))) {
+      const q2 = admin.from('perfiles').update({ modo: c.modos[0] }).eq('modo', m)
+      await (empresa ? q2.eq('empresa_id', empresa) : q2.eq('id', id))
+    }
+  }
+}
+
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
 function contrasena() {
   const b = crypto.getRandomValues(new Uint8Array(12))
@@ -87,11 +153,27 @@ Deno.serve(async req => {
     const { error: ep } = await admin.from('perfiles').upsert({ id: data.user.id, nombre, email_contacto: email, empresa_id: empresa, activo: true, rol }, { onConflict: 'id' })
     if (ep) console.error('activar perfil', ep)
     // La persona nueva hereda el país, la zona y el tipo de venta (B2B/B2C) de su empresa
-    if (empresa) {
-      const { data: ref } = await admin.from('perfiles').select('pais, region, zona_horaria, modos, modo').eq('empresa_id', empresa).neq('id', data.user.id).not('pais', 'is', null).order('rol').limit(1).maybeSingle()
-      if (ref) await admin.from('perfiles').update({ pais: ref.pais, region: ref.region, zona_horaria: ref.zona_horaria, modos: ref.modos, modo: ref.modos?.includes(ref.modo) ? ref.modo : ref.modos?.[0] }).eq('id', data.user.id)
+    const config = configDe(body)
+    if (config.pais || config.modos.length) {
+      // Lo que eligió quien da el alta (país, provincia, B2B / B2C): la persona entra directo, sin preguntas
+      await aplicarConfig(admin, data.user.id, empresa, config)
+    } else if (empresa) {
+      // Si no se eligió nada, hereda lo de su empresa
+      const { data: ref } = await admin.from('perfiles').select('pais, region, paises, zona_horaria, modos, modo').eq('empresa_id', empresa).neq('id', data.user.id).not('pais', 'is', null).order('rol').limit(1).maybeSingle()
+      if (ref) await admin.from('perfiles').update({ pais: ref.pais, region: ref.region, paises: ref.paises ?? [], zona_horaria: ref.zona_horaria, modos: ref.modos, modo: ref.modos?.includes(ref.modo) ? ref.modo : ref.modos?.[0] }).eq('id', data.user.id)
     }
     return json({ id: data.user.id, email, password })
+  }
+
+  if (body.modo === 'configurar') {
+    const id = String(body.id ?? '')
+    const { data: otro } = await admin.from('perfiles').select('empresa_id').eq('id', id).maybeSingle()
+    if (!otro) return json({ error: 'No encontré esa cuenta' }, 404)
+    if (empresaPropia && otro.empresa_id !== empresaPropia) return json({ error: 'Esa persona no es de tu equipo' }, 403)
+    const config = configDe(body)
+    if (!config.pais && !config.modos.length) return json({ error: 'Elegí el país o el tipo de venta' }, 400)
+    await aplicarConfig(admin, id, otro.empresa_id, config)
+    return json({ ok: true })
   }
 
   if (body.modo === 'restablecer') {

@@ -154,20 +154,20 @@ export default function Cuenta() {
 /** País y provincia de la cuenta: definen las zonas sugeridas y la zona horaria */
 function PaisCuenta({ perfil, onCambio }) {
   const toast = useToast()
-  const [v, setV] = useState({ pais: perfil?.pais || '', region: perfil?.region || '' })
+  const [v, setV] = useState({ pais: perfil?.pais || '', region: perfil?.region || '', otros: perfil?.paises ?? [] })
   const [guardando, setGuardando] = useState(false)
-  const cambio = v.pais !== (perfil?.pais || '') || v.region !== (perfil?.region || '')
+  const cambio = v.pais !== (perfil?.pais || '') || v.region !== (perfil?.region || '') || [...v.otros].sort().join() !== [...(perfil?.paises ?? [])].sort().join()
   async function guardar() {
     setGuardando(true)
-    const { error } = await guardarPais(perfil.id, v.pais, v.region)
+    const { error } = await guardarPais(perfil.id, v.pais, v.region, v.otros)
     setGuardando(false)
-    if (error) toast(mensajeError(error), 'error'); else { toast('Listo: ahora te sugerimos zonas de ' + (v.region || nombrePais(v.pais)), 'ok'); onCambio() }
+    if (error) toast(mensajeError(error), 'error'); else { toast('Listo: ahora te sugerimos zonas de ' + [v.region || nombrePais(v.pais), ...v.otros.map(nombrePais)].join(', '), 'ok'); onCambio() }
   }
   return (
     <section className="tarjeta">
       <div className="tarjeta-titulo"><h3><Globe size={16} /> País y zona</h3></div>
       <p className="muted chico" style={{ marginTop: 0 }}>Define las zonas que te sugerimos al buscar, la zona horaria de los envíos y el tono de los mensajes.</p>
-      <CamposPais pais={v.pais} region={v.region} onChange={setV} />
+      <CamposPais pais={v.pais} region={v.region} otros={v.otros} onChange={setV} />
       <button type="button" className="btn oscuro" onClick={guardar} disabled={!cambio || !v.pais || guardando}>{guardando && <Loader2 size={15} className="spin" />} Guardar país</button>
     </section>
   )

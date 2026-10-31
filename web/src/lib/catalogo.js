@@ -26,13 +26,15 @@ export const zonaCompleta = z => (/,/.test(z) || !MENDOZA.has(z.trim().toLowerCa
 
 // Países para buscar fuera de Argentina (código ISO para ubicar la búsqueda web)
 export const PAISES = [
-  ['Argentina', 'AR'], ['Chile', 'CL'], ['Uruguay', 'UY'], ['Paraguay', 'PY'], ['Bolivia', 'BO'], ['Perú', 'PE'],
-  ['Colombia', 'CO'], ['Ecuador', 'EC'], ['México', 'MX'], ['Brasil', 'BR'], ['Venezuela', 'VE'], ['Costa Rica', 'CR'],
-  ['Panamá', 'PA'], ['Guatemala', 'GT'], ['República Dominicana', 'DO'], ['España', 'ES'], ['Estados Unidos', 'US'],
-].map(([nombre, code]) => ({ nombre, code }))
+  ...[['Argentina', 'AR'], ['Chile', 'CL'], ['Uruguay', 'UY'], ['Paraguay', 'PY'], ['Bolivia', 'BO'], ['Perú', 'PE'], ['Colombia', 'CO'], ['Ecuador', 'EC'], ['Venezuela', 'VE'], ['México', 'MX'], ['Guatemala', 'GT'], ['El Salvador', 'SV'], ['Honduras', 'HN'], ['Nicaragua', 'NI'], ['Costa Rica', 'CR'], ['Panamá', 'PA'], ['República Dominicana', 'DO'], ['Puerto Rico', 'PR'], ['Brasil', 'BR']].map(([nombre, code]) => ({ nombre, code, grupo: 'Latinoamérica' })),
+  ...[['Estados Unidos', 'US'], ['Canadá', 'CA']].map(([nombre, code]) => ({ nombre, code, grupo: 'Norteamérica' })),
+  ...[['España', 'ES'], ['Portugal', 'PT'], ['Italia', 'IT'], ['Francia', 'FR'], ['Alemania', 'DE'], ['Reino Unido', 'GB'], ['Irlanda', 'IE'], ['Países Bajos', 'NL'], ['Bélgica', 'BE'], ['Suiza', 'CH'], ['Austria', 'AT'], ['Suecia', 'SE'], ['Polonia', 'PL']].map(([nombre, code]) => ({ nombre, code, grupo: 'Europa' })),
+  ...[['Australia', 'AU'], ['Nueva Zelanda', 'NZ'], ['Emiratos Árabes', 'AE'], ['Israel', 'IL'], ['Sudáfrica', 'ZA'], ['Japón', 'JP'], ['India', 'IN']].map(([nombre, code]) => ({ nombre, code, grupo: 'Resto del mundo' })),
+]
+export const GRUPOS_PAISES = ['Latinoamérica', 'Norteamérica', 'Europa', 'Resto del mundo']
 
 // Para empresas que trabajan en varios países a la vez
-export const REGIONES = ['Latinoamérica', 'Sudamérica', 'Cono Sur (Argentina, Chile, Uruguay, Paraguay)', 'Centroamérica', 'Argentina, Chile y Uruguay', 'México y Centroamérica']
+export const REGIONES = ['Latinoamérica', 'Sudamérica', 'Europa', 'Unión Europea', 'Norteamérica', 'Cono Sur (Argentina, Chile, Uruguay, Paraguay)', 'Centroamérica', 'Argentina, Chile y Uruguay', 'México y Centroamérica']
 
 export const PROVINCIAS_AR = ['Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 'San Juan', 'San Luis', 'Neuquén', 'Río Negro',
   'Chubut', 'Santa Cruz', 'Tierra del Fuego', 'La Pampa', 'Entre Ríos', 'Corrientes', 'Misiones', 'Chaco', 'Formosa',
@@ -71,19 +73,62 @@ export const REGIONES_PAIS = {
   US: ['Florida', 'Texas', 'California', 'Nueva York', 'Illinois'],
 }
 export const ZONA_HORARIA_PAIS = {
-  AR: 'America/Argentina/Buenos_Aires', CL: 'America/Santiago', UY: 'America/Montevideo', PY: 'America/Asuncion', BO: 'America/La_Paz',
-  PE: 'America/Lima', CO: 'America/Bogota', EC: 'America/Guayaquil', MX: 'America/Mexico_City', BR: 'America/Sao_Paulo', VE: 'America/Caracas',
-  CR: 'America/Costa_Rica', PA: 'America/Panama', GT: 'America/Guatemala', DO: 'America/Santo_Domingo', ES: 'Europe/Madrid', US: 'America/New_York',
+  AR: 'America/Argentina/Buenos_Aires',
+  CL: 'America/Santiago',
+  UY: 'America/Montevideo',
+  PY: 'America/Asuncion',
+  BO: 'America/La_Paz',
+  PE: 'America/Lima',
+  CO: 'America/Bogota',
+  EC: 'America/Guayaquil',
+  VE: 'America/Caracas',
+  MX: 'America/Mexico_City',
+  GT: 'America/Guatemala',
+  SV: 'America/El_Salvador',
+  HN: 'America/Tegucigalpa',
+  NI: 'America/Managua',
+  CR: 'America/Costa_Rica',
+  PA: 'America/Panama',
+  DO: 'America/Santo_Domingo',
+  PR: 'America/Puerto_Rico',
+  BR: 'America/Sao_Paulo',
+  US: 'America/New_York',
+  CA: 'America/Toronto',
+  ES: 'Europe/Madrid',
+  PT: 'Europe/Lisbon',
+  IT: 'Europe/Rome',
+  FR: 'Europe/Paris',
+  DE: 'Europe/Berlin',
+  GB: 'Europe/London',
+  IE: 'Europe/Dublin',
+  NL: 'Europe/Amsterdam',
+  BE: 'Europe/Brussels',
+  CH: 'Europe/Zurich',
+  AT: 'Europe/Vienna',
+  SE: 'Europe/Stockholm',
+  PL: 'Europe/Warsaw',
+  AU: 'Australia/Sydney',
+  NZ: 'Pacific/Auckland',
+  AE: 'Asia/Dubai',
+  IL: 'Asia/Jerusalem',
+  ZA: 'Africa/Johannesburg',
+  JP: 'Asia/Tokyo',
+  IN: 'Asia/Kolkata',
 }
 export const nombrePais = code => PAISES.find(p => p.code === code)?.nombre ?? ''
 
 /** Zonas para sugerir según el país y la provincia de la cuenta (la primera es la zona por defecto de las búsquedas) */
-export function zonasDe(pais, region) {
+export function zonasDe(pais, region, otros = []) {
+  const extra = (otros ?? []).map(nombrePais).filter(Boolean)
+  const todos = extra.length && nombrePais(pais) ? [[nombrePais(pais), ...extra].join(', ')] : []
+  return [...new Set([...zonasDePais(pais, region, extra.length ? 7 : 10), ...todos, ...extra])]
+}
+function zonasDePais(pais, region, max = 10) {
   const nombre = nombrePais(pais)
   if (!nombre) return ['Argentina', 'Chile', 'Uruguay', 'Perú', 'México', 'Colombia']
-  if (pais === 'AR' && region === 'Mendoza') return ['Gran Mendoza', 'Ciudad de Mendoza', 'Godoy Cruz', 'Guaymallén', 'Las Heras', 'Luján de Cuyo', 'Maipú', 'Todo Mendoza', 'Argentina']
+  if (pais === 'AR' && region === 'Mendoza') return ['Gran Mendoza', 'Ciudad de Mendoza', 'Godoy Cruz', 'Guaymallén', 'Las Heras', 'Luján de Cuyo', 'Maipú', 'Todo Mendoza', 'Argentina'].slice(0, max)
   const conPais = z => (pais === 'AR' ? (z === 'CABA' ? 'CABA, Argentina' : `${z}, Argentina`) : `${z}, ${nombre}`)
   const ciudades = (CIUDADES.find(c => c.pais === nombre)?.items ?? []).map(c => (pais === 'AR' ? c : `${c}, ${nombre}`))
   const regiones = (REGIONES_PAIS[pais] ?? []).filter(r => r !== region).slice(0, 5).map(conPais)
-  return [...new Set([...(region ? [conPais(region)] : []), ...ciudades.slice(0, 4), ...regiones, nombre])].slice(0, 10)
+  return [...new Set([...(region ? [conPais(region)] : []), ...ciudades.slice(0, 4), ...regiones, nombre])].slice(0, max)
 }

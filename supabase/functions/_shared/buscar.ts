@@ -23,14 +23,39 @@ const PAISES: [string, string, string][] = [
   ['venezuela', 'VE', 'America/Caracas'], ['costa rica', 'CR', 'America/Costa_Rica'], ['panama', 'PA', 'America/Panama'],
   ['guatemala', 'GT', 'America/Guatemala'], ['republica dominicana', 'DO', 'America/Santo_Domingo'], ['espana', 'ES', 'Europe/Madrid'],
   ['estados unidos', 'US', 'America/New_York'],
+  ['el salvador', 'SV', 'America/El_Salvador'],
+  ['honduras', 'HN', 'America/Tegucigalpa'],
+  ['nicaragua', 'NI', 'America/Managua'],
+  ['puerto rico', 'PR', 'America/Puerto_Rico'],
+  ['canada', 'CA', 'America/Toronto'],
+  ['portugal', 'PT', 'Europe/Lisbon'],
+  ['italia', 'IT', 'Europe/Rome'],
+  ['francia', 'FR', 'Europe/Paris'],
+  ['alemania', 'DE', 'Europe/Berlin'],
+  ['reino unido', 'GB', 'Europe/London'],
+  ['irlanda', 'IE', 'Europe/Dublin'],
+  ['paises bajos', 'NL', 'Europe/Amsterdam'],
+  ['belgica', 'BE', 'Europe/Brussels'],
+  ['suiza', 'CH', 'Europe/Zurich'],
+  ['austria', 'AT', 'Europe/Vienna'],
+  ['suecia', 'SE', 'Europe/Stockholm'],
+  ['polonia', 'PL', 'Europe/Warsaw'],
+  ['australia', 'AU', 'Australia/Sydney'],
+  ['nueva zelanda', 'NZ', 'Pacific/Auckland'],
+  ['emiratos arabes', 'AE', 'Asia/Dubai'],
+  ['israel', 'IL', 'Asia/Jerusalem'],
+  ['sudafrica', 'ZA', 'Africa/Johannesburg'],
+  ['japon', 'JP', 'Asia/Tokyo'],
+  [' india ', 'IN', 'Asia/Kolkata'],
+  ['eeuu', 'US', 'America/New_York'], ['ee.uu', 'US', 'America/New_York'], ['inglaterra', 'GB', 'Europe/London'], ['holanda', 'NL', 'Europe/Amsterdam'], ['emiratos', 'AE', 'Asia/Dubai'],
 ]
-const NOMBRE_PAIS: Record<string, string> = { AR: 'Argentina', CL: 'Chile', UY: 'Uruguay', PY: 'Paraguay', BO: 'Bolivia', PE: 'Perú', CO: 'Colombia', EC: 'Ecuador', MX: 'México', BR: 'Brasil', VE: 'Venezuela', CR: 'Costa Rica', PA: 'Panamá', GT: 'Guatemala', DO: 'República Dominicana', ES: 'España', US: 'Estados Unidos' }
-const REGIONES = ['latinoamerica', 'latam', 'sudamerica', 'america latina', 'america del sur', 'cono sur', 'centroamerica', 'hispanoamerica', 'iberoamerica', 'mercosur', 'andinos', 'internacional']
+const NOMBRE_PAIS: Record<string, string> = { AR: 'Argentina', CL: 'Chile', UY: 'Uruguay', PY: 'Paraguay', BO: 'Bolivia', PE: 'Perú', CO: 'Colombia', EC: 'Ecuador', MX: 'México', BR: 'Brasil', VE: 'Venezuela', CR: 'Costa Rica', PA: 'Panamá', GT: 'Guatemala', DO: 'República Dominicana', ES: 'España', US: 'Estados Unidos', SV: 'El Salvador', HN: 'Honduras', NI: 'Nicaragua', PR: 'Puerto Rico', CA: 'Canadá', PT: 'Portugal', IT: 'Italia', FR: 'Francia', DE: 'Alemania', GB: 'Reino Unido', IE: 'Irlanda', NL: 'Países Bajos', BE: 'Bélgica', CH: 'Suiza', AT: 'Austria', SE: 'Suecia', PL: 'Polonia', AU: 'Australia', NZ: 'Nueva Zelanda', AE: 'Emiratos Árabes', IL: 'Israel', ZA: 'Sudáfrica', JP: 'Japón', IN: 'India' }
+const REGIONES = ['latinoamerica', 'latam', 'sudamerica', 'america latina', 'america del sur', 'cono sur', 'centroamerica', 'hispanoamerica', 'iberoamerica', 'mercosur', 'andinos', 'internacional', 'europa', 'union europea', 'norteamerica', 'america del norte']
 type Ubic = { code: string, tz: string, nombre: string, multi: boolean }
 // Un país (ubica la búsqueda web ahí) o varios / una región como Latinoamérica (busca sin ubicar en un país).
 function paisDe(zona: string): Ubic {
   const z = ' ' + zona.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + ' '
-  const hits = PAISES.filter(([n]) => z.includes(n))
+  const hits = PAISES.filter(([n]) => z.includes(n)).filter((h, i, a) => a.findIndex(x => x[1] === h[1]) === i)
   const region = REGIONES.some(r => z.includes(r))
   if (region || hits.length > 1) return { code: '', tz: '', nombre: region ? zona : hits.map(h => NOMBRE_PAIS[h[1]]).join(', '), multi: true }
   const p = hits[0]

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { zonasDe } from '../lib/catalogo.js'
+import { zonasDe, nombrePais } from '../lib/catalogo.js'
 import { Link, useNavigate } from 'react-router-dom'
 import { Sparkles, Loader2, Plus, X, Check, Pencil, RotateCcw, Target, MapPin, SlidersHorizontal, ThumbsUp, Ban, MessageSquareText, ArrowRight, Store, Trash2, Globe } from 'lucide-react'
 import SelectorZona from '../components/SelectorZona.jsx'
@@ -29,15 +29,15 @@ const EJEMPLOS = [
   'Distribuyo artículos de limpieza a restaurantes, hoteles y oficinas',
   'Vendo seguros para empresas con flotas de camiones',
 ]
-const zonasRapidas = (pais, region) => [...new Set([...zonasDe(pais, region).slice(0, 4), ...(pais ? [] : []), 'Latinoamérica'])]
+const zonasRapidas = (pais, region, otros) => [...new Set([...zonasDe(pais, region).slice(0, 4), ...(otros ?? []).map(nombrePais), 'Latinoamérica'])]
 const webValida = v => /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(String(v ?? '').trim())
 
 function Formulario({ inicial, volver, onListo }) {
   const toast = useToast()
   const { session, perfil } = useApp()
-  const ZONAS_RAPIDAS = zonasRapidas(perfil?.pais, perfil?.region)
+  const ZONAS_RAPIDAS = zonasRapidas(perfil?.pais, perfil?.region, perfil?.paises)
   const [texto, setTexto] = useState(inicial.que_vende ? [inicial.que_vende, inicial.cliente_ideal].filter(Boolean).join('. ') : '')
-  const [zonas, setZonas] = useState(inicial.zonas?.length ? inicial.zonas : [zonasDe(perfil?.pais, perfil?.region)[0]])
+  const [zonas, setZonas] = useState(inicial.zonas?.length ? inicial.zonas : [zonasDe(perfil?.pais, perfil?.region, perfil?.paises)[0]])
   const [web, setWeb] = useState(inicial.web || '')
   const [masDatos, setMasDatos] = useState(false)
   const [extra, setExtra] = useState({ empresa: inicial.empresa || '', diferencial: inicial.diferencial || '', no_quiere: inicial.no_quiere || '' })
