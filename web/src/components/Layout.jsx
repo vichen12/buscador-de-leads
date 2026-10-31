@@ -185,7 +185,7 @@ function SelectorModo({ perfil }) {
         const M = MODOS[m]
         return (
           <button key={m} type="button" role="radio" aria-checked={actual === m} className={'opcion-modo ' + m + (actual === m ? ' activo' : '')} onClick={() => actual !== m && cambiar(m)}>
-            <M.icono size={14} /><span><b>{M.titulo}</b><small>{M.corto}</small></span>
+            <span className="opcion-modo-cab"><M.icono size={14} /><b>{M.corto}</b></span><small>{M.titulo}</small>
           </button>
         )
       })}

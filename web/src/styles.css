@@ -1782,3 +1782,9 @@ html[data-tema="oscuro"] .pais-chip.on { background: #f2efe9; color: #16161a; }
 html[data-tema="oscuro"] .lista-paises-boton, html[data-tema="oscuro"] .lista-paises-menu, html[data-tema="oscuro"] .lista-paises-pie { background: var(--card); color: var(--ink); }
 .lista-paises-menu label.lista-paises-item { margin: 0; min-height: 0; line-height: 1.3; }
 .otros-paises .otros-cab { display: block; }
+/* Selector B2B / B2C: cabe siempre en la barra lateral */
+.selector-modo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.opcion-modo { flex-direction: column; justify-content: center; gap: 2px; padding: 7px 4px; min-width: 0; text-align: center; }
+.opcion-modo .opcion-modo-cab { display: inline-flex; flex-direction: row; align-items: center; gap: 5px; line-height: 1.1; }
+.opcion-modo b { font-size: 13px; letter-spacing: .02em; }
+.opcion-modo small { font-size: 11px; letter-spacing: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
