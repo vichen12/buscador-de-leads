@@ -131,7 +131,7 @@ export default function BuscarPlaces() {
       <header className="cabecera">
         <div>
           <h1>Buscar clientes</h1>
-          <p>Escribí con tus palabras qué empresas querés encontrar y dónde: una ciudad, una provincia o un país entero, en Argentina o afuera. Claude busca en Google, redes y directorios y te guarda las que sirven.</p>
+          <p>Describí con tus palabras qué empresas querés y dónde. Claude busca en Google, redes y directorios y te trae sólo las que encajan.</p>
         </div>
       </header>
 
@@ -144,10 +144,11 @@ export default function BuscarPlaces() {
       )}
       {servicios.ia === false && <Aviso>Falta la clave de Claude. {perfil?.es_admin ? <Link to="/admin">Cargala en Super admin</Link> : 'Pedile al administrador que la cargue.'}</Aviso>}
 
+      <section className="busqueda-hero">
       <form className="barra-busqueda" onSubmit={entender}>
         <label className="bb-campo">
           <span><Search size={14} /> Qué buscás</span>
-          <Autocompletar ref={rubroRef} opciones={todosRubros} value={rubro} onChange={v => { setRubro(v); setBrief(null) }} placeholder="Describí qué empresas buscás. Ej.: empresas grandes con depósito, locales que venden celulares" disabled={cargando} />
+          <Autocompletar ref={rubroRef} opciones={todosRubros} value={rubro} onChange={v => { setRubro(v); setBrief(null) }} placeholder="Ej.: distribuidoras con depósito propio" disabled={cargando} />
           {rubro && !cargando && <button type="button" className="bb-limpiar" onClick={() => setRubro('')} aria-label="Borrar"><X size={13} /></button>}
         </label>
         <label className="bb-campo">
@@ -164,19 +165,53 @@ export default function BuscarPlaces() {
         </button>
       </form>
 
-      {!cargando && !res && !brief && !entendiendo && (
-        <div className="bb-sugerencias">
-          <div className="sug-fila"><small>{est ? 'Para vos' : 'Ideas'}</small>
-            {sugRubros.slice(0, 10).map(r => <button key={r} type="button" className={'chip-sel' + (rubro === r ? ' on' : '')} onClick={() => setRubro(r)}>{r}</button>)}
+      <div className="bb-pie">
+        <button type="button" className={'filtros-pill' + (verFiltros ? ' abierto' : '') + (filtrosActivos.length ? ' con' : '')} onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros}>
+          <SlidersHorizontal size={14} /> Filtros{filtrosActivos.length ? <span className="filtros-num">{filtrosActivos.length}</span> : ''} <ChevronDown size={13} style={{ transform: verFiltros ? 'rotate(180deg)' : '' }} />
+        </button>
+        {!verFiltros && filtrosActivos.map(f => <span key={f.id} className="filtro-activo"><Check size={12} /> {f.titulo}</span>)}
+        <span className="espacio" />
+        <span className="muted chico bb-tiempo">{cantidad <= 10 ? 'Tarda menos de 1 minuto' : cantidad <= 20 ? 'Tarda ≈ 1 minuto' : 'Tarda un par de minutos'} · no repite las que ya tenés</span>
+      </div>
+      </section>
+      {verFiltros && (
+        <section className="tarjeta panel-filtros">
+          <p className="muted chico" style={{ marginTop: 0 }}>Sólo trae negocios que cumplan lo que marques.{est && <> Los filtros salen de <Link to="/negocio">tu negocio</Link>.</>}</p>
+          <div className="filtros-check">
+            {filtros.map(f => (
+              <label key={f.id} className={'filtro-check' + (activos.has(f.id) ? ' on' : '')} title={f.descripcion}>
+                <input type="checkbox" checked={activos.has(f.id)} onChange={() => alternar(f.id)} /> {f.titulo}
+              </label>
+            ))}
           </div>
-          <div className="sug-fila"><small>Ejemplos</small>
-            {['empresas grandes con depósito', 'locales que venden celulares', 'constructoras medianas', 'clínicas privadas', 'distribuidoras de alimentos'].map(r => <button key={r} type="button" className={'chip-sel' + (rubro === r ? ' on' : '')} onClick={() => setRubro(r)}>{r}</button>)}
-          </div>
-          <div className="sug-fila"><small>Zonas</small>
-            {[...sugZonas.slice(0, 5), ...['Argentina', 'Chile', 'Uruguay', 'Perú', 'México'].filter(z => !sugZonas.includes(z))].map(z => <button key={z} type="button" className={'chip-sel' + (zona === z ? ' on' : '')} onClick={() => setZona(z)}>{z}</button>)}
-          </div>
-        </div>
+          <label style={{ marginTop: 14, marginBottom: 0 }}>Algo más que Claude tenga en cuenta <span className="muted">(opcional)</span>
+            <input value={pedido} onChange={e => setPedido(e.target.value)} maxLength={400} placeholder="Ej.: que tengan buenas reseñas, que sean chicos o nuevos" />
+          </label>
+        </section>
       )}
+
+      {!cargando && !res && !brief && !entendiendo && (() => {
+        const ejemplos = ['empresas grandes con depósito', 'locales que venden celulares', 'constructoras medianas', 'clínicas privadas', 'distribuidoras de alimentos'].filter(x => !sugRubros.some(r => r.toLowerCase() === x.toLowerCase() || r.toLowerCase() + 's' === x.toLowerCase()))
+        const zonasSug = [...sugZonas.slice(0, 5), ...['Argentina', 'Chile', 'Uruguay', 'Perú', 'México'].filter(z => !sugZonas.includes(z))]
+        return (
+          <div className="bb-sugerencias">
+            <div className="sug-bloque">
+              <div className="sug-titulo"><Sparkles size={14} /> {est ? 'Rubros para vos' : 'Ideas para empezar'}{est && <Link to="/negocio" className="chico">según tu negocio</Link>}</div>
+              <div className="sug-chips">{sugRubros.slice(0, 10).map(r => <button key={r} type="button" className={'sug-chip destacado' + (rubro === r ? ' on' : '')} onClick={() => { setRubro(r); setBrief(null) }}>{r}</button>)}</div>
+            </div>
+            <div className="sug-dos">
+              <div className="sug-bloque">
+                <div className="sug-titulo"><Wand2 size={14} /> Probá describir así</div>
+                <div className="sug-chips">{ejemplos.map(r => <button key={r} type="button" className={'sug-chip' + (rubro === r ? ' on' : '')} onClick={() => { setRubro(r); setBrief(null) }}>“{r}”</button>)}</div>
+              </div>
+              <div className="sug-bloque">
+                <div className="sug-titulo"><MapPin size={14} /> Zonas</div>
+                <div className="sug-chips">{zonasSug.map(z => <button key={z} type="button" className={'sug-chip zona' + (zona === z ? ' on' : '')} onClick={() => { setZona(z); setBrief(null) }}>{zona === z && <Check size={12} />}{z}</button>)}</div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {entendiendo && (
         <section className="tarjeta entendiendo"><div className="pensando"><i /><i /><i /></div><span>Claude está entendiendo qué empresas te sirven…</span></section>
@@ -208,27 +243,6 @@ export default function BuscarPlaces() {
         </section>
       )}
 
-      <div className="filtros-linea">
-        <button type="button" className="btn fantasma chico" onClick={() => setVerFiltros(v => !v)}>
-          <SlidersHorizontal size={14} /> Filtros{filtrosActivos.length ? ` (${filtrosActivos.length})` : ''} <ChevronDown size={13} style={{ transform: verFiltros ? 'rotate(180deg)' : '' }} />
-        </button>
-        {!verFiltros && filtrosActivos.length > 0 && <span className="muted chico">{filtrosActivos.map(f => f.titulo).join(' · ')}</span>}
-      </div>
-      {verFiltros && (
-        <section className="tarjeta panel-filtros">
-          <p className="muted chico" style={{ marginTop: 0 }}>Sólo trae negocios que cumplan lo que marques.{est && <> Los filtros salen de <Link to="/negocio">tu negocio</Link>.</>}</p>
-          <div className="filtros-check">
-            {filtros.map(f => (
-              <label key={f.id} className={'filtro-check' + (activos.has(f.id) ? ' on' : '')} title={f.descripcion}>
-                <input type="checkbox" checked={activos.has(f.id)} onChange={() => alternar(f.id)} /> {f.titulo}
-              </label>
-            ))}
-          </div>
-          <label style={{ marginTop: 14, marginBottom: 0 }}>Algo más que Claude tenga en cuenta <span className="muted">(opcional)</span>
-            <input value={pedido} onChange={e => setPedido(e.target.value)} maxLength={400} placeholder="Ej.: que tengan buenas reseñas, que sean chicos o nuevos" />
-          </label>
-        </section>
-      )}
 
       {cargando && (
         <section className="tarjeta buscando-panel">
