@@ -1814,3 +1814,10 @@ button.filtro-activo:hover .filtro-quitar { opacity: 1; }
 .onb-extra .ancho-completo { grid-column: 1 / -1; }
 .bb-campo > .autocompletar { margin-top: 0; }
 .bb-campo .sz-input input { padding-right: 0; }
+
+/* Empresa encontrada: qué es y por qué te serviría */
+.hallazgo-que-es, .hallazgo-te-sirve { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.hallazgo-que-es svg, .hallazgo-te-sirve svg { flex: none; margin-top: 4px; color: var(--mut); }
+.hallazgo-te-sirve { background: var(--acc-soft); border-radius: 10px; padding: 8px 12px; color: var(--ink); }
+.hallazgo-te-sirve svg { color: var(--acc); }
+.hallazgo-que-es b, .hallazgo-te-sirve b { font-weight: 600; }

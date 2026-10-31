@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, AtSign, Globe, MapPin, Star, Clock, CalendarClock, MessageCircle, Send, Sparkles, Wand2, Loader2,
-  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target, Paperclip, MailX, ShieldOff, Users,
+  Copy, Reply, Trophy, Ban, Trash2, Pencil, StickyNote, RefreshCw, CheckCircle2, ExternalLink, Save, CalendarPlus, Link2, Target, Paperclip, MailX, ShieldOff, Users, Building2,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, MOTIVOS_PERDIDO, NO_CONTACTAR, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
@@ -286,7 +286,8 @@ export default function Prospecto() {
               <MapPin size={16} /><div>{p.direccion || '—'}{p.zona && <small>{p.zona}</small>}</div>
               <Globe size={16} /><div><Enlaces e={p} conTexto /></div>
               {(p.resenas || p.rating) && <><Star size={16} /><div>{p.resenas ?? '—'} reseñas{p.rating ? ` · ${p.rating}★` : ''}</div></>}
-              {p.encaje && <><Target size={16} /><div><small>Por qué encaja</small>{p.encaje}</div></>}
+              {p.descripcion && <><Building2 size={16} /><div><small>Qué es</small>{p.descripcion}</div></>}
+              {p.encaje && <><Target size={16} /><div><small>Por qué te serviría</small>{p.encaje}</div></>}
               {p.senales && <><Sparkles size={16} /><div><small>Novedades (motivo para escribir ahora)</small>{p.senales}</div></>}
               <Clock size={16} /><div><small>Último contacto</small>{fechaHora(p.ultimo_contacto)}</div>
               <CalendarClock size={16} /><div><small>Próximo seguimiento</small>{p.proximo_seguimiento ? fecha(p.proximo_seguimiento) : '—'}</div>

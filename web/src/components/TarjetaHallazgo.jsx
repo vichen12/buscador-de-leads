@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound } from 'lucide-react'
+import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound, Building2, Target } from 'lucide-react'
 import Enlaces from './Enlaces.jsx'
 import PorQue from './PorQue.jsx'
 
@@ -23,7 +23,10 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
           {h.rubro && <span className="tipo">{h.rubro}</span>}
           {dir && <span><MapPin size={12} /> {dir}</span>}
         </div>
-        {h.encaje && <p className="hallazgo-encaje">{h.encaje}</p>}
+        {h.descripcion && <p className="hallazgo-que-es"><Building2 size={13} /> <span><b>Qué es:</b> {h.descripcion}</span></p>}
+        {h.encaje && (h.descripcion
+          ? <p className="hallazgo-te-sirve"><Target size={13} /> <span><b>Por qué te serviría:</b> {h.encaje}</span></p>
+          : <p className="hallazgo-encaje">{h.encaje}</p>)}
         {h.senales && <p className="hallazgo-senal"><Megaphone size={13} /> {h.senales}</p>}
         {h.decisor?.nombre && <p className="hallazgo-decisor"><UserRound size={13} style={{ verticalAlign: -2 }} /> Decide: <b>{h.decisor.nombre}</b>{h.decisor.cargo ? `, ${h.decisor.cargo}` : ''}{h.decisor.fuente && <> · <a href={h.decisor.fuente} target="_blank" rel="noreferrer">fuente</a></>}</p>}
         <div className="hallazgo-contacto">
