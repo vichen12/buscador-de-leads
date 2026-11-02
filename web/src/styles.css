@@ -1908,3 +1908,14 @@ html[data-tema="oscuro"] .sz-columnas .sz-titulo { background: var(--card); }
 .guia-pie input { flex: 1; max-width: 360px; }
 html[data-tema="oscuro"] .guia-opcion { background: var(--card); }
 .diagnostico { display: inline-block; margin-top: 6px; font-size: 13px; color: #9a5b00; background: #fff4e5; border-radius: 8px; padding: 6px 10px; }
+/* Rechazadas: filtros */
+.filtros-rechazadas { background: var(--card, #fff); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+.fr-motivos { display: flex; flex-wrap: wrap; gap: 6px; }
+.fr-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: #fff; border-radius: 99px; padding: 5px 11px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink-2); }
+.fr-chip span { font-size: 11.5px; color: var(--mut); background: #f4f1ec; border-radius: 99px; padding: 0 7px; }
+.fr-chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.fr-chip.on span { background: rgba(255,255,255,.18); color: #fff; }
+.fr-fila { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filtros-rechazadas p { margin: 0; }
+.btn.saltear { color: var(--mut); }
+html[data-tema="oscuro"] .fr-chip { background: var(--card); }

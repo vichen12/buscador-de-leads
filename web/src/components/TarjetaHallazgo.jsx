@@ -1,16 +1,16 @@
 import { Link } from 'react-router-dom'
-import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound, Building2, Target } from 'lucide-react'
+import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound, Building2, Target, SkipForward } from 'lucide-react'
 import Enlaces from './Enlaces.jsx'
 import PorQue from './PorQue.jsx'
 
 /** Una empresa encontrada, para revisar: sumarla a la lista o marcar que no sirve */
 const MOTIVOS = ['No es del rubro', 'Muy chica', 'Muy grande', 'Muy lejos', 'Ya es cliente', 'Es competencia', 'Datos malos']
 
-export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar, onRecuperar, onMotivo, ocupado }) {
+export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar, onSaltear, onRecuperar, onMotivo, ocupado }) {
   const dir = [h.direccion, h.zona && !h.direccion?.toLowerCase().includes(h.zona.toLowerCase()) ? h.zona : ''].filter(Boolean).join(' · ')
   return (
     <article className={'hallazgo ' + h.estado + (sel ? ' sel' : '')}>
-      {onSel && h.estado === 'por_revisar' && (
+      {onSel && h.estado !== 'aprobado' && (
         <input type="checkbox" className="hallazgo-check" checked={!!sel} onChange={onSel} aria-label={'Seleccionar ' + h.nombre} />
       )}
       <div className="hallazgo-cuerpo">
@@ -46,6 +46,7 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
         {h.estado === 'por_revisar' && <>
           <button className="btn primario" onClick={onAprobar} disabled={ocupado}>{ocupado ? <Loader2 size={15} className="spin" /> : <Check size={15} />} Sumar a mi lista</button>
           <button className="btn fantasma" onClick={onDescartar} disabled={ocupado}><X size={15} /> No sirve</button>
+          {onSaltear && <button className="btn fantasma chico saltear" onClick={onSaltear} disabled={ocupado} title="La saco de acá sin marcarla como buena ni mala: puede volver a aparecer en otra búsqueda"><SkipForward size={13} /> Saltear</button>}
         </>}
         {h.estado === 'aprobado' && <>
           <span className="chip ok"><Check size={12} /> En tu lista</span>

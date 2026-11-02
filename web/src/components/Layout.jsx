@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
-  Inbox, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone, Sun, Target, MapPin, Package, AtSign, LifeBuoy, BookOpen, Moon,
+  Inbox, Ban, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone, Sun, Target, MapPin, Package, AtSign, LifeBuoy, BookOpen, Moon,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
@@ -76,6 +76,7 @@ export default function Layout({ children }) {
       ['/negocio', 'Mi negocio', Store],
       ['/buscar', 'Buscar clientes', Search],
       ['/revisar', 'Por revisar', Inbox, porRevisar, true],
+      ['/revisar?tab=descartado', 'Rechazadas', Ban],
       ['/importar', 'Importar', Upload],
     ]],
     ['Trabajo diario', [
@@ -98,7 +99,14 @@ export default function Layout({ children }) {
     ]],
   ]
   const enlace = ([to, label, Icono, badge]) => (
-    <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'activo' : '')}>
+    <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => {
+      // Enlaces con "?tab=": activos sólo con esa pestaña (Por revisar vs Rechazadas)
+      const [ruta, qs] = to.split('?')
+      const tabActual = new URLSearchParams(loc.search).get('tab') || ''
+      const tabEnlace = new URLSearchParams(qs || '').get('tab') || ''
+      const activo = ruta === '/revisar' ? loc.pathname === '/revisar' && tabActual === tabEnlace : isActive
+      return activo ? 'activo' : ''
+    }}>
       <Icono size={18} /> <span className="nav-texto">{label}</span>
       {badge > 0 && <span className="cuenta" aria-label={`${badge} pendientes`}>{badge > 99 ? '99+' : badge}</span>}
     </NavLink>

@@ -4,7 +4,7 @@ import { Search, Loader2, MapPin, Sparkles, Check, SlidersHorizontal, Store, Arr
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
-import { motivoHallazgo, aprobarHallazgos, descartarHallazgos } from '../lib/hallazgos.js'
+import { motivoHallazgo, aprobarHallazgos, descartarHallazgos, saltearHallazgos } from '../lib/hallazgos.js'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import { Bandera } from '../components/ElegirPais.jsx'
 import Desplegable from '../components/Desplegable.jsx'
@@ -168,6 +168,12 @@ export default function BuscarPlaces() {
   const descartar = ids => conOcupado(ids, async () => {
     await descartarHallazgos(ids); actualizar(ids, { estado: 'descartado' }); refrescar()
     toast(ids.length === 1 ? 'Listo, no va a volver a aparecer' : `${ids.length} descartadas`)
+  })
+
+  const saltear = ids => conOcupado(ids, async () => {
+    await saltearHallazgos(ids)
+    setRes(r => ({ ...r, resultados: r.resultados.filter(h => !ids.includes(h.id)) })); refrescar()
+    toast('Salteada: no la marqué como buena ni mala, puede volver en otra búsqueda')
   })
 
   const estimado = cantidad * 2.2 + 25
@@ -355,7 +361,7 @@ export default function BuscarPlaces() {
           <div className="lista-hallazgos">
             {res.resultados.map(h => (
               <TarjetaHallazgo key={h.id ?? h.nombre} h={h} ocupado={ocupados.has(h.id)}
-                onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onMotivo={m => motivoHallazgo(h.id, m).then(() => actualizar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} />
+                onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onSaltear={h.id ? () => saltear([h.id]) : null} onMotivo={m => motivoHallazgo(h.id, m).then(() => actualizar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} />
             ))}
           </div>
           {res.resultados.length > 0 && <small className="muted">Los datos salen de fuentes públicas: revisá cada empresa antes de escribirle.</small>}

@@ -13,6 +13,12 @@ export async function descartarHallazgos(ids, motivo = '') {
   if (error) throw error
 }
 
+/** "Saltear": la saca de la bandeja sin aceptarla ni rechazarla. No cuenta como descartada: puede volver en otra búsqueda */
+export async function saltearHallazgos(ids) {
+  const { error } = await supabase.from('hallazgos').delete().in('id', ids).eq('estado', 'por_revisar')
+  if (error) throw error
+}
+
 export async function recuperarHallazgos(ids) {
   const { error } = await supabase.from('hallazgos').update({ estado: 'por_revisar', motivo: '', revisado_at: null }).in('id', ids)
   if (error) throw error
