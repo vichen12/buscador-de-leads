@@ -1862,3 +1862,27 @@ body:has(.barra-guardar, .barra-armar, .barra-envio) .toasts { bottom: 168px; }
 .sz-check { color: var(--acc); flex: none; }
 .donde-fila .sz-panel { width: min(460px, 92vw); max-height: none; }
 @media (max-width: 600px) { .sz-columnas { grid-template-columns: 1fr; } .sz-columnas .sz-grupo + .sz-grupo { padding-left: 0; border-left: 0; } }
+/* Dónde: lista compacta, un solo scroll suave para todo el panel */
+.donde-fila .sz-panel { max-height: 340px; overflow-y: auto; padding: 10px; scrollbar-width: thin; scrollbar-color: #d9d2c7 transparent; }
+.donde-fila .sz-panel::-webkit-scrollbar { width: 6px; }
+.donde-fila .sz-panel::-webkit-scrollbar-thumb { background: #d9d2c7; border-radius: 99px; }
+.donde-fila .sz-panel::-webkit-scrollbar-track { background: transparent; }
+.sz-columnas .sz-lista { max-height: none; overflow: visible; }
+.sz-columnas .sz-titulo { position: sticky; top: -10px; background: #fff; padding: 4px 0 6px; margin-bottom: 2px; z-index: 1; }
+.sz-columnas .sz-lista button { padding: 6px 10px; font-size: 13.5px; }
+html[data-tema="oscuro"] .sz-columnas .sz-titulo { background: var(--card); }
+/* Armador guiado de búsquedas */
+.armador { background: var(--card, #fff); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; margin-top: 14px; }
+.armador-cab { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
+.armador-cab > svg { color: var(--acc); margin-top: 2px; }
+.armador-cab b { display: block; font-size: 15px; }
+.armador-paso { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+.armador-num { flex: none; width: 24px; height: 24px; border-radius: 99px; display: grid; place-items: center; background: var(--acc-soft); color: var(--acc); font-size: 12.5px; font-weight: 700; margin-top: 1px; }
+.armador-titulo { font-size: 13.5px; font-weight: 600; margin-bottom: 8px; }
+.armador .sug-chip { display: inline-flex; align-items: center; gap: 5px; }
+.armador .sug-chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.armador-pie { display: flex; align-items: center; gap: 12px; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; font-size: 14px; }
+.brief-opciones { margin: 10px 0 4px; padding: 10px 12px; border-radius: 12px; background: #f6f3ee; }
+.brief-opciones b { display: block; font-size: 13.5px; margin-bottom: 8px; }
+.brief-opciones.general { background: #fff4e5; border: 1px solid #f6d9a8; }
+.armador-pie { justify-content: flex-start; } .armador-pie .btn { order: -1; }

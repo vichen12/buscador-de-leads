@@ -19,6 +19,8 @@ const FILTROS_DEFECTO = [
   { id: 'con_email', titulo: 'Con email', descripcion: 'Que tenga un email de contacto.', activo: false },
   { id: 'con_instagram', titulo: 'Con Instagram', descripcion: 'Que tenga Instagram.', activo: false },
 ]
+const TAMANOS = ['Chicas', 'Medianas', 'Grandes']
+const SENALES = ['con depósito propio', 'con flota propia', 'con varias sucursales', 'que venden online', 'que están contratando', 'que abrieron o ampliaron hace poco', 'que exportan', 'con muchos productos']
 const PASOS = ['Buscando en Google Maps…', 'Mirando directorios y redes…', 'Recorriendo la zona…', 'Revisando que encajen con lo que pediste…']
 
 /** Lista de chips que se pueden sacar y agregar */
@@ -60,6 +62,15 @@ export default function BuscarPlaces() {
   const filtros = est?.filtros?.length ? est.filtros : FILTROS_DEFECTO
 
   const [rubro, setRubro] = useState('')
+  // Armador guiado: tipo + tamaño + características → una búsqueda concreta
+  const [arm, setArm] = useState({ tipo: '', tamano: '', senales: [] })
+  const armar = cambio => {
+    const n = { ...arm, ...cambio }
+    setArm(n); setBrief(null)
+    const tam = { Chicas: 'chicas', Medianas: 'medianas', Grandes: 'grandes' }[n.tamano]
+    const texto = n.tipo ? [n.tipo + (tam ? ` (empresas ${tam})` : ''), n.senales.join(' y ')].filter(Boolean).join(' ') : ''
+    setRubro(texto)
+  }
   const [zona, setZona] = useState(sugZonas[0])
   const [cantidad, setCantidad] = useState(20)
   const [activos, setActivos] = useState(() => new Set(filtros.filter(f => f.activo).map(f => f.id)))
@@ -86,15 +97,16 @@ export default function BuscarPlaces() {
   const zonaNormal = z => todasZonas.find(o => sinTilde(o) === sinTilde(z)) ?? z.trim()
 
   // Paso 1: Claude cuenta cómo entendió el pedido (qué entra y qué no) y la persona lo ajusta
-  async function entender(e) {
-    e?.preventDefault()
-    if (!rubro.trim()) { rubroRef.current?.focus(); return }
+  async function entender(e, pedidoDirecto) {
+    e?.preventDefault?.()
+    const que = (typeof pedidoDirecto === 'string' ? pedidoDirecto : rubro).trim()
+    if (!que) { rubroRef.current?.focus(); return }
     if (!zona.trim()) { setError(`Elegí una provincia, ciudad o zona de ${nombrePais(paisBusq)}: si buscás en todo el país, los resultados se dispersan.`); return }
     const z = zonaNormal(zona)
     setZona(z)
     setEntendiendo(true); setError(''); setRes(null); setBrief(null)
     try {
-      const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: rubro.trim(), zona: zonaConPais(z, paisBusq) })
+      const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: que, zona: zonaConPais(z, paisBusq) })
       setBrief({ ...r.brief, _aprendizaje: r.aprendizaje })
     } catch (err) { setError(mensajeError(err)) }
     setEntendiendo(false)
@@ -206,28 +218,27 @@ export default function BuscarPlaces() {
         </section>
       )}
 
-      {!cargando && !res && !brief && !entendiendo && (() => {
-        const ejemplos = ['empresas grandes con depósito', 'locales que venden celulares', 'constructoras medianas', 'clínicas privadas', 'distribuidoras de alimentos'].filter(x => !sugRubros.some(r => r.toLowerCase() === x.toLowerCase() || r.toLowerCase() + 's' === x.toLowerCase()))
-        const zonasSug = sugZonas.slice(0, 10)
-        return (
-          <div className="bb-sugerencias">
-            <div className="sug-bloque">
-              <div className="sug-titulo"><Sparkles size={14} /> {est ? 'Rubros para vos' : 'Ideas para empezar'}{est && <Link to="/negocio" className="chico">según tu negocio</Link>}</div>
-              <div className="sug-chips">{sugRubros.slice(0, 10).map(r => <button key={r} type="button" className={'sug-chip destacado' + (rubro === r ? ' on' : '')} onClick={() => { setRubro(r); setBrief(null) }}>{r}</button>)}</div>
-            </div>
-            <div className="sug-dos">
-              <div className="sug-bloque">
-                <div className="sug-titulo"><Wand2 size={14} /> Probá describir así</div>
-                <div className="sug-chips">{ejemplos.map(r => <button key={r} type="button" className={'sug-chip' + (rubro === r ? ' on' : '')} onClick={() => { setRubro(r); setBrief(null) }}>“{r}”</button>)}</div>
-              </div>
-              <div className="sug-bloque">
-                <div className="sug-titulo"><MapPin size={14} /> Zonas de {nombrePais(paisBusq)}</div>
-                <div className="sug-chips">{zonasSug.map(z => <button key={z} type="button" className={'sug-chip zona' + (zona === z ? ' on' : '')} onClick={() => { zonaTocada.current = true; setZona(z); setBrief(null) }}>{zona === z && <Check size={12} />}{z}</button>)}</div>
-              </div>
-            </div>
+      {!cargando && !res && !brief && !entendiendo && (
+        <section className="armador">
+          <div className="armador-cab"><Wand2 size={16} /><div><b>Armá una búsqueda concreta</b><span className="muted chico">Mientras más específica, mejores empresas trae. Elegí y se escribe sola arriba.</span></div></div>
+          <div className="armador-paso">
+            <span className="armador-num">1</span>
+            <div><div className="armador-titulo">¿Qué tipo de empresa?{est && <Link to="/negocio" className="chico"> según tu negocio</Link>}</div>
+              <div className="sug-chips">{sugRubros.slice(0, 14).map(r => <button key={r} type="button" className={'sug-chip' + (arm.tipo === r ? ' on' : '')} onClick={() => armar({ tipo: arm.tipo === r ? '' : r })}>{arm.tipo === r && <Check size={12} />}{r}</button>)}</div></div>
           </div>
-        )
-      })()}
+          <div className="armador-paso">
+            <span className="armador-num">2</span>
+            <div><div className="armador-titulo">¿De qué tamaño? <span className="muted">(opcional)</span></div>
+              <div className="sug-chips">{TAMANOS.map(t => <button key={t} type="button" className={'sug-chip' + (arm.tamano === t ? ' on' : '')} onClick={() => armar({ tamano: arm.tamano === t ? '' : t })}>{arm.tamano === t && <Check size={12} />}{t}</button>)}</div></div>
+          </div>
+          <div className="armador-paso">
+            <span className="armador-num">3</span>
+            <div><div className="armador-titulo">¿Qué tienen que tener? <span className="muted">(una o más)</span></div>
+              <div className="sug-chips">{SENALES.map(t => { const on = arm.senales.includes(t); return <button key={t} type="button" className={'sug-chip' + (on ? ' on' : '')} onClick={() => armar({ senales: on ? arm.senales.filter(x => x !== t) : [...arm.senales, t] })}>{on && <Check size={12} />}{t}</button> })}</div></div>
+          </div>
+          {rubro.trim() && <div className="armador-pie"><span>Vas a buscar: <b>{rubro}</b> en <b>{zonaConPais(zona, paisBusq)}</b></span><button type="button" className="btn ia" onClick={entender} disabled={entendiendo || servicios.ia === false}><Sparkles size={15} /> Buscar</button></div>}
+        </section>
+      )}
 
       {entendiendo && (
         <section className="tarjeta entendiendo"><div className="pensando"><i /><i /><i /></div><span>Claude está entendiendo qué empresas te sirven…</span></section>
@@ -242,6 +253,12 @@ export default function BuscarPlaces() {
             </div>
             <Pencil size={14} className="muted" />
           </div>
+          {brief.opciones?.length > 0 && (
+            <div className={'brief-opciones' + (brief.especifica === false ? ' general' : '')}>
+              <b>{brief.especifica === false ? 'Así es muy general y la búsqueda se dispersa. Elegí algo más concreto:' : '¿Más específico? Probá con:'}</b>
+              <div className="sug-chips">{brief.opciones.map(o => <button key={o} type="button" className="sug-chip destacado" onClick={() => { setRubro(o); entender(null, o) }}>{o}</button>)}</div>
+            </div>
+          )}
           {brief._aprendizaje && (brief._aprendizaje.sirven > 0 || brief._aprendizaje.no_sirven > 0 ? (
             <div className="aprendio">
               <Sparkles size={14} />

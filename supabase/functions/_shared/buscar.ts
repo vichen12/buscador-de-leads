@@ -212,7 +212,7 @@ function tipoFiltro(f: Dic) {
   return 'ia'
 }
 
-type Brief = { interpretacion: string, buscar: string[], incluir: string[], excluir: string[] }
+type Brief = { interpretacion: string, buscar: string[], incluir: string[], excluir: string[], especifica?: boolean, opciones?: string[] }
 
 async function llamarClaude(key: string, modelo: string, texto: string, maxTokens = 1500) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -248,11 +248,12 @@ Nunca incluyas como clientes a empresas que venden o instalan lo mismo que quien
 ${multi ? `La búsqueda abarca varios países (${pais}): incluí términos con las variantes de vocabulario de cada país (ej.: "depósito" en Argentina, "bodega" en Chile, "almacén" en México).` : `Los términos de búsqueda tienen que estar en el vocabulario de ${pais} (ej.: en Chile "bodega" es depósito; en México "almacén").`}
 
 Respondé SOLO con JSON:
-{"interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["6 a 10 términos concretos como aparecen en Google Maps o directorios, repartidos entre los distintos tipos de "incluir""], "incluir": ["5 a 8 tipos de empresa de industrias distintas que sí entran, del que más encaja al que menos"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
+{"especifica": true o false (false si el pedido es tan general que puede ser casi cualquier empresa, como "empresas", "empresas con depósito", "negocios grandes"; true si ya dice un tipo de empresa concreto o una característica clara), "opciones": ["si especifica es false: 4 a 6 búsquedas CONCRETAS que la persona podría elegir, cada una con un tipo de empresa + una característica verificable, cortas, en minúscula y sin lugares (ej.: 'operadores logísticos con depósito propio', 'laboratorios que están ampliando su planta'); si es true, 2 o 3 variantes más específicas"], "interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["6 a 10 términos concretos como aparecen en Google Maps o directorios, repartidos entre los distintos tipos de "incluir""], "incluir": ["5 a 8 tipos de empresa de industrias distintas que sí entran, del que más encaja al que menos"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
     const o = extraerObjeto(r.texto)
     if (!o) return { brief: base, usoIn: r.usoIn, usoOut: r.usoOut }
     return {
-      brief: limpiarBrief({ interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 10).length ? lista(o.buscar, 10) : [rubro], incluir: lista(o.incluir, 8), excluir: lista(o.excluir, 8) }, zona),
+      brief: { ...limpiarBrief({ interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 10).length ? lista(o.buscar, 10) : [rubro], incluir: lista(o.incluir, 8), excluir: lista(o.excluir, 8) }, zona),
+        especifica: o.especifica !== false, opciones: lista(o.opciones, 6).map(x => sinLugares(x, zona)).filter(x => x.length > 3) },
       usoIn: r.usoIn, usoOut: r.usoOut,
     }
   } catch (e) { console.error('interpretar', e); return { brief: base, usoIn: 0, usoOut: 0 } }
