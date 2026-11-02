@@ -402,10 +402,14 @@ export async function buscar(req: Request, h: Ayudas) {
   if (body.modo === 'preguntar') {
     try {
       const r = await llamarClaude(key, modeloRapido, `Sos un asistente que ayuda a una persona a armar una búsqueda de clientes potenciales (empresas) que sea CONCRETA, porque las búsquedas generales traen resultados malos.
-${contexto ? `Quién busca y qué vende:\n${contexto}\n` : 'No sabemos qué vende: una de las preguntas puede ser qué vende.\n'}${apr.texto ? `${apr.texto}\n` : ''}
+${contexto ? `Quién busca y qué vende:\n${contexto}\n` : 'No sabemos qué vende: la PRIMERA pregunta tiene que ser qué vende (con opciones variadas de productos y servicios) y las otras, a quién se lo vende.\n'}${apr.texto ? `${apr.texto}\n` : ''}
 Lo que escribió: "${rubro || '(todavía nada)'}"
 
-Hacé de 2 a 3 preguntas cortas para concretar QUÉ TIPO de empresa buscar. Pensalas para lo que vende esta persona y lo que escribió (no genéricas): por ejemplo, qué industria o actividad, qué característica visible indica que necesita lo que vende (tamaño, si tiene tal cosa, si está creciendo), qué momento o problema. Cada pregunta con 4 a 6 respuestas posibles, cortas (2 a 6 palabras), concretas y distintas entre sí, de industrias variadas cuando corresponda. NO preguntes por el lugar ni pongas lugares (eso ya lo eligió aparte).
+Hacé de 2 a 3 preguntas cortas para concretar QUÉ TIPO de empresa le conviene buscar, desde el punto de vista de LO QUE VENDE esta persona. Las preguntas y las respuestas cambian totalmente según el negocio; nunca uses preguntas de otro rubro. Ejemplos de cómo cambian (sólo para que veas la idea, no los copies):
+- Si vende pasta de maní: "¿A quién se la querés vender?" → dietéticas, gimnasios, cafeterías de especialidad, supermercados chicos, distribuidoras de alimentos saludables; "¿En qué formato?" → para revender, para usar en su cocina, marca propia.
+- Si es una empresa de camiones o fletes: "¿Qué carga querés mover?" → granos, materiales de construcción, alimentos refrigerados, mudanzas corporativas; "¿Qué cliente?" → fábricas que despachan todos los días, acopios, corralones, e-commerce.
+- Si automatiza depósitos: "¿Qué operación?" → operadores logísticos, e-commerce, laboratorios, frigoríficos; "¿Qué señal?" → está contratando operarios, amplió el depósito.
+La primera pregunta casi siempre es a qué tipo de comprador o industria le quiere vender, con opciones pensadas para su producto. La segunda o tercera, una característica visible o un momento que indique que necesita lo que vende (tamaño, si tiene tal cosa, si está creciendo, qué problema tiene). Cada pregunta con 4 a 6 respuestas posibles, cortas (2 a 6 palabras), concretas y distintas entre sí, de industrias variadas cuando corresponda. NO preguntes por el lugar ni pongas lugares (eso ya lo eligió aparte).
 Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", "..."], "varias": true o false}]}`, 2000)
       usoIn += r.usoIn; usoOut += r.usoOut
       const o = extraerObjeto(r.texto)
