@@ -98,8 +98,7 @@ export const nombrePais = code => PAISES.find(p => p.code === code)?.nombre ?? '
 /** Zonas para sugerir según el país y la provincia de la cuenta (la primera es la zona por defecto de las búsquedas) */
 export function zonasDe(pais, region, otros = []) {
   const extra = (otros ?? []).map(nombrePais).filter(Boolean)
-  const todos = extra.length && nombrePais(pais) ? [[nombrePais(pais), ...extra].join(', ')] : []
-  return [...new Set([...zonasDePais(pais, region, extra.length ? 7 : 10), ...todos, ...extra])]
+  return [...new Set([...zonasDePais(pais, region, extra.length ? 7 : 10), ...extra])]
 }
 function zonasDePais(pais, region, max = 10) {
   const nombre = nombrePais(pais)
@@ -109,4 +108,30 @@ function zonasDePais(pais, region, max = 10) {
   const ciudades = (CIUDADES.find(c => c.pais === nombre)?.items ?? []).map(c => (pais === 'AR' ? c : `${c}, ${nombre}`))
   const regiones = (REGIONES_PAIS[pais] ?? []).filter(r => r !== region).slice(0, 5).map(conPais)
   return [...new Set([...(region ? [conPais(region)] : []), ...ciudades.slice(0, 4), ...regiones, nombre])].slice(0, max)
+}
+
+/** Lugares concretos de un país para buscar (provincias/regiones y ciudades, sin el nombre del país) */
+export function lugaresDe(pais, region) {
+  const nombre = nombrePais(pais)
+  const mza = pais === 'AR' && region === 'Mendoza' ? ['Gran Mendoza', ...ZONAS.flatMap(g => g.items)] : []
+  const ciudades = CIUDADES.find(c => c.pais === nombre)?.items ?? []
+  const regiones = REGIONES_PAIS[pais] ?? []
+  // En Argentina sin provincia elegida arranca por las provincias (Buenos Aires primero); en el resto, por las ciudades
+  const orden = pais === 'AR' && !region ? [...regiones, ...ciudades] : [...ciudades, ...regiones]
+  return [...new Set([...(region ? [region] : []), ...mza, ...orden])].filter(l => l && l !== 'Todo Mendoza')
+}
+/** "Córdoba" + AR → "Córdoba, Argentina" (los departamentos de Mendoza llevan la provincia) */
+export function zonaConPais(lugar, pais) {
+  const nombre = nombrePais(pais), l = String(lugar ?? '').trim()
+  if (!l) return nombre
+  const conProv = pais === 'AR' ? zonaCompleta(l) : l
+  return conProv.toLowerCase().includes(nombre.toLowerCase()) ? conProv : `${conProv}, ${nombre}`
+}
+/** "Córdoba, Argentina" → { pais: 'AR', lugar: 'Córdoba' } */
+export function separarZona(zona, paisDefecto = 'AR') {
+  const partes = String(zona ?? '').split(',').map(x => x.trim()).filter(Boolean)
+  const ultimo = partes.at(-1)
+  const p = PAISES.find(x => x.nombre.toLowerCase() === ultimo?.toLowerCase())
+  if (p) return { pais: p.code, lugar: partes.slice(0, -1).filter(x => x !== 'Mendoza' || partes.length === 2).join(', ') }
+  return { pais: paisDefecto, lugar: partes.join(', ') }
 }

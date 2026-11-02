@@ -1840,3 +1840,15 @@ button.filtro-activo:hover .filtro-quitar { opacity: 1; }
 .dia-sugerencia span { flex: 1; }
 html[data-tema="oscuro"] .dia-etapa.cero { background: #262421; }
 @media (max-width: 900px) { .dia-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Los avisos aparecen arriba del botón "Preguntale a Claude", nunca encima */
+.toasts { bottom: 92px; z-index: 70; }
+body:has(.barra-guardar, .barra-armar, .barra-envio) .toasts { bottom: 168px; }
+@media (max-width: 900px) { .toasts { bottom: 148px; } body:has(.barra-guardar, .barra-armar, .barra-envio) .toasts { bottom: 164px; } }
+/* Dónde: país + lugar */
+.donde-fila { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.donde-fila .donde-pais { flex: none; width: auto; border: 0; background: #f4f1ec; border-radius: 99px; padding: 4px 10px; font-size: 13px; font-weight: 600; }
+.donde-fila .selector-zona { flex: 1; min-width: 0; }
+.busqueda-hero .bb-campo:nth-child(2) { flex: 1.6 1 0; }
+.donde-fila { position: relative; }
+.donde-fila .selector-zona { position: static; }
+.donde-fila .sz-panel { left: -14px; max-width: calc(100vw - 40px); }

@@ -6,8 +6,9 @@ import { mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
 import { motivoHallazgo, aprobarHallazgos, descartarHallazgos } from '../lib/hallazgos.js'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
+import { Bandera } from '../components/ElegirPais.jsx'
 import Desplegable from '../components/Desplegable.jsx'
-import { RUBROS, ZONAS, zonaCompleta, zonasDe, nombrePais } from '../lib/catalogo.js'
+import { RUBROS, ZONAS, zonaCompleta, zonasDe, nombrePais, lugaresDe, zonaConPais, PAISES } from '../lib/catalogo.js'
 import { Aviso, useToast } from '../components/ui.jsx'
 import Autocompletar from '../components/Autocompletar.jsx'
 import SelectorZona from '../components/SelectorZona.jsx'
@@ -45,14 +46,17 @@ export default function BuscarPlaces() {
   const [ocupados, setOcupados] = useState(new Set())
   const est = comercial?.estrategia?.rubros?.length ? comercial.estrategia : null
   const sugRubros = useMemo(() => est ? est.rubros.map(r => r.nombre) : ['barbería', 'centro de estética', 'veterinaria', 'gimnasio', 'estudio contable', 'inmobiliaria', 'restaurante', 'taller mecánico'], [est])
-  // Zonas sugeridas: si la cuenta vende en varios países, primero todos juntos; después las de su estrategia y las de su país
+  const zonaTocada = useRef(false)
+  // Dónde: UN país a la vez y un lugar concreto (provincia, ciudad o zona). Si es muy amplio, la búsqueda se dispersa.
+  const [paisBusq, setPaisBusq] = useState(perfil?.pais || 'AR')
+  useEffect(() => { if (perfil?.pais && !zonaTocada.current) setPaisBusq(perfil.pais) }, [perfil?.pais])
+  const paisesCuenta = useMemo(() => [...new Set([perfil?.pais, ...(perfil?.paises ?? [])].filter(Boolean))], [perfil?.pais, perfil?.paises])
   const sugZonas = useMemo(() => {
-    const base = zonasDe(perfil?.pais, perfil?.region, perfil?.paises)
-    const varios = perfil?.pais && perfil?.paises?.length ? [[nombrePais(perfil.pais), ...perfil.paises.map(nombrePais)].filter(Boolean).join(', ')] : []
-    return [...new Set([...varios, ...(varios.length ? base : []), ...(est?.zonas ?? []), ...base])].filter(Boolean)
-  }, [est, perfil?.pais, perfil?.region, perfil?.paises])
+    const deEstrategia = (est?.zonas ?? []).map(z => z.split(',').map(x => x.trim())).filter(p => p.length === 1 ? !PAISES.some(x => x.nombre === p[0]) && paisBusq === (perfil?.pais || 'AR') : p.at(-1) === nombrePais(paisBusq)).map(p => p.length > 1 ? p.slice(0, -1).join(', ') : p[0])
+    return [...new Set([...deEstrategia, ...lugaresDe(paisBusq, paisBusq === perfil?.pais ? perfil?.region : null)])].filter(Boolean)
+  }, [est, paisBusq, perfil?.pais, perfil?.region])
   const todosRubros = useMemo(() => [...new Set([...sugRubros, ...RUBROS.flatMap(g => g.items)])], [sugRubros])
-  const todasZonas = useMemo(() => [...new Set([...sugZonas, ...(perfil?.pais === 'AR' && perfil?.region === 'Mendoza' ? ZONAS.flatMap(g => g.items) : []), ...zonasDe(perfil?.pais, null), 'Todo el país'])], [sugZonas, perfil?.pais, perfil?.region])
+  const todasZonas = sugZonas
   const filtros = est?.filtros?.length ? est.filtros : FILTROS_DEFECTO
 
   const [rubro, setRubro] = useState('')
@@ -69,10 +73,9 @@ export default function BuscarPlaces() {
   const resultadosRef = useRef(null)
   const rubroRef = useRef(null)
 
-  const zonaTocada = useRef(false)
   useEffect(() => { setActivos(new Set(filtros.filter(f => f.activo).map(f => f.id))) }, [comercial])
   // La zona por defecto sigue a la configuración de la cuenta hasta que la persona elige otra
-  useEffect(() => { if (!zonaTocada.current && sugZonas[0]) setZona(sugZonas[0]) }, [sugZonas])
+  useEffect(() => { if ((!zonaTocada.current || !zona) && sugZonas[0]) setZona(sugZonas[0]) }, [sugZonas])
   const cargarHistorial = () => supabase.from('busquedas').select('*').order('created_at', { ascending: false }).limit(6).then(({ data }) => setHistorial(data ?? []))
   useEffect(() => { cargarHistorial() }, [])
 
@@ -86,12 +89,12 @@ export default function BuscarPlaces() {
   async function entender(e) {
     e?.preventDefault()
     if (!rubro.trim()) { rubroRef.current?.focus(); return }
-    if (!zona.trim()) return
+    if (!zona.trim()) { setError(`Elegí una provincia, ciudad o zona de ${nombrePais(paisBusq)}: si buscás en todo el país, los resultados se dispersan.`); return }
     const z = zonaNormal(zona)
     setZona(z)
     setEntendiendo(true); setError(''); setRes(null); setBrief(null)
     try {
-      const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: rubro.trim(), zona: zonaCompleta(z) })
+      const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: rubro.trim(), zona: zonaConPais(z, paisBusq) })
       setBrief({ ...r.brief, _aprendizaje: r.aprendizaje })
     } catch (err) { setError(mensajeError(err)) }
     setEntendiendo(false)
@@ -104,7 +107,7 @@ export default function BuscarPlaces() {
     const timer = setInterval(() => setSeg(Math.round((Date.now() - t0) / 1000)), 500)
     try {
       const { _aprendizaje, ...briefLimpio } = brief
-      const r = await llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaCompleta(zonaNormal(zona)), cantidad, brief: briefLimpio, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido })
+      const r = await llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, brief: briefLimpio, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido })
       setRes(r); setBrief(null)
       toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info')
       refrescar(); cargarHistorial()
@@ -161,7 +164,12 @@ export default function BuscarPlaces() {
         </label>
         <label className="bb-campo">
           <span><MapPin size={14} /> Dónde</span>
-          <SelectorZona pais={perfil?.pais} region={perfil?.region} value={zona} onChange={v => { zonaTocada.current = true; setZona(v); setBrief(null) }} sugeridas={sugZonas} disabled={cargando} />
+          <div className="donde-fila">
+            <Desplegable className="donde-pais" ariaLabel="País" value={paisBusq} disabled={cargando} anchoMenu={230}
+              onChange={v => { zonaTocada.current = true; setPaisBusq(v); setZona(''); setBrief(null) }}
+              opciones={[...paisesCuenta.map(c => PAISES.find(p => p.code === c)).filter(Boolean), ...PAISES.filter(p => !paisesCuenta.includes(p.code))].map(p => ({ value: p.code, label: p.nombre, icono: <Bandera code={p.code} />, ayuda: paisesCuenta.includes(p.code) ? 'de tu cuenta' : '' }))} />
+            <SelectorZona soloPais={paisBusq} region={paisBusq === perfil?.pais ? perfil?.region : ''} value={zona} placeholder="Provincia, ciudad o zona" onChange={v => { zonaTocada.current = true; setZona(v); setBrief(null) }} sugeridas={sugZonas.slice(0, 6)} disabled={cargando} />
+          </div>
         </label>
         <label className="bb-campo bb-chico">
           <span>Cuántos</span>
@@ -200,8 +208,7 @@ export default function BuscarPlaces() {
 
       {!cargando && !res && !brief && !entendiendo && (() => {
         const ejemplos = ['empresas grandes con depósito', 'locales que venden celulares', 'constructoras medianas', 'clínicas privadas', 'distribuidoras de alimentos'].filter(x => !sugRubros.some(r => r.toLowerCase() === x.toLowerCase() || r.toLowerCase() + 's' === x.toLowerCase()))
-        const vecinos = perfil?.paises?.length ? [] : { AR: ['Chile', 'Uruguay', 'Paraguay'], CL: ['Argentina', 'Perú'], UY: ['Argentina', 'Brasil'], PE: ['Chile', 'Colombia', 'Ecuador'], CO: ['Ecuador', 'Perú', 'Panamá'], MX: ['Guatemala', 'Estados Unidos'] }[perfil?.pais] ?? ['Latinoamérica']
-        const zonasSug = [...new Set([...sugZonas.slice(0, 8), ...vecinos])]
+        const zonasSug = sugZonas.slice(0, 10)
         return (
           <div className="bb-sugerencias">
             <div className="sug-bloque">
@@ -214,7 +221,7 @@ export default function BuscarPlaces() {
                 <div className="sug-chips">{ejemplos.map(r => <button key={r} type="button" className={'sug-chip' + (rubro === r ? ' on' : '')} onClick={() => { setRubro(r); setBrief(null) }}>“{r}”</button>)}</div>
               </div>
               <div className="sug-bloque">
-                <div className="sug-titulo"><MapPin size={14} /> Zonas</div>
+                <div className="sug-titulo"><MapPin size={14} /> Zonas de {nombrePais(paisBusq)}</div>
                 <div className="sug-chips">{zonasSug.map(z => <button key={z} type="button" className={'sug-chip zona' + (zona === z ? ' on' : '')} onClick={() => { zonaTocada.current = true; setZona(z); setBrief(null) }}>{zona === z && <Check size={12} />}{z}</button>)}</div>
               </div>
             </div>
@@ -249,7 +256,7 @@ export default function BuscarPlaces() {
             <div><b className="no-txt"><X size={14} /> No entran</b><ChipsEditables tipo="no" items={brief.excluir} onChange={v => setBrief({ ...brief, excluir: v })} placeholder="Ej.: mudanzas" /></div>
           </div>
           <div className="brief-pie">
-            <span className="muted chico"><MapPin size={12} style={{ verticalAlign: -2 }} /> {zona} · hasta {cantidad} empresas · no trae las que ya tenés ni las que descartaste</span>
+            <span className="muted chico"><MapPin size={12} style={{ verticalAlign: -2 }} /> {zonaConPais(zona, paisBusq)} · hasta {cantidad} empresas · no trae las que ya tenés ni las que descartaste</span>
             <span className="espacio" />
             <button className="btn fantasma" onClick={() => { setBrief(null); rubroRef.current?.focus() }}>Cambiar el pedido</button>
             {quedan !== null && <span className={'chico ' + (quedan <= Math.ceil(cupo.limite * 0.2) ? 'texto-alerta' : 'muted')} title="Cada búsqueda usa una consulta de IA de tu cupo diario">{quedan === 0 ? 'No te quedan consultas de IA hoy' : `Usa 1 consulta de IA · te quedan ${quedan} hoy`}</span>}
@@ -277,7 +284,7 @@ export default function BuscarPlaces() {
             <div>
               <h2>{res.resultados.length ? `${res.resultados.length} empresas nuevas` : 'No encontró empresas nuevas'}</h2>
               <p className="muted">
-                {res.brief?.interpretacion && <>{res.brief.interpretacion} · </>}{zona}
+                {res.brief?.interpretacion && <>{res.brief.interpretacion} · </>}{zonaConPais(zona, paisBusq)}
                 {(res.ya_conocidos > 0 || res.no_encajan > 0 || res.descartados > 0) && <><br />No te mostramos {[
                   res.ya_conocidos > 0 && `${res.ya_conocidos} que ya tenías${res.ya_descartados ? ' o descartaste' : ''}`,
                   res.no_encajan > 0 && `${res.no_encajan} que no encajaban`,
