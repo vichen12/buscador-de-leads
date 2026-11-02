@@ -72,7 +72,7 @@ export function Soporte() {
 }
 
 /** Super admin · planes (el cobro queda apagado hasta decidir proveedor) */
-export function Planes() {
+export function Planes({ empresas = [], onCambio }) {
   const toast = useToast()
   const [lista, setLista] = useState(null)
   const cargar = () => supabase.from('planes').select('*').order('orden').then(({ data }) => setLista(data ?? []))
@@ -80,14 +80,15 @@ export function Planes() {
   const set = (i, k, v) => setLista(l => l.map((p, j) => (j === i ? { ...p, [k]: v } : p)))
   async function guardar(p) {
     const { error } = await supabase.from('planes').update({ nombre: p.nombre, descripcion: p.descripcion, precio_mensual: Number(p.precio_mensual) || 0, moneda: p.moneda, usuarios_max: Number(p.usuarios_max) || 1, ia_mes: Number(p.ia_mes) || 0, destacado: p.destacado, activo: p.activo }).eq('id', p.id)
-    if (error) toast(mensajeError(error), 'error'); else toast('Plan guardado', 'ok')
+    if (error) toast(mensajeError(error), 'error'); else { toast('Plan guardado. Las empresas que ya lo tienen conservan sus topes hasta que las edites.', 'ok'); onCambio?.() }
   }
   if (!lista) return <Loader2 size={16} className="spin" />
   return (
     <>
-      <div className="aviso-legal" style={{ marginBottom: 14 }}><CreditCard size={16} /><span>Los planes se muestran en la página pública. <b>El cobro está apagado</b>: queda pendiente elegir Mercado Pago o Stripe. Mientras tanto, el plan de cada empresa se asigna a mano en la pestaña Empresas.</span></div>
+      <div className="aviso-legal" style={{ marginBottom: 14 }}><CreditCard size={16} /><span>Estos son los planes que elegís al dar de alta o editar una empresa (fijan su tope de IA y de usuarios), y los visibles se muestran en la página pública. <b>El cobro está apagado</b>: queda pendiente elegir Mercado Pago o Stripe.</span></div>
       <div className="grilla-planes">{lista.map((p, i) => (
-        <section key={p.id} className="tarjeta">
+        <section key={p.id} className={'tarjeta plan-admin' + (p.destacado ? ' destacado' : '')}>
+          <div className="plan-admin-cab"><span className="chip">{p.id}</span><span className="muted chico">{empresas.filter(e => e.plan === p.id).length} {empresas.filter(e => e.plan === p.id).length === 1 ? 'empresa' : 'empresas'} con este plan</span></div>
           <label>Nombre<input value={p.nombre} onChange={e => set(i, 'nombre', e.target.value)} /></label>
           <label>Descripción<input value={p.descripcion} onChange={e => set(i, 'descripcion', e.target.value)} /></label>
           <div className="dos-col" style={{ gap: 10 }}>

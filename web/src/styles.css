@@ -2314,3 +2314,56 @@ html[data-tema="oscuro"] .tabla tbody tr:hover td { background: #22201e; }
 html[data-tema="oscuro"] .pl-card { background: var(--card); }
 html[data-tema="oscuro"] .pl-asunto { background: #262421; }
 html[data-tema="oscuro"] .pl-cuerpo.cortado::after { background: linear-gradient(transparent, var(--card)); }
+
+/* ===== Super admin: empresas con su gente adentro ===== */
+.adm-barra { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.adm-barra .buscador { flex: 1 1 260px; max-width: 420px; }
+.adm-empresas { display: grid; gap: 14px; }
+.adm-empresa { background: #fff; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+.adm-empresa.suspendida { background: repeating-linear-gradient(-45deg, #fff, #fff 12px, #fff8f4 12px, #fff8f4 24px); }
+.adm-empresa.sin-empresa { border-style: dashed; }
+.adm-empresa-cab { display: flex; align-items: center; gap: 14px; padding: 16px 18px; flex-wrap: wrap; }
+.adm-plegar { border: 0; background: transparent; color: var(--mut); cursor: pointer; padding: 4px; border-radius: 8px; display: grid; place-items: center; }
+.adm-plegar:hover { background: var(--hover); color: var(--ink); }
+.adm-plegar[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.adm-plegar svg { transition: transform .2s var(--ease); }
+.adm-sin { background: #f1ede7; color: var(--mut); }
+.adm-empresa-nombre { flex: 1 1 200px; min-width: 0; }
+.adm-empresa-nombre b { display: block; font-size: 16px; letter-spacing: -.01em; }
+.adm-empresa-nombre span { display: block; font-size: 12.5px; color: var(--mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-dato { display: flex; flex-direction: column; gap: 2px; min-width: 84px; }
+.adm-dato small { font-size: 11px; color: var(--mut); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.adm-dato b { font-size: 15px; white-space: nowrap; }
+.adm-dato b span { color: var(--mut); font-weight: 500; font-size: 13px; }
+.adm-dato.ia { min-width: 150px; }
+.adm-dato .cupo-barra { margin: 4px 0 0; height: 5px; }
+.adm-acciones { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.adm-miembros { border-top: 1px solid var(--line); background: #fcfbf9; }
+.adm-vacio { padding: 14px 18px 14px 64px; margin: 0; }
+.adm-miembro { display: grid; grid-template-columns: auto minmax(180px, 1.4fr) auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 14px; padding: 10px 18px 10px 62px; border-top: 1px solid #f1ede7; }
+.adm-miembro:first-child { border-top: 0; }
+.adm-miembro.apagado { opacity: .55; }
+.adm-persona { min-width: 0; }
+.adm-persona b { display: flex; align-items: center; gap: 6px; font-size: 14px; flex-wrap: wrap; }
+.adm-persona span { display: block; font-size: 12px; color: var(--mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-nums { display: flex; gap: 12px; font-size: 12px; color: var(--mut); white-space: nowrap; }
+.adm-nums b { color: var(--ink); font-size: 13px; }
+.adm-acciones-u { display: flex; align-items: center; gap: 6px; }
+.adm-form .adm-paso { display: flex; align-items: center; gap: 8px; margin: 18px 0 10px; }
+.adm-form .adm-paso span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+.adm-form .adm-paso small { margin-left: auto; }
+.adm-planes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.adm-plan { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 12px 14px; border: 1.5px solid var(--line-2); border-radius: 14px; background: #fff; cursor: pointer; font: inherit; color: var(--ink); transition: border-color .15s, background .15s; }
+.adm-plan:hover { border-color: #e2c6b8; }
+.adm-plan.on { border-color: var(--acc); background: var(--acc-soft); }
+.adm-plan b { font-size: 14px; }
+.adm-plan span { font-size: 12px; color: var(--mut); line-height: 1.4; }
+.adm-plan small { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.adm-heredar { display: flex !important; align-items: center; gap: 8px; font-size: 13.5px; margin: 10px 0; }
+.adm-heredar input { width: auto; margin: 0; }
+.plan-admin-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.plan-admin.destacado { border-color: #f8c9b8; }
+html[data-tema="oscuro"] .adm-empresa, html[data-tema="oscuro"] .adm-plan { background: var(--card); }
+html[data-tema="oscuro"] .adm-miembros { background: #1d1b19; }
+@media (max-width: 1150px) { .adm-miembro { grid-template-columns: auto minmax(0, 1fr) auto; padding-left: 18px; } .adm-nums, .adm-miembro > .desplegable { display: none; } }
+.adm-ia { display: flex; flex-direction: column; gap: 2px; } .adm-ia > small { font-size: 10.5px; color: var(--mut); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw, BarChart3, CreditCard, LifeBuoy } from 'lucide-react'
+import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw, BarChart3, CreditCard, LifeBuoy, ChevronDown } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, fechaHora, mensajeError } from '../lib/util.js'
 import { Avatar, Esqueleto, Interruptor, Modal, Aviso, Contador, useConfirmar, useToast } from '../components/ui.jsx'
@@ -9,14 +9,20 @@ import { Metricas, Planes, Soporte } from '../components/AdminExtra.jsx'
 import { CamposPais, SelectorTipoVenta, TIPOS_VENTA, tipoDe, Bandera } from '../components/ElegirPais.jsx'
 import { nombrePais } from '../lib/catalogo.js'
 
-const PLANES = [
-  { value: 'prueba', label: 'Prueba', limite: 100, ayuda: '100 consultas de IA por mes' },
-  { value: 'basico', label: 'Básico', limite: 500, ayuda: '500 consultas de IA por mes' },
-  { value: 'pro', label: 'Pro', limite: 2000, ayuda: '2.000 consultas de IA por mes' },
-  { value: 'medida', label: 'A medida', limite: null, ayuda: 'Elegís el tope' },
-  { value: 'ilimitado', label: 'Sin tope', limite: null, ayuda: 'Sin límite mensual (ojo con el costo)' },
+// Los planes salen de la pestaña Planes (tabla "planes"); además se puede elegir "a medida" o "sin tope"
+const EXTRA_PLANES = [
+  { id: 'medida', nombre: 'A medida', descripcion: 'Elegís vos los topes', ia_mes: null, usuarios_max: null },
+  { id: 'ilimitado', nombre: 'Sin tope de IA', descripcion: 'Ojo con el costo', ia_mes: null, usuarios_max: null },
 ]
-const nombrePlan = p => PLANES.find(x => x.value === p)?.label ?? p
+const nombrePlan = (planes, id) => [...planes, ...EXTRA_PLANES].find(x => x.id === id)?.nombre ?? (id || 'Sin plan')
+const fmtN = n => Number(n || 0).toLocaleString('es-AR')
+/** Guarda una empresa (con tope de usuarios si la base ya tiene la versión nueva) */
+async function guardarEmpresa(e) {
+  const args = { p_id: e.id ?? null, p_nombre: e.nombre, p_contacto: e.contacto ?? '', p_notas: e.notas ?? '', p_activa: e.activa ?? true, p_plan: e.plan, p_limite_ia_mes: e.limite_ia_mes ?? null }
+  let r = await supabase.rpc('admin_guardar_empresa', { ...args, p_usuarios_max: e.usuarios_max ?? -1 })
+  if (r.error && /function|schema cache|PGRST202/i.test(r.error.message + (r.error.code ?? ''))) r = await supabase.rpc('admin_guardar_empresa', args)
+  return r
+}
 
 const MODELOS = [
   ['claude-sonnet-5-5', 'Claude Sonnet 5.5 — equilibrado (recomendado)'],
@@ -32,26 +38,26 @@ export default function Admin() {
   const [credenciales, setCredenciales] = useState(null)
 
   async function cargar() {
-    const [e, u, k, ch] = await Promise.all([
+    const [e, u, k, ch, pl] = await Promise.all([
       supabase.rpc('admin_empresas'),
       supabase.rpc('admin_usuarios'),
       supabase.rpc('admin_estado_claves'),
       supabase.rpc('admin_uso_chat'),
+      supabase.from('planes').select('*').order('orden'),
     ])
     const error = e.error || u.error || k.error
     if (error) toast(mensajeError(error), 'error')
     const chat = new Map((ch.data ?? []).map(x => [x.id, x]))
-    setDatos({ empresas: e.data ?? [], usuarios: (u.data ?? []).map(x => ({ ...x, chat: chat.get(x.id) })), claves: k.data ?? [] })
+    setDatos({ empresas: e.data ?? [], usuarios: (u.data ?? []).map(x => ({ ...x, chat: chat.get(x.id) })), claves: k.data ?? [], planes: pl.data ?? [] })
   }
   useEffect(() => { cargar() }, [])
 
   if (!datos) return <Esqueleto />
-  const { empresas, usuarios, claves } = datos
+  const { empresas, usuarios, claves, planes } = datos
   const claveIA = claves.find(c => c.nombre === 'anthropic')
   const tabs = [
     ['metricas', 'Uso', BarChart3, null],
-    ['empresas', 'Empresas', Building2, empresas.length],
-    ['usuarios', 'Usuarios', Users, usuarios.length],
+    ['empresas', 'Empresas y usuarios', Building2, empresas.length],
     ['claves', 'Claves y servicios', KeyRound, claveIA?.configurada ? null : '!'],
     ['planes', 'Planes', CreditCard, null],
     ['soporte', 'Sugerencias y errores', LifeBuoy, null],
@@ -83,14 +89,13 @@ export default function Admin() {
       </div>
 
       <div key={tab} className="pagina">
-        {tab === 'empresas' && <Empresas empresas={empresas} recargar={cargar} nuevoUsuario={emp => setAlta({ empresa_id: emp.id })} />}
-        {tab === 'usuarios' && <Usuarios usuarios={usuarios} empresas={empresas} recargar={cargar} nuevoUsuario={() => setAlta({ empresa_id: empresas.find(e => e.activa)?.id ?? '' })} setCredenciales={setCredenciales} />}
+        {tab === 'empresas' && <EmpresasYUsuarios empresas={empresas} usuarios={usuarios} planes={planes} recargar={cargar} nuevoUsuario={emp => setAlta({ empresa_id: emp.id, empresa: emp.nombre })} setCredenciales={setCredenciales} />}
         {tab === 'claves' && <Claves claves={claves} recargar={cargar} />}
         {tab === 'metricas' && <Metricas />}
-        {tab === 'planes' && <Planes />}
+        {tab === 'planes' && <Planes empresas={empresas} onCambio={cargar} />}
         {tab === 'soporte' && <Soporte />}
       </div>
-      {alta && <NuevoUsuario inicial={alta} empresas={empresas} onCerrar={() => setAlta(null)} onCreado={c => { setAlta(null); setCredenciales(c); cargar() }} />}
+      {alta && <NuevoUsuario inicial={alta} empresas={empresas} usuarios={usuarios} onCerrar={() => setAlta(null)} onCreado={c => { setAlta(null); setCredenciales(c); cargar() }} />}
       {credenciales && <Credenciales {...credenciales} onCerrar={() => setCredenciales(null)} />}
     </>
   )
@@ -109,121 +114,28 @@ function Mini({ titulo, valor, pie, icono: Icono, color, fondo }) {
 const copiar = async (toast, texto, msg) => { try { await navigator.clipboard.writeText(texto); toast(msg) } catch { toast(texto, 'info') } }
 
 // ---------------- Empresas ----------------
-function Empresas({ empresas, recargar, nuevoUsuario }) {
-  const toast = useToast()
-  const confirmar = useConfirmar()
-  const [edit, setEdit] = useState(null)
-  const [guardando, setGuardando] = useState(false)
-
-  async function guardar(ev) {
-    ev.preventDefault()
-    if (!edit.nombre.trim()) return
-    setGuardando(true)
-    const plan = edit.plan || 'basico'
-    const limite = plan === 'ilimitado' ? null : plan === 'medida' ? Math.max(0, Number(edit.limite_ia_mes) || 0) : PLANES.find(x => x.value === plan).limite
-    const { data: id, error } = await supabase.rpc('admin_guardar_empresa', { p_id: edit.id ?? null, p_nombre: edit.nombre, p_contacto: edit.contacto, p_notas: edit.notas, p_activa: edit.activa ?? true, p_plan: plan, p_limite_ia_mes: limite })
-    setGuardando(false)
-    if (error) return toast(mensajeError(error), 'error')
-    const nueva = !edit.id
-    setEdit(null)
-    toast(nueva ? `Empresa "${edit.nombre.trim()}" creada` : 'Cambios guardados')
-    await recargar()
-    if (nueva) nuevoUsuario({ id })
-  }
-
-  async function alternar(e) {
-    if (e.activa && !(await confirmar({
-      titulo: `¿Suspender a ${e.nombre}?`, peligro: true, aceptar: 'Suspender',
-      texto: `Sus ${e.usuarios} usuario(s) dejan de poder entrar y no se pueden registrar nuevos con sus códigos. Los datos quedan guardados y podés reactivarla cuando quieras.`,
-    }))) return
-    const { error } = await supabase.rpc('admin_guardar_empresa', { p_id: e.id, p_nombre: e.nombre, p_contacto: e.contacto, p_notas: e.notas, p_activa: !e.activa })
-    if (error) return toast(mensajeError(error), 'error')
-    toast(e.activa ? `${e.nombre} suspendida` : `${e.nombre} habilitada`, e.activa ? 'info' : 'ok')
-    recargar()
-  }
-
-  return (
-    <>
-      <div className="barra-herramientas" style={{ justifyContent: 'space-between' }}>
-        <span className="muted">Cada empresa tiene sus propios usuarios. Cada usuario ve sólo sus prospectos.</span>
-        <button className="btn primario" onClick={() => setEdit({ nombre: '', contacto: '', notas: '', plan: 'basico', limite_ia_mes: 500 })}><Plus size={16} /> Nueva empresa</button>
-      </div>
-      {!empresas.length ? (
-        <div className="tarjeta vacio"><div className="icono-grande"><Building2 size={26} /></div><h3>Todavía no hay empresas</h3><p>Creá la primera y después dale de alta a sus usuarios.</p></div>
-      ) : (
-        <div className="empresas-grid stagger">
-          {empresas.map(e => (
-            <article key={e.id} className={'empresa' + (e.activa ? '' : ' suspendida')} data-empresa={e.nombre}>
-              <div className="empresa-cab">
-                <Avatar nombre={e.nombre} className="cuadrado" />
-                <div><b>{e.nombre}</b><span>{e.contacto || 'Sin contacto'} · desde {fecha(e.creada)}</span></div>
-                <Interruptor on={e.activa} onCambiar={() => alternar(e)} etiqueta={(e.activa ? 'Suspender ' : 'Habilitar ') + e.nombre} />
-              </div>
-              <div className="metricas">
-                <div><b>{e.usuarios}</b><span>usuarios</span></div>
-                <div><b>{e.prospectos}</b><span>prospectos</span></div>
-                <div><b>{e.enviados}</b><span>envíos</span></div>
-                <div><b>{e.clientes}</b><span>clientes</span></div>
-              </div>
-              <div className="uso-ia">
-                <div className="uso-ia-top"><span><Sparkles size={13} /> Plan <b>{nombrePlan(e.plan)}</b></span>
-                  <span>{e.uso_ia_mes} {e.limite_ia_mes != null ? `/ ${e.limite_ia_mes}` : ''} consultas este mes</span></div>
-                {e.limite_ia_mes != null && <div className={'cupo-barra' + (e.uso_ia_mes >= e.limite_ia_mes ? ' lleno' : e.uso_ia_mes >= e.limite_ia_mes * 0.8 ? ' casi' : '')}><span style={{ width: Math.min(100, e.limite_ia_mes ? (e.uso_ia_mes / e.limite_ia_mes) * 100 : 100) + '%' }} /></div>}
-                {e.limite_ia_mes != null && e.uso_ia_mes >= e.limite_ia_mes && <small className="no-txt">Llegó al tope: sus usuarios no pueden usar la IA hasta el mes que viene o hasta que amplíes el plan.</small>}
-              </div>
-              {e.notas && <p className="muted chico" style={{ margin: '0 0 12px' }}>{e.notas}</p>}
-              <div className="acciones">
-                <span className={'estado'} style={e.activa ? { color: 'var(--ok)', background: 'var(--ok-soft)' } : { color: 'var(--err)', background: 'var(--err-soft)' }}>{e.activa ? 'Habilitada' : 'Suspendida'}</span>
-                <span className="espacio" />
-                <button className="btn chico" onClick={() => setEdit({ ...e, plan: e.plan === 'basico' && e.limite_ia_mes !== 500 ? (e.limite_ia_mes == null ? 'ilimitado' : 'medida') : e.plan })}><Pencil size={14} /> Editar</button>
-                <button className="btn chico oscuro" onClick={() => nuevoUsuario(e)} disabled={!e.activa}><UserPlus size={14} /> Agregar usuario</button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {edit && (
-        <Modal onCerrar={() => setEdit(null)}>
-          <form onSubmit={guardar}>
-            <h3>{edit.id ? 'Editar empresa' : 'Nueva empresa'}</h3>
-            <p>{edit.id ? 'Los cambios se ven al instante.' : 'Después de crearla, le das de alta los usuarios.'}</p>
-            <label>Nombre<input autoFocus required value={edit.nombre} onChange={ev => setEdit({ ...edit, nombre: ev.target.value })} placeholder="Ej.: Estudio Andes" /></label>
-            <label>Contacto<input value={edit.contacto} onChange={ev => setEdit({ ...edit, contacto: ev.target.value })} placeholder="Nombre, mail o teléfono del responsable" /></label>
-            <div className="campo">Plan y límite de IA
-              <Desplegable className="ancho" ariaLabel="Plan" value={edit.plan || 'basico'} onChange={v => setEdit({ ...edit, plan: v, limite_ia_mes: PLANES.find(x => x.value === v).limite ?? edit.limite_ia_mes ?? 500 })}
-                opciones={PLANES.map(x => ({ value: x.value, label: x.label, ayuda: x.ayuda, icono: <Sparkles size={14} className="muted" /> }))} />
-              <small>Cada búsqueda, consulta al asistente o estrategia cuenta 1. El tope es por mes y lo comparten todos los usuarios de la empresa.</small>
-            </div>
-            {edit.plan === 'medida' && <label>Consultas de IA por mes<input type="number" min={0} step={50} value={edit.limite_ia_mes ?? ''} onChange={ev => setEdit({ ...edit, limite_ia_mes: ev.target.value })} /></label>}
-            <label>Notas internas<textarea rows={3} value={edit.notas} onChange={ev => setEdit({ ...edit, notas: ev.target.value })} placeholder="Plan, forma de pago, lo que quieras recordar" /></label>
-            <div className="acciones fin">
-              <button type="button" className="btn" onClick={() => setEdit(null)}>Cancelar</button>
-              <button className="btn primario" disabled={guardando || !edit.nombre.trim()}>{guardando && <Loader2 size={15} className="spin" />}{edit.id ? 'Guardar' : 'Crear empresa'}</button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </>
-  )
-}
-
-// ---------------- Usuarios ----------------
-function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales }) {
+function EmpresasYUsuarios({ empresas, usuarios, planes, recargar, nuevoUsuario, setCredenciales }) {
   const toast = useToast()
   const confirmar = useConfirmar()
   const { session } = useApp()
   const [q, setQ] = useState('')
+  const [filtro, setFiltro] = useState('todas')
+  const [editar, setEditar] = useState(null) // empresa a editar o { nueva: true }
+  const [cerradas, setCerradas] = useState([])
   const [cfg, setCfg] = useState({})
   const [configurando, setConfigurando] = useState(null)
   const cargarCfg = () => supabase.from('perfiles').select('id, pais, region, modos, paises').in('id', usuarios.map(u => u.id)).then(({ data }) => setCfg(Object.fromEntries((Array.isArray(data) ? data : []).map(x => [x.id, x]))))
   useEffect(() => { if (usuarios.length) cargarCfg() }, [usuarios])
-  const lista = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    return t ? usuarios.filter(u => [u.nombre, u.email, u.empresa].some(x => x?.toLowerCase().includes(t))) : usuarios
-  }, [usuarios, q])
 
-  async function actualizar(u, cambios, msg) {
+  const t = q.trim().toLowerCase()
+  const coincide = u => !t || [u.nombre, u.email].some(x => x?.toLowerCase().includes(t))
+  const grupos = [
+    ...empresas.filter(e => filtro === 'todas' || (filtro === 'activas' ? e.activa : !e.activa)).map(e => ({ e, miembros: usuarios.filter(u => u.empresa_id === e.id) })),
+    ...(filtro === 'todas' ? [{ e: null, miembros: usuarios.filter(u => !u.empresa_id) }] : []),
+  ].map(g => ({ ...g, visibles: !t || (g.e?.nombre ?? '').toLowerCase().includes(t) ? g.miembros : g.miembros.filter(coincide) }))
+    .filter(g => (g.e || g.miembros.length) && (!t || (g.e?.nombre ?? '').toLowerCase().includes(t) || g.visibles.length))
+
+  async function actualizarUsuario(u, cambios, msg) {
     const { error } = await supabase.rpc('admin_actualizar_usuario', { p_id: u.id, p_activo: cambios.activo ?? u.activo, p_empresa: 'empresa' in cambios ? cambios.empresa : u.empresa_id })
     if (error) return toast(mensajeError(error), 'error')
     toast(msg); recargar()
@@ -235,70 +147,192 @@ function Usuarios({ usuarios, empresas, recargar, nuevoUsuario, setCredenciales 
       setCredenciales({ nombre: u.nombre, email: r.email, password: r.password, nueva: false })
     } catch (e) { toast(e.message, 'error') }
   }
-  async function alternar(u) {
+  async function alternarUsuario(u) {
     if (u.activo && !(await confirmar({ titulo: `¿Suspender a ${u.nombre || u.email}?`, texto: 'No va a poder entrar hasta que lo reactives. Sus datos quedan guardados.', peligro: true, aceptar: 'Suspender' }))) return
-    actualizar(u, { activo: !u.activo }, u.activo ? 'Usuario suspendido' : 'Usuario reactivado')
+    actualizarUsuario(u, { activo: !u.activo }, u.activo ? 'Usuario suspendido' : 'Usuario reactivado')
+  }
+  async function alternarEmpresa(e) {
+    if (e.activa && !(await confirmar({ titulo: `¿Suspender a ${e.nombre}?`, peligro: true, aceptar: 'Suspender',
+      texto: `Sus ${e.usuarios} usuario(s) dejan de poder entrar. Los datos quedan guardados y podés reactivarla cuando quieras.` }))) return
+    const { error } = await guardarEmpresa({ ...e, activa: !e.activa, limite_ia_mes: -1, usuarios_max: -1 })
+    if (error) return toast(mensajeError(error), 'error')
+    toast(e.activa ? `${e.nombre} suspendida` : `${e.nombre} habilitada`, e.activa ? 'info' : 'ok'); recargar()
+  }
+  const plegar = id => setCerradas(c => c.includes(id) ? c.filter(x => x !== id) : [...c, id])
+
+  return (
+    <>
+      <div className="adm-barra">
+        <div className="buscador"><SearchIcon /><input placeholder="Buscar empresa, persona o email" value={q} onChange={e => setQ(e.target.value)} /></div>
+        <div className="rep-pastillas">{[['todas', 'Todas'], ['activas', 'Habilitadas'], ['suspendidas', 'Suspendidas']].map(([v, l]) => <button key={v} type="button" className={filtro === v ? 'on' : ''} onClick={() => setFiltro(v)}>{l}</button>)}</div>
+        <span className="espacio" />
+        <button className="btn primario" onClick={() => setEditar({ nueva: true })}><Plus size={16} /> Nueva empresa</button>
+      </div>
+
+      {!grupos.length ? (
+        <div className="home-vacio"><Building2 size={18} /><span>{t ? 'No hay empresas ni personas con esa búsqueda.' : 'Todavía no hay empresas. Creá la primera con su usuario.'}</span></div>
+      ) : (
+        <div className="adm-empresas">
+          {grupos.map(({ e, miembros, visibles }) => {
+            const id = e?.id ?? 'sin', cerrada = cerradas.includes(id) && !t
+            const usoPct = e?.limite_ia_mes ? Math.min(100, (e.uso_ia_mes / e.limite_ia_mes) * 100) : 0
+            return (
+              <article key={id} className={'adm-empresa' + (e && !e.activa ? ' suspendida' : '') + (!e ? ' sin-empresa' : '')}>
+                <header className="adm-empresa-cab">
+                  <button type="button" className="adm-plegar" onClick={() => plegar(id)} aria-expanded={!cerrada} title={cerrada ? 'Mostrar usuarios' : 'Ocultar usuarios'}><ChevronDown size={16} /></button>
+                  {e ? <Avatar nombre={e.nombre} className="cuadrado" /> : <span className="avatar cuadrado adm-sin"><Users size={16} /></span>}
+                  <div className="adm-empresa-nombre">
+                    <b>{e ? e.nombre : 'Usuarios sin empresa'}</b>
+                    <span>{e ? `${e.contacto || 'Sin contacto'} · desde ${fecha(e.creada)}` : 'Cuentas sueltas: asignalas a una empresa desde su fila'}</span>
+                  </div>
+                  {e && <>
+                    <div className="adm-dato"><small>Plan</small><b>{nombrePlan(planes, e.plan)}</b></div>
+                    <div className="adm-dato"><small>Usuarios</small><b>{miembros.length}{e.usuarios_max ? <span> / {e.usuarios_max}</span> : ''}</b></div>
+                    <div className="adm-dato ia"><small>IA este mes</small><b>{fmtN(e.uso_ia_mes)}{e.limite_ia_mes != null ? <span> / {fmtN(e.limite_ia_mes)}</span> : <span> · sin tope</span>}</b>
+                      {e.limite_ia_mes != null && <div className={'cupo-barra' + (usoPct >= 100 ? ' lleno' : usoPct >= 80 ? ' casi' : '')}><span style={{ width: usoPct + '%' }} /></div>}</div>
+                    <div className="adm-dato"><small>Prospectos</small><b>{fmtN(e.prospectos)}</b></div>
+                    <div className="adm-acciones">
+                      <Interruptor on={e.activa} onCambiar={() => alternarEmpresa(e)} etiqueta={(e.activa ? 'Suspender ' : 'Habilitar ') + e.nombre} />
+                      <button className="btn chico" onClick={() => setEditar(e)}><Pencil size={14} /> Editar</button>
+                      <button className="btn chico primario" onClick={() => nuevoUsuario(e)} disabled={!e.activa || (e.usuarios_max && miembros.length >= e.usuarios_max)} title={e.usuarios_max && miembros.length >= e.usuarios_max ? 'Llegó al tope de usuarios de su plan' : ''}><UserPlus size={14} /> Usuario</button>
+                    </div>
+                  </>}
+                </header>
+                {!cerrada && (
+                  <div className="adm-miembros">
+                    {!visibles.length ? <p className="muted chico adm-vacio">Todavía no tiene usuarios. <button type="button" className="link" onClick={() => nuevoUsuario(e)} disabled={!e?.activa}>Dale de alta al primero</button>.</p> : visibles.map(u => {
+                      const yo = u.id === session.user.id
+                      const c = cfg[u.id]
+                      return (
+                        <div key={u.id} className={'adm-miembro' + (u.activo ? '' : ' apagado')}>
+                          <Avatar nombre={u.nombre || u.email} />
+                          <div className="adm-persona">
+                            <b>{u.nombre || '—'}{u.es_admin && <span className="chip ia"><Crown size={11} /> super admin</span>}{yo && <span className="chip">vos</span>}</b>
+                            <span>{u.email} · {u.ultimo_ingreso ? `entró ${fechaHora(u.ultimo_ingreso)}` : 'nunca entró'}</span>
+                          </div>
+                          <button type="button" className="btn chico fantasma config-usuario" onClick={() => setConfigurando(u)} title="Cambiar país y tipo de venta">
+                            <Bandera code={c?.pais} /> {c?.pais ? (c?.region || nombrePais(c.pais)) : <span className="muted">Sin país</span>}{c?.paises?.length > 0 && <span className="muted chico">+{c.paises.length}</span>}
+                            <span className={'chip tipo-' + tipoDe(c?.modos)}>{({ b2b: 'B2B', b2c: 'B2C', ambos: 'B2B + B2C' })[tipoDe(c?.modos)]}</span>
+                          </button>
+                          <div className="adm-nums"><span><b>{u.prospectos}</b> prospectos</span><span><b>{u.enviados}</b> envíos</span><span><b>{u.clientes}</b> clientes</span></div>
+                          <div className="adm-ia" title="Consultas al asistente hoy / límite diario (vacío = el general)"><small>IA hoy</small><LimiteChat u={u} onGuardar={async v => {
+                            const { error } = await supabase.rpc('admin_limite_chat', { p_id: u.id, p_limite: v })
+                            if (error) return toast(mensajeError(error), 'error')
+                            toast(v === null ? 'Vuelve al límite general' : `Límite del asistente: ${v} por día`); recargar()
+                          }} /></div>
+                          <Desplegable compacto ariaLabel={'Mover a ' + (u.nombre || u.email)} value={u.empresa_id ?? ''} anchoMenu={230} alinear="der"
+                            onChange={v => actualizarUsuario(u, { empresa: v || null }, v ? 'Usuario movido de empresa' : 'Usuario sin empresa')}
+                            opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.map(x => ({ value: x.id, label: x.nombre, ayuda: x.activa ? '' : 'Suspendida', icono: <Building2 size={14} /> }))]} />
+                          <div className="adm-acciones-u">
+                            <Interruptor on={u.activo} disabled={yo} onCambiar={() => alternarUsuario(u)} etiqueta={(u.activo ? 'Suspender a ' : 'Reactivar a ') + (u.nombre || u.email)} />
+                            {!yo && <button className="btn chico fantasma" onClick={() => restablecer(u)} title="Generar contraseña nueva" aria-label={'Nueva contraseña para ' + (u.nombre || u.email)}><RotateCcw size={14} /></button>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      )}
+
+      {editar && <EditarEmpresa empresa={editar.nueva ? null : editar} planes={planes} onCerrar={() => setEditar(null)}
+        onListo={async (r) => { setEditar(null); await recargar(); if (r?.credenciales) setCredenciales(r.credenciales) }} />}
+      {configurando && <ConfigurarCuenta u={configurando} actual={cfg[configurando.id]} onCerrar={() => setConfigurando(null)} onListo={() => { setConfigurando(null); cargarCfg() }} />}
+    </>
+  )
+}
+
+/** Alta y edición de empresa: datos, plan (de la pestaña Planes) y, al crearla, su primer usuario */
+function EditarEmpresa({ empresa, planes, onCerrar, onListo }) {
+  const toast = useToast()
+  const nueva = !empresa
+  const todos = [...planes.filter(p => p.activo || p.id === empresa?.plan || p.id === 'prueba'), ...EXTRA_PLANES]
+  const planInicial = empresa?.plan && todos.some(p => p.id === empresa.plan) ? empresa.plan : (planes.find(p => p.destacado)?.id ?? planes[0]?.id ?? 'medida')
+  const [f, setF] = useState({ nombre: empresa?.nombre ?? '', contacto: empresa?.contacto ?? '', notas: empresa?.notas ?? '', plan: planInicial,
+    limite_ia_mes: empresa?.limite_ia_mes ?? 500, usuarios_max: empresa?.usuarios_max ?? 5 })
+  const [primero, setPrimero] = useState({ nombre: '', email: '' })
+  const [lugar, setLugar] = useState({ pais: 'AR', region: '', otros: [] })
+  const [tipo, setTipo] = useState('b2b')
+  const [guardando, setGuardando] = useState(false)
+  const elegido = todos.find(p => p.id === f.plan)
+  const elegir = p => setF(x => ({ ...x, plan: p.id, ...(p.ia_mes != null ? { limite_ia_mes: p.ia_mes } : {}), ...(p.usuarios_max != null ? { usuarios_max: p.usuarios_max } : {}) }))
+
+  async function guardar(ev) {
+    ev.preventDefault()
+    if (!f.nombre.trim()) return
+    if (nueva && primero.email && !primero.nombre.trim()) return toast('Poné el nombre del primer usuario', 'error')
+    setGuardando(true)
+    const limite = f.plan === 'ilimitado' ? null : Math.max(0, Number(f.limite_ia_mes) || 0)
+    const { data: id, error } = await guardarEmpresa({ ...empresa, ...f, nombre: f.nombre.trim(), limite_ia_mes: limite, usuarios_max: Math.max(1, Number(f.usuarios_max) || 1) })
+    if (error) { setGuardando(false); return toast(mensajeError(error), 'error') }
+    let credenciales = null
+    if (nueva && primero.email.trim()) {
+      try {
+        const r = await llamarFuncion('admin-usuarios', { modo: 'crear', nombre: primero.nombre.trim(), email: primero.email.trim(), empresa_id: id, rol: 'admin',
+          pais: lugar.pais, region: lugar.region, paises: lugar.otros, modos: TIPOS_VENTA.find(t => t[0] === tipo)[1] })
+        credenciales = { nombre: primero.nombre, email: r.email, password: r.password, nueva: true }
+      } catch (e) { toast(`La empresa se creó, pero no el usuario: ${e.message}`, 'error') }
+    }
+    setGuardando(false)
+    toast(nueva ? `Empresa "${f.nombre.trim()}" creada${credenciales ? ' con su primer usuario' : ''}` : 'Cambios guardados', 'ok')
+    onListo({ credenciales })
   }
 
   return (
-    <section className="tarjeta sin-pad">
-      <div className="barra-herramientas" style={{ padding: '16px 18px 0', marginBottom: 12 }}>
-        <div className="buscador"><SearchIcon /><input placeholder="Buscar por nombre, email o empresa" value={q} onChange={e => setQ(e.target.value)} /></div>
-        <button className="btn primario" onClick={nuevoUsuario}><UserPlus size={16} /> Nuevo usuario</button>
-      </div>
-      <div className="scroll-x">
-        <table className="tabla">
-          <thead><tr><th>Persona</th><th>Empresa</th><th>País · venta</th><th>Prospectos</th><th>Envíos</th><th>Clientes</th><th title="Consultas al asistente hoy / límite diario">Asistente IA</th><th>Último ingreso</th><th>Acceso</th></tr></thead>
-          <tbody>
-            {lista.map(u => {
-              const yo = u.id === session.user.id
-              return (
-                <tr key={u.id} className={u.activo ? '' : 'apagado'}>
-                  <td>
-                    <div className="negocio" style={{ minWidth: 220 }}>
-                      <Avatar nombre={u.nombre || u.email} />
-                      <div style={{ minWidth: 0 }}>
-                        <span className="fuerte" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>{u.nombre || '—'} {u.es_admin && <span className="chip ia"><Crown size={11} /> admin</span>}{yo && <span className="chip">vos</span>}</span>
-                        <div className="muted chico">{u.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ minWidth: 180 }}>
-                    <Desplegable compacto className="ancho" ariaLabel={'Empresa de ' + (u.nombre || u.email)} value={u.empresa_id ?? ''} anchoMenu={220}
-                      onChange={v => actualizar(u, { empresa: v || null }, 'Empresa actualizada')}
-                      opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.map(e => ({ value: e.id, label: e.nombre, ayuda: e.activa ? '' : 'Suspendida', icono: <Building2 size={14} /> }))]} />
-                  </td>
-                  <td className="nowrap">
-                    <button type="button" className="btn chico fantasma config-usuario" onClick={() => setConfigurando(u)} title="Cambiar país y tipo de venta">
-                      <Bandera code={cfg[u.id]?.pais} /> {cfg[u.id]?.pais ? (cfg[u.id]?.region || nombrePais(cfg[u.id].pais)) : <span className="muted">Sin configurar</span>}{cfg[u.id]?.paises?.length > 0 && <span className="muted chico">+{cfg[u.id].paises.length}</span>}
-                      <span className={'chip tipo-' + tipoDe(cfg[u.id]?.modos)}>{({ b2b: 'B2B', b2c: 'B2C', ambos: 'B2B + B2C' })[tipoDe(cfg[u.id]?.modos)]}</span>
-                    </button>
-                  </td>
-                  <td>{u.prospectos}</td><td>{u.enviados}</td><td>{u.clientes}</td>
-                  <td><LimiteChat u={u} onGuardar={async v => {
-                    const { error } = await supabase.rpc('admin_limite_chat', { p_id: u.id, p_limite: v })
-                    if (error) return toast(mensajeError(error), 'error')
-                    toast(v === null ? 'Vuelve al límite general' : `Límite del asistente: ${v} por día`); recargar()
-                  }} /></td>
-                  <td className="nowrap muted">{u.ultimo_ingreso ? fechaHora(u.ultimo_ingreso) : 'Nunca'}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <Interruptor on={u.activo} disabled={yo} onCambiar={() => alternar(u)} etiqueta={(u.activo ? 'Suspender a ' : 'Reactivar a ') + (u.nombre || u.email)} />
-                      {!yo && <button className="btn chico fantasma" onClick={() => restablecer(u)} title="Generar contraseña nueva" aria-label={'Nueva contraseña para ' + (u.nombre || u.email)}><RotateCcw size={14} /></button>}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-            {!lista.length && <tr><td colSpan={9} className="muted centrado" style={{ padding: 30 }}>No hay usuarios{q && ' con esa búsqueda'}.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      {configurando && <ConfigurarCuenta u={configurando} actual={cfg[configurando.id]} onCerrar={() => setConfigurando(null)} onListo={() => { setConfigurando(null); cargarCfg() }} />}
-    </section>
+    <Modal onCerrar={onCerrar} ancho={720}>
+      <form onSubmit={guardar} className="adm-form">
+        <h3>{nueva ? 'Nueva empresa' : `Editar ${empresa.nombre}`}</h3>
+        <p className="muted">{nueva ? 'Todo en un paso: la empresa, su plan y su primer usuario.' : 'Los cambios se aplican al instante.'}</p>
+
+        <div className="adm-paso"><span>1</span><b>La empresa</b></div>
+        <div className="dos-col" style={{ gap: 12 }}>
+          <label>Nombre<input autoFocus required value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej.: STOKA" /></label>
+          <label>Contacto<input value={f.contacto} onChange={e => setF({ ...f, contacto: e.target.value })} placeholder="Responsable, mail o teléfono" /></label>
+        </div>
+
+        <div className="adm-paso"><span>2</span><b>Plan</b><small className="muted">Los planes se editan en la pestaña Planes</small></div>
+        <div className="adm-planes">{todos.map(p => (
+          <button type="button" key={p.id} className={'adm-plan' + (f.plan === p.id ? ' on' : '')} onClick={() => elegir(p)}>
+            <b>{p.nombre}</b>
+            <span>{p.ia_mes != null ? `${fmtN(p.ia_mes)} consultas de IA / mes · ${p.usuarios_max} ${p.usuarios_max === 1 ? 'usuario' : 'usuarios'}` : p.descripcion}</span>
+            {p.precio_mensual > 0 && <small>{p.moneda} {fmtN(p.precio_mensual)} / mes</small>}
+          </button>
+        ))}</div>
+        {(elegido?.id === 'medida' || elegido?.id === 'ilimitado') && (
+          <div className="dos-col" style={{ gap: 12 }}>
+            {elegido.id === 'medida' && <label>Consultas de IA por mes<input type="number" min={0} step={50} value={f.limite_ia_mes ?? ''} onChange={e => setF({ ...f, limite_ia_mes: e.target.value })} /></label>}
+            <label>Usuarios máximos<input type="number" min={1} max={500} value={f.usuarios_max ?? ''} onChange={e => setF({ ...f, usuarios_max: e.target.value })} /></label>
+          </div>
+        )}
+
+        {nueva && <>
+          <div className="adm-paso"><span>3</span><b>Primer usuario</b><small className="muted">Opcional: queda como admin de la empresa</small></div>
+          <div className="dos-col" style={{ gap: 12 }}>
+            <label>Nombre<input value={primero.nombre} onChange={e => setPrimero({ ...primero, nombre: e.target.value })} placeholder="Ej.: Anuk Vilarasau" /></label>
+            <label>Email<input type="email" value={primero.email} onChange={e => setPrimero({ ...primero, email: e.target.value })} placeholder="anuk@empresa.com" /></label>
+          </div>
+          {primero.email && <div className="alta-config">
+            <b>Configuración de la cuenta</b>
+            <small className="muted">Así entra directo, sin preguntas. El tipo de venta vale para toda la empresa.</small>
+            <CamposPais pais={lugar.pais} region={lugar.region} otros={lugar.otros} onChange={setLugar} />
+            <div className="campo" style={{ marginBottom: 6 }}>¿A quién le vende?</div>
+            <SelectorTipoVenta valor={tipo} onChange={setTipo} />
+          </div>}
+        </>}
+
+        <label style={{ marginTop: 14 }}>Notas internas<textarea rows={2} value={f.notas} onChange={e => setF({ ...f, notas: e.target.value })} placeholder="Forma de pago, acuerdos, lo que quieras recordar" /></label>
+        <div className="acciones fin">
+          <button type="button" className="btn" onClick={onCerrar}>Cancelar</button>
+          <button className="btn primario" disabled={guardando || !f.nombre.trim()}>{guardando && <Loader2 size={15} className="spin" />}{nueva ? (primero.email ? 'Crear empresa y usuario' : 'Crear empresa') : 'Guardar'}</button>
+        </div>
+      </form>
+    </Modal>
   )
 }
-/** Super admin · país, provincia y tipo de venta (B2B / B2C) de una cuenta */
+
 function ConfigurarCuenta({ u, actual, onCerrar, onListo }) {
   const toast = useToast()
   const [lugar, setLugar] = useState({ pais: actual?.pais || 'AR', region: actual?.region || '', otros: actual?.paises ?? [] })
@@ -344,19 +378,22 @@ function LimiteChat({ u, onGuardar }) {
 const SearchIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
 
 // ---------------- Alta de usuarios ----------------
-function NuevoUsuario({ inicial, empresas, onCerrar, onCreado }) {
+function NuevoUsuario({ inicial, empresas, usuarios = [], onCerrar, onCreado }) {
   const toast = useToast()
-  const [f, setF] = useState({ nombre: '', email: '', empresa_id: inicial.empresa_id ?? '' })
+  const fija = !!inicial.empresa_id
+  const [f, setF] = useState({ nombre: '', email: '', empresa_id: inicial.empresa_id ?? '', rol: 'vendedor' })
   const [lugar, setLugar] = useState({ pais: 'AR', region: '', otros: [] })
   const [tipo, setTipo] = useState('b2b')
+  const [heredar, setHeredar] = useState(fija)
   const [creando, setCreando] = useState(false)
+  const companeros = usuarios.filter(u => u.empresa_id && u.empresa_id === f.empresa_id)
   async function crear(e) {
     e.preventDefault()
     setCreando(true)
     try {
-      const modos = TIPOS_VENTA.find(t => t[0] === tipo)[1]
-      const r = await llamarFuncion('admin-usuarios', { modo: 'crear', ...f, empresa_id: f.empresa_id || null, pais: lugar.pais, region: lugar.region, paises: lugar.otros, modos })
-      toast(`Cuenta de ${f.nombre} creada`)
+      const config = heredar && companeros.length ? {} : { pais: lugar.pais, region: lugar.region, paises: lugar.otros, modos: TIPOS_VENTA.find(t => t[0] === tipo)[1] }
+      const r = await llamarFuncion('admin-usuarios', { modo: 'crear', nombre: f.nombre, email: f.email, empresa_id: f.empresa_id || null, rol: f.rol, ...config })
+      toast(`Cuenta de ${f.nombre} creada${f.empresa_id ? ` en ${empresas.find(x => x.id === f.empresa_id)?.nombre ?? 'la empresa'}` : ''}`)
       onCreado({ nombre: f.nombre, email: r.email, password: r.password, nueva: true })
     } catch (err) { toast(err.message, 'error') }
     setCreando(false)
@@ -364,21 +401,30 @@ function NuevoUsuario({ inicial, empresas, onCerrar, onCreado }) {
   return (
     <Modal onCerrar={onCerrar} ancho={640}>
       <form onSubmit={crear}>
-        <h3>Nuevo usuario</h3>
+        <h3>{fija ? `Nuevo usuario en ${inicial.empresa ?? 'la empresa'}` : 'Nuevo usuario'}</h3>
         <p>Creamos la cuenta con una contraseña inicial que te mostramos una sola vez para que se la pases.</p>
-        <label>Nombre<input autoFocus required value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej.: Marta Gómez" /></label>
-        <label>Email<input type="email" required value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="marta@estudio.com" /></label>
-        <div className="campo">Empresa
+        <div className="dos-col" style={{ gap: 12 }}>
+          <label>Nombre<input autoFocus required value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Ej.: Marta Gómez" /></label>
+          <label>Email<input type="email" required value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="marta@empresa.com" /></label>
+        </div>
+        {!fija && <div className="campo">Empresa
           <Desplegable className="ancho" ariaLabel="Empresa del usuario" value={f.empresa_id} onChange={v => setF({ ...f, empresa_id: v })}
             opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.filter(e => e.activa).map(e => ({ value: e.id, label: e.nombre, icono: <Building2 size={14} /> }))]} />
-        </div>
-        <div className="alta-config">
+        </div>}
+        {f.empresa_id && <div className="campo">Rol en la empresa
+          <div className="rep-pastillas" style={{ marginTop: 6 }}>{[['vendedor', 'Vendedor'], ['admin', 'Admin de la empresa']].map(([v, l]) => <button key={v} type="button" className={f.rol === v ? 'on' : ''} onClick={() => setF({ ...f, rol: v })}>{l}</button>)}</div>
+          <small className="muted">El admin de la empresa puede sumar y gestionar a su equipo.</small>
+        </div>}
+        {companeros.length > 0 && (
+          <label className="adm-heredar"><input type="checkbox" checked={heredar} onChange={e => setHeredar(e.target.checked)} /> Usar la misma configuración que el resto de la empresa (país y tipo de venta)</label>
+        )}
+        {(!heredar || !companeros.length) && <div className="alta-config">
           <b>Configuración de la cuenta</b>
           <small className="muted">Con esto entra directo, sin preguntas. Se puede cambiar después.{f.empresa_id && ' El tipo de venta vale para toda la empresa.'}</small>
           <CamposPais pais={lugar.pais} region={lugar.region} otros={lugar.otros} onChange={setLugar} />
           <div className="campo" style={{ marginBottom: 6 }}>¿A quién le vende?</div>
           <SelectorTipoVenta valor={tipo} onChange={setTipo} />
-        </div>
+        </div>}
         <div className="acciones fin">
           <button type="button" className="btn" onClick={onCerrar}>Cancelar</button>
           <button className="btn primario" disabled={creando}>{creando ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />} Crear cuenta</button>
@@ -416,7 +462,7 @@ function LimiteGeneral({ actual, guardando, onGuardar }) {
       <span className="clave-icono" style={{ color: '#0f766e', background: '#e6f6f3' }}><Bot size={20} /></span>
       <div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><b>Límite del Asistente IA</b><span className="chip">{actual} consultas por día por usuario</span></div>
-        <div className="muted chico" style={{ marginTop: 3 }}>Vale para todos. A un usuario puntual le podés poner otro límite en la pestaña Usuarios.</div>
+        <div className="muted chico" style={{ marginTop: 3 }}>Vale para todos. A un usuario puntual le podés poner otro límite en su fila, dentro de su empresa.</div>
         <form onSubmit={e => { e.preventDefault(); onGuardar(Math.max(0, Math.min(1000, Number(n) || 0))) }}>
           <input type="number" min={0} max={1000} value={n} onChange={e => setN(e.target.value)} aria-label="Límite diario del asistente" style={{ flex: '0 1 160px' }} />
           <button className="btn oscuro" disabled={guardando || Number(n) === actual}>Guardar límite</button>
