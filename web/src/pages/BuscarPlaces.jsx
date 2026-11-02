@@ -310,7 +310,7 @@ export default function BuscarPlaces() {
             <span className="muted chico"><MapPin size={12} style={{ verticalAlign: -2 }} /> {zonaConPais(zona, paisBusq)} · hasta {cantidad} empresas · no trae las que ya tenés ni las que descartaste</span>
             <span className="espacio" />
             <button className="btn fantasma" onClick={() => { setBrief(null); rubroRef.current?.focus() }}>Cambiar el pedido</button>
-            {quedan !== null && <span className={'chico ' + (quedan <= Math.ceil(cupo.limite * 0.2) ? 'texto-alerta' : 'muted')} title="Cada búsqueda usa una consulta de IA de tu cupo diario">{quedan === 0 ? 'No te quedan consultas de IA hoy' : `Usa 1 consulta de IA · te quedan ${quedan} hoy`}</span>}
+            {quedan !== null && !cupo.sin_tope && <span className={'chico ' + (quedan <= Math.ceil(cupo.limite * 0.2) ? 'texto-alerta' : 'muted')} title={cupo.periodo === 'mes' ? 'Las consultas de IA son de toda tu empresa, por mes' : 'Cada búsqueda usa una consulta de IA de tu cupo diario'}>{quedan === 0 ? (cupo.periodo === 'mes' ? 'Tu empresa usó todas las consultas de IA del mes' : 'No te quedan consultas de IA hoy') : `Usa 1 consulta de IA · ${cupo.periodo === 'mes' ? `a tu empresa le quedan ${quedan.toLocaleString('es-AR')} este mes` : `te quedan ${quedan} hoy`}`}</span>}
             <button className="btn ia" onClick={buscar} disabled={!brief.interpretacion.trim() || quedan === 0}><Search size={16} /> Buscar así</button>
           </div>
         </section>

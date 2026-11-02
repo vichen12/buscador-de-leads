@@ -85,7 +85,7 @@ export function Planes({ empresas = [], onCambio }) {
   if (!lista) return <Loader2 size={16} className="spin" />
   return (
     <>
-      <div className="aviso-legal" style={{ marginBottom: 14 }}><CreditCard size={16} /><span>Estos son los planes que elegís al dar de alta o editar una empresa (fijan su tope de IA y de usuarios), y los visibles se muestran en la página pública. <b>El cobro está apagado</b>: queda pendiente elegir Mercado Pago o Stripe.</span></div>
+      <div className="aviso-legal" style={{ marginBottom: 14 }}><CreditCard size={16} /><span>Estos son los planes que elegís al dar de alta o editar una empresa (fijan cuánta IA usa toda la empresa por mes; los usuarios son ilimitados), y los visibles se muestran en la página pública. <b>El cobro está apagado</b>: queda pendiente elegir Mercado Pago o Stripe.</span></div>
       <div className="grilla-planes">{lista.map((p, i) => (
         <section key={p.id} className={'tarjeta plan-admin' + (p.destacado ? ' destacado' : '')}>
           <div className="plan-admin-cab"><span className="chip">{p.id}</span><span className="muted chico">{empresas.filter(e => e.plan === p.id).length} {empresas.filter(e => e.plan === p.id).length === 1 ? 'empresa' : 'empresas'} con este plan</span></div>
@@ -94,8 +94,7 @@ export function Planes({ empresas = [], onCambio }) {
           <div className="dos-col" style={{ gap: 10 }}>
             <label>Precio por mes<input type="number" value={p.precio_mensual} onChange={e => set(i, 'precio_mensual', e.target.value)} /></label>
             <label>Moneda<select value={p.moneda} onChange={e => set(i, 'moneda', e.target.value)}><option>USD</option><option>ARS</option></select></label>
-            <label>Usuarios<input type="number" value={p.usuarios_max} onChange={e => set(i, 'usuarios_max', e.target.value)} /></label>
-            <label>IA por mes<input type="number" value={p.ia_mes} onChange={e => set(i, 'ia_mes', e.target.value)} /></label>
+            <label style={{ gridColumn: '1 / -1' }}>Consultas de IA por mes (para toda la empresa, usuarios ilimitados)<input type="number" value={p.ia_mes} onChange={e => set(i, 'ia_mes', e.target.value)} /></label>
           </div>
           <div style={{ display: 'flex', gap: 16, margin: '6px 0 12px' }}>
             <Interruptor on={p.destacado} onCambiar={v => set(i, 'destacado', v)} etiqueta="Destacado" />

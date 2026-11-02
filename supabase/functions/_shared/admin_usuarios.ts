@@ -1,5 +1,5 @@
 // Altas, configuración y contraseñas de usuarios (lo usa la función admin-usuarios). Sin imports: recibe lo que necesita.
-// El super admin gestiona cualquier empresa; el Admin de una empresa cliente, sólo su equipo (dentro del tope de usuarios de su plan).
+// El super admin gestiona cualquier empresa; el Admin de una empresa cliente, sólo su equipo (puede sumar los usuarios que quiera).
 const ZONAS_HORARIAS: Record<string, string> = {
   AR: 'America/Argentina/Buenos_Aires',
   CL: 'America/Santiago',
@@ -108,14 +108,8 @@ export async function manejar(req: Request, h: { clienteDelUsuario: (r: Request)
     const { data: yo } = await admin.from('perfiles').select('rol, empresa_id, activo').eq('id', usuario.user.id).single()
     if (!yo?.empresa_id || yo.rol !== 'admin' || !yo.activo) return json({ error: 'Sólo el admin de tu empresa puede sumar usuarios' }, 403)
     empresaPropia = yo.empresa_id
-    if (body.modo === 'crear') {
-      body.empresa_id = empresaPropia
-      const [{ data: e }, { count }] = await Promise.all([
-        admin.from('empresas').select('usuarios_max').eq('id', empresaPropia).single(),
-        admin.from('perfiles').select('id', { count: 'exact', head: true }).eq('empresa_id', empresaPropia).eq('activo', true),
-      ])
-      if ((count ?? 0) >= (e?.usuarios_max ?? 5)) return json({ error: `Tu plan permite ${e?.usuarios_max ?? 5} usuarios activos. Desactivá a alguien o pedí ampliar el plan.`, codigo: 'LIMITE_USUARIOS' }, 400)
-    }
+    // Sin tope de usuarios: lo que se limita es el uso de IA de toda la empresa por mes
+    if (body.modo === 'crear') body.empresa_id = empresaPropia
     if (body.modo === 'restablecer') {
       const { data: otro } = await admin.from('perfiles').select('empresa_id').eq('id', String(body.id ?? '')).maybeSingle()
       if (otro?.empresa_id !== empresaPropia) return json({ error: 'Esa persona no es de tu equipo' }, 403)

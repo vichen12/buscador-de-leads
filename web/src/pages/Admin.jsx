@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw, BarChart3, CreditCard, LifeBuoy, ChevronDown } from 'lucide-react'
+import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw, BarChart3, CreditCard, LifeBuoy, ChevronDown, Check } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, fechaHora, mensajeError } from '../lib/util.js'
 import { Avatar, Esqueleto, Interruptor, Modal, Aviso, Contador, useConfirmar, useToast } from '../components/ui.jsx'
@@ -11,15 +11,16 @@ import { nombrePais } from '../lib/catalogo.js'
 
 // Los planes salen de la pestaña Planes (tabla "planes"); además se puede elegir "a medida" o "sin tope"
 const EXTRA_PLANES = [
-  { id: 'medida', nombre: 'A medida', descripcion: 'Elegís vos los topes', ia_mes: null, usuarios_max: null },
-  { id: 'ilimitado', nombre: 'Sin tope de IA', descripcion: 'Ojo con el costo', ia_mes: null, usuarios_max: null },
+  { id: 'medida', nombre: 'A medida', descripcion: 'Elegís vos cuántas consultas de IA por mes', ia_mes: null },
+  { id: 'ilimitado', nombre: 'Sin tope', descripcion: 'IA sin límite. Ojo: el costo lo pagás vos', ia_mes: null },
 ]
 const nombrePlan = (planes, id) => [...planes, ...EXTRA_PLANES].find(x => x.id === id)?.nombre ?? (id || 'Sin plan')
 const fmtN = n => Number(n || 0).toLocaleString('es-AR')
 /** Guarda una empresa (con tope de usuarios si la base ya tiene la versión nueva) */
 async function guardarEmpresa(e) {
   const args = { p_id: e.id ?? null, p_nombre: e.nombre, p_contacto: e.contacto ?? '', p_notas: e.notas ?? '', p_activa: e.activa ?? true, p_plan: e.plan, p_limite_ia_mes: e.limite_ia_mes ?? null }
-  let r = await supabase.rpc('admin_guardar_empresa', { ...args, p_usuarios_max: e.usuarios_max ?? -1 })
+  // Sin tope de usuarios: el límite es el uso de IA de la empresa por mes (se guarda un máximo alto por compatibilidad)
+  let r = await supabase.rpc('admin_guardar_empresa', { ...args, p_usuarios_max: 500 })
   if (r.error && /function|schema cache|PGRST202/i.test(r.error.message + (r.error.code ?? ''))) r = await supabase.rpc('admin_guardar_empresa', args)
   return r
 }
@@ -154,7 +155,7 @@ function EmpresasYUsuarios({ empresas, usuarios, planes, recargar, nuevoUsuario,
   async function alternarEmpresa(e) {
     if (e.activa && !(await confirmar({ titulo: `¿Suspender a ${e.nombre}?`, peligro: true, aceptar: 'Suspender',
       texto: `Sus ${e.usuarios} usuario(s) dejan de poder entrar. Los datos quedan guardados y podés reactivarla cuando quieras.` }))) return
-    const { error } = await guardarEmpresa({ ...e, activa: !e.activa, limite_ia_mes: -1, usuarios_max: -1 })
+    const { error } = await guardarEmpresa({ ...e, activa: !e.activa, limite_ia_mes: -1 })
     if (error) return toast(mensajeError(error), 'error')
     toast(e.activa ? `${e.nombre} suspendida` : `${e.nombre} habilitada`, e.activa ? 'info' : 'ok'); recargar()
   }
@@ -187,14 +188,14 @@ function EmpresasYUsuarios({ empresas, usuarios, planes, recargar, nuevoUsuario,
                   </div>
                   {e && <>
                     <div className="adm-dato"><small>Plan</small><b>{nombrePlan(planes, e.plan)}</b></div>
-                    <div className="adm-dato"><small>Usuarios</small><b>{miembros.length}{e.usuarios_max ? <span> / {e.usuarios_max}</span> : ''}</b></div>
+                    <div className="adm-dato"><small>Usuarios</small><b>{miembros.length}</b></div>
                     <div className="adm-dato ia"><small>IA este mes</small><b>{fmtN(e.uso_ia_mes)}{e.limite_ia_mes != null ? <span> / {fmtN(e.limite_ia_mes)}</span> : <span> · sin tope</span>}</b>
                       {e.limite_ia_mes != null && <div className={'cupo-barra' + (usoPct >= 100 ? ' lleno' : usoPct >= 80 ? ' casi' : '')}><span style={{ width: usoPct + '%' }} /></div>}</div>
                     <div className="adm-dato"><small>Prospectos</small><b>{fmtN(e.prospectos)}</b></div>
                     <div className="adm-acciones">
                       <Interruptor on={e.activa} onCambiar={() => alternarEmpresa(e)} etiqueta={(e.activa ? 'Suspender ' : 'Habilitar ') + e.nombre} />
                       <button className="btn chico" onClick={() => setEditar(e)}><Pencil size={14} /> Editar</button>
-                      <button className="btn chico primario" onClick={() => nuevoUsuario(e)} disabled={!e.activa || (e.usuarios_max && miembros.length >= e.usuarios_max)} title={e.usuarios_max && miembros.length >= e.usuarios_max ? 'Llegó al tope de usuarios de su plan' : ''}><UserPlus size={14} /> Usuario</button>
+                      <button className="btn chico primario" onClick={() => nuevoUsuario(e)} disabled={!e.activa}><UserPlus size={14} /> Usuario</button>
                     </div>
                   </>}
                 </header>
@@ -215,11 +216,11 @@ function EmpresasYUsuarios({ empresas, usuarios, planes, recargar, nuevoUsuario,
                             <span className={'chip tipo-' + tipoDe(c?.modos)}>{({ b2b: 'B2B', b2c: 'B2C', ambos: 'B2B + B2C' })[tipoDe(c?.modos)]}</span>
                           </button>
                           <div className="adm-nums"><span><b>{u.prospectos}</b> prospectos</span><span><b>{u.enviados}</b> envíos</span><span><b>{u.clientes}</b> clientes</span></div>
-                          <div className="adm-ia" title="Consultas al asistente hoy / límite diario (vacío = el general)"><small>IA hoy</small><LimiteChat u={u} onGuardar={async v => {
+                          {u.empresa_id ? <div className="adm-ia" title="En las empresas, la IA se comparte: el límite es el del plan por mes"><small>IA</small><span className="chico muted">del plan</span></div> : <div className="adm-ia" title="Consultas al asistente hoy / límite diario (vacío = el general)"><small>IA hoy</small><LimiteChat u={u} onGuardar={async v => {
                             const { error } = await supabase.rpc('admin_limite_chat', { p_id: u.id, p_limite: v })
                             if (error) return toast(mensajeError(error), 'error')
                             toast(v === null ? 'Vuelve al límite general' : `Límite del asistente: ${v} por día`); recargar()
-                          }} /></div>
+                          }} /></div>}
                           <Desplegable compacto ariaLabel={'Mover a ' + (u.nombre || u.email)} value={u.empresa_id ?? ''} anchoMenu={230} alinear="der"
                             onChange={v => actualizarUsuario(u, { empresa: v || null }, v ? 'Usuario movido de empresa' : 'Usuario sin empresa')}
                             opciones={[{ value: '', label: 'Sin empresa', icono: <Building2 size={14} className="muted" /> }, ...empresas.map(x => ({ value: x.id, label: x.nombre, ayuda: x.activa ? '' : 'Suspendida', icono: <Building2 size={14} /> }))]} />
@@ -252,13 +253,13 @@ function EditarEmpresa({ empresa, planes, onCerrar, onListo }) {
   const todos = [...planes.filter(p => p.activo || p.id === empresa?.plan || p.id === 'prueba'), ...EXTRA_PLANES]
   const planInicial = empresa?.plan && todos.some(p => p.id === empresa.plan) ? empresa.plan : (planes.find(p => p.destacado)?.id ?? planes[0]?.id ?? 'medida')
   const [f, setF] = useState({ nombre: empresa?.nombre ?? '', contacto: empresa?.contacto ?? '', notas: empresa?.notas ?? '', plan: planInicial,
-    limite_ia_mes: empresa?.limite_ia_mes ?? 500, usuarios_max: empresa?.usuarios_max ?? 5 })
+    limite_ia_mes: empresa?.limite_ia_mes ?? 500 })
   const [primero, setPrimero] = useState({ nombre: '', email: '' })
   const [lugar, setLugar] = useState({ pais: 'AR', region: '', otros: [] })
   const [tipo, setTipo] = useState('b2b')
   const [guardando, setGuardando] = useState(false)
   const elegido = todos.find(p => p.id === f.plan)
-  const elegir = p => setF(x => ({ ...x, plan: p.id, ...(p.ia_mes != null ? { limite_ia_mes: p.ia_mes } : {}), ...(p.usuarios_max != null ? { usuarios_max: p.usuarios_max } : {}) }))
+  const elegir = p => setF(x => ({ ...x, plan: p.id, ...(p.ia_mes != null ? { limite_ia_mes: p.ia_mes } : {}) }))
 
   async function guardar(ev) {
     ev.preventDefault()
@@ -266,7 +267,7 @@ function EditarEmpresa({ empresa, planes, onCerrar, onListo }) {
     if (nueva && primero.email && !primero.nombre.trim()) return toast('Poné el nombre del primer usuario', 'error')
     setGuardando(true)
     const limite = f.plan === 'ilimitado' ? null : Math.max(0, Number(f.limite_ia_mes) || 0)
-    const { data: id, error } = await guardarEmpresa({ ...empresa, ...f, nombre: f.nombre.trim(), limite_ia_mes: limite, usuarios_max: Math.max(1, Number(f.usuarios_max) || 1) })
+    const { data: id, error } = await guardarEmpresa({ ...empresa, ...f, nombre: f.nombre.trim(), limite_ia_mes: limite })
     if (error) { setGuardando(false); return toast(mensajeError(error), 'error') }
     let credenciales = null
     if (nueva && primero.email.trim()) {
@@ -293,20 +294,23 @@ function EditarEmpresa({ empresa, planes, onCerrar, onListo }) {
           <label>Contacto<input value={f.contacto} onChange={e => setF({ ...f, contacto: e.target.value })} placeholder="Responsable, mail o teléfono" /></label>
         </div>
 
-        <div className="adm-paso"><span>2</span><b>Plan</b><small className="muted">Los planes se editan en la pestaña Planes</small></div>
-        <div className="adm-planes">{todos.map(p => (
-          <button type="button" key={p.id} className={'adm-plan' + (f.plan === p.id ? ' on' : '')} onClick={() => elegir(p)}>
-            <b>{p.nombre}</b>
-            <span>{p.ia_mes != null ? `${fmtN(p.ia_mes)} consultas de IA / mes · ${p.usuarios_max} ${p.usuarios_max === 1 ? 'usuario' : 'usuarios'}` : p.descripcion}</span>
-            {p.precio_mensual > 0 && <small>{p.moneda} {fmtN(p.precio_mensual)} / mes</small>}
-          </button>
-        ))}</div>
-        {(elegido?.id === 'medida' || elegido?.id === 'ilimitado') && (
-          <div className="dos-col" style={{ gap: 12 }}>
-            {elegido.id === 'medida' && <label>Consultas de IA por mes<input type="number" min={0} step={50} value={f.limite_ia_mes ?? ''} onChange={e => setF({ ...f, limite_ia_mes: e.target.value })} /></label>}
-            <label>Usuarios máximos<input type="number" min={1} max={500} value={f.usuarios_max ?? ''} onChange={e => setF({ ...f, usuarios_max: e.target.value })} /></label>
-          </div>
+        <div className="adm-paso"><span>2</span><b>Plan</b><small className="muted">Usuarios ilimitados: el plan fija cuánta IA usa toda la empresa por mes</small></div>
+        <div className="adm-planes">{todos.map(p => {
+          const on = f.plan === p.id
+          return (
+            <button type="button" key={p.id} className={'adm-plan' + (on ? ' on' : '') + (p.destacado ? ' destacado' : '') + (p.ia_mes == null ? ' especial' : '')} onClick={() => elegir(p)} aria-pressed={on}>
+              <div className="adm-plan-top"><b>{p.nombre}</b>{p.destacado && <span className="adm-plan-badge">Recomendado</span>}<span className="adm-plan-check">{on && <Check size={13} />}</span></div>
+              {p.ia_mes != null ? <>
+                <div className="adm-plan-ia"><strong>{fmtN(p.ia_mes)}</strong><span>consultas de IA por mes</span></div>
+                <div className="adm-plan-pie"><span>{p.precio_mensual > 0 ? `${p.moneda} ${fmtN(p.precio_mensual)} por mes` : 'Gratis'}</span></div>
+              </> : <p className="adm-plan-desc">{p.descripcion}</p>}
+            </button>
+          )
+        })}</div>
+        {elegido?.id === 'medida' && (
+          <label className="adm-medida">Consultas de IA por mes para toda la empresa<input type="number" min={0} step={50} value={f.limite_ia_mes ?? ''} onChange={e => setF({ ...f, limite_ia_mes: e.target.value })} /></label>
         )}
+        {elegido?.id === 'ilimitado' && <p className="adm-aviso-tope">Sin tope, cada búsqueda y consulta de esta empresa se cobra en tu cuenta de Claude sin límite.</p>}
 
         {nueva && <>
           <div className="adm-paso"><span>3</span><b>Primer usuario</b><small className="muted">Opcional: queda como admin de la empresa</small></div>
@@ -462,7 +466,7 @@ function LimiteGeneral({ actual, guardando, onGuardar }) {
       <span className="clave-icono" style={{ color: '#0f766e', background: '#e6f6f3' }}><Bot size={20} /></span>
       <div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><b>Límite del Asistente IA</b><span className="chip">{actual} consultas por día por usuario</span></div>
-        <div className="muted chico" style={{ marginTop: 3 }}>Vale para todos. A un usuario puntual le podés poner otro límite en su fila, dentro de su empresa.</div>
+        <div className="muted chico" style={{ marginTop: 3 }}>Vale sólo para cuentas sin empresa. En las empresas el límite es el de su plan, por mes y compartido por todo el equipo.</div>
         <form onSubmit={e => { e.preventDefault(); onGuardar(Math.max(0, Math.min(1000, Number(n) || 0))) }}>
           <input type="number" min={0} max={1000} value={n} onChange={e => setN(e.target.value)} aria-label="Límite diario del asistente" style={{ flex: '0 1 160px' }} />
           <button className="btn oscuro" disabled={guardando || Number(n) === actual}>Guardar límite</button>

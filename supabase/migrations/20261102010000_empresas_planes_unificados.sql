@@ -59,3 +59,31 @@ begin
 end $$;
 revoke execute on function public.admin_guardar_empresa(uuid, text, text, text, boolean, text, int, int) from public, anon;
 grant execute on function public.admin_guardar_empresa(uuid, text, text, text, boolean, text, int, int) to authenticated;
+
+-- 5) Un solo límite: el de la empresa por mes. Sin tope de usuarios ni límite diario por persona.
+--    (Las cuentas sin empresa siguen con el límite diario general.)
+create or replace function public.cupo_chat(p_usuario uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  lim int; tz text; usados int; emp uuid; emp_lim int; emp_usados int := 0; emp_plan text;
+begin
+  select coalesce(p.limite_chat, (select nullif(c.valor, '')::int from public.config_claves c where c.nombre = 'limite_chat'), 30),
+         coalesce(p.zona_horaria, 'America/Argentina/Mendoza'), p.empresa_id
+    into lim, tz, emp from public.perfiles p where p.id = p_usuario;
+  if emp is not null then
+    select e.limite_ia_mes, e.plan into emp_lim, emp_plan from public.empresas e where e.id = emp;
+    select count(*) into emp_usados from public.chat_uso u join public.perfiles p on p.id = u.owner_id
+     where p.empresa_id = emp and u.created_at >= date_trunc('month', now() at time zone tz) at time zone tz;
+    return jsonb_build_object('periodo', 'mes', 'limite', coalesce(emp_lim, 1000000), 'usados', emp_usados, 'sin_tope', emp_lim is null,
+      'empresa_limite', emp_lim, 'empresa_usados', emp_usados, 'plan', emp_plan,
+      'motivo', case when emp_lim is not null and emp_usados >= emp_lim then 'empresa' end,
+      'mensaje', case when emp_lim is not null and emp_usados >= emp_lim then format('Tu empresa usó las %s consultas de IA de su plan este mes. Para seguir, pedí que amplíen el plan.', emp_lim) end);
+  end if;
+  select count(*) into usados from public.chat_uso u
+   where u.owner_id = p_usuario and u.created_at >= date_trunc('day', now() at time zone tz) at time zone tz;
+  return jsonb_build_object('periodo', 'dia', 'limite', lim, 'usados', usados,
+    'motivo', case when usados >= lim then 'diario' end,
+    'mensaje', case when usados >= lim then format('Llegaste al límite de %s consultas de IA de hoy. Mañana se renueva.', lim) end);
+end $$;
+revoke execute on function public.cupo_chat(uuid) from public, anon, authenticated;
+grant execute on function public.cupo_chat(uuid) to service_role;

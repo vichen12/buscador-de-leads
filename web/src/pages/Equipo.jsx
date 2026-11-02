@@ -5,12 +5,14 @@ import { mensajeError, fecha } from '../lib/util.js'
 import { Avatar, Cargando, ErrorCarga, Vacio, Modal, useToast, useConfirmar } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
 
-/** Equipo de la empresa: el Admin suma vendedores (dentro del límite del plan), cambia roles y desactiva usuarios */
+/** Equipo de la empresa: el Admin suma a quien quiera (el límite es la IA de la empresa por mes), cambia roles y desactiva usuarios */
 export default function Equipo() {
   const { perfil, acceso } = useApp()
   const toast = useToast()
   const confirmar = useConfirmar()
   const [lista, setLista] = useState(null)
+  const [cupoEmp, setCupoEmp] = useState(null)
+  useEffect(() => { supabase.rpc('mi_cupo_chat').then(({ data }) => setCupoEmp(data ?? null)) }, [])
   const [error, setError] = useState('')
   const [nuevo, setNuevo] = useState(null)
   const [clave, setClave] = useState(null) // { email, password } para mostrar una sola vez
@@ -76,7 +78,7 @@ export default function Equipo() {
               </tbody>
             </table>
           </div>
-          <p className="muted chico" style={{ padding: '10px 18px' }}>{activos} {activos === 1 ? 'usuario activo' : 'usuarios activos'}. El límite depende de tu plan.</p>
+          <p className="muted chico" style={{ padding: '10px 18px' }}>{activos} {activos === 1 ? 'usuario activo' : 'usuarios activos'}. Podés sumar a todos los que quieras: lo que tiene límite es la IA de la empresa{cupoEmp?.empresa_limite ? ` (${cupoEmp.empresa_usados} de ${cupoEmp.empresa_limite} consultas usadas este mes, compartidas por todos)` : ''}.</p>
         </section>
       )}
 

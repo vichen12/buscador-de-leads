@@ -155,7 +155,7 @@ export default function Asistente() {
         </div>
         {cupo && (
           <div className="cupo" style={{ marginTop: 'auto' }}>
-            <div className="cupo-top"><span>Consultas de hoy</span><b>{cupo.usados} / {cupo.limite}</b></div>
+            <div className="cupo-top"><span>{cupo.periodo === 'mes' ? 'IA de tu empresa este mes' : 'Consultas de hoy'}</span><b>{cupo.sin_tope ? `${cupo.usados} · sin tope` : `${cupo.usados} / ${cupo.limite}`}</b></div>
             <div className="cupo-barra"><span style={{ width: Math.min(100, cupo.usados / Math.max(1, cupo.limite) * 100) + '%' }} /></div>
             <small>Se renueva todos los días.</small>
           </div>
@@ -213,7 +213,7 @@ export default function Asistente() {
         </div>
 
         <form className="chat-input" onSubmit={e => { e.preventDefault(); enviar() }}>
-          {sinCupo && <Aviso>Llegaste al límite de {cupo.limite} consultas de hoy. Mañana se renueva.</Aviso>}
+          {sinCupo && <Aviso>{cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de hoy. Mañana se renueva.`}</Aviso>}
           {pdf && <span className="adjunto">
             <FileText size={14} /> {pdf.nombre} <small className="muted">({Math.round(pdf.tamano / 1024)} KB)</small>
             <button type="button" onClick={() => setPdf(null)} aria-label="Quitar PDF"><X size={13} /></button>
