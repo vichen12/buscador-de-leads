@@ -2135,3 +2135,35 @@ html[data-tema="oscuro"] .home-tarea-items a, html[data-tema="oscuro"] .home-vac
 .home-fecha::first-letter { text-transform: uppercase; }
 .home-card-nums em { font-style: normal; display: inline-flex; align-items: center; gap: 5px; }
 .home-card-nums em i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ===== Menú lateral: secciones plegables y modo sólo íconos ===== */
+.lateral .nav-titulo { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; cursor: pointer; font-family: inherit; text-align: left; border-radius: 8px; transition: color .15s; }
+.lateral .nav-titulo > span:first-child { flex: 1; }
+.lateral .nav-titulo svg { opacity: 0; transition: transform .2s var(--ease), opacity .15s; color: var(--mut-2); }
+.lateral .nav-grupo:hover .nav-titulo svg, .lateral .nav-grupo.plegado .nav-titulo svg { opacity: 1; }
+.lateral .nav-grupo.plegado .nav-titulo svg { transform: rotate(-90deg); }
+.lateral .nav-titulo:hover { color: var(--ink-2); }
+.punto-titulo { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); flex: none; }
+.nav-compacto { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; padding: 8px 12px; border: 0; background: transparent; color: var(--mut); font: inherit; font-size: 13px; border-radius: 10px; cursor: pointer; }
+.nav-compacto:hover { background: var(--hover); color: var(--ink); }
+
+@media (min-width: 901px) {
+.app.nav-solo-iconos { grid-template-columns: 76px minmax(0, 1fr); }
+.app.nav-solo-iconos .lateral { padding-left: 10px; padding-right: 10px; align-items: center; }
+.app.nav-solo-iconos .lateral .logo-texto,
+.app.nav-solo-iconos .lateral .nav-texto,
+.app.nav-solo-iconos .lateral .espacio-trabajo,
+.app.nav-solo-iconos .lateral .selector-modo,
+.app.nav-solo-iconos .lateral .modo-fijo,
+.app.nav-solo-iconos .lateral .cupo { display: none; }
+.app.nav-solo-iconos .lateral .marca { padding: 4px 0 14px; justify-content: center; }
+.app.nav-solo-iconos .lateral nav { width: 100%; }
+.app.nav-solo-iconos .lateral .nav-titulo { justify-content: center; padding: 10px 0 4px; font-size: 0; pointer-events: none; }
+.app.nav-solo-iconos .lateral .nav-titulo::before { content: ''; display: block; width: 22px; height: 1px; background: var(--line); }
+.app.nav-solo-iconos .lateral .nav-titulo > * { display: none; }
+.app.nav-solo-iconos .lateral nav a { justify-content: center; padding-left: 0; padding-right: 0; position: relative; }
+.app.nav-solo-iconos .lateral nav a.activo::before { left: -10px; }
+.app.nav-solo-iconos .lateral nav a .cuenta { position: absolute; top: 3px; right: 8px; margin: 0; min-width: 0; font-size: 9.5px; padding: 0 5px; }
+.app.nav-solo-iconos .nav-compacto { justify-content: center; padding: 8px 0; width: 100%; }
+}
+@media (max-width: 900px) { .nav-compacto { display: none; } }

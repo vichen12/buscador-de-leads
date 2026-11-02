@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
+  Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, PanelLeftClose, PanelLeftOpen,
   Inbox, Ban, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone, Sun, Target, MapPin, Package, AtSign, LifeBuoy, BookOpen, Moon,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
@@ -19,6 +19,13 @@ export default function Layout({ children }) {
   const [mas, setMas] = useState(false)
   const [nuevo, setNuevo] = useState(false)
   const loc = useLocation()
+  // Menú: secciones plegables y modo "sólo íconos" (se recuerdan en este navegador)
+  const leer = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
+  const [plegadas, setPlegadas] = useState(() => leer('prospecta-nav-plegadas', []))
+  const [compacto, setCompacto] = useState(() => leer('prospecta-nav-compacto', false))
+  useEffect(() => { try { localStorage.setItem('prospecta-nav-plegadas', JSON.stringify(plegadas)) } catch { /* nada */ } }, [plegadas])
+  useEffect(() => { try { localStorage.setItem('prospecta-nav-compacto', JSON.stringify(compacto)) } catch { /* nada */ } }, [compacto])
+  const plegar = t => setPlegadas(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])
   const navegar = useNavigate()
   useEffect(() => setMas(false), [loc.pathname])
 
@@ -99,7 +106,7 @@ export default function Layout({ children }) {
     ]],
   ]
   const enlace = ([to, label, Icono, badge]) => (
-    <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => {
+    <NavLink key={to} to={to} end={to === '/'} title={compacto ? label : undefined} className={({ isActive }) => {
       // Enlaces con "?tab=": activos sólo con esa pestaña (Por revisar vs Rechazadas)
       const [ruta, qs] = to.split('?')
       const tabActual = new URLSearchParams(loc.search).get('tab') || ''
@@ -107,7 +114,7 @@ export default function Layout({ children }) {
       const activo = ruta === '/revisar' ? loc.pathname === '/revisar' && tabActual === tabEnlace : isActive
       return activo ? 'activo' : ''
     }}>
-      <Icono size={18} /> <span className="nav-texto">{label}</span>
+      <Icono size={18} aria-hidden="true" /> <span className="nav-texto">{label}</span>
       {badge > 0 && <span className="cuenta" aria-label={`${badge} pendientes`}>{badge > 99 ? '99+' : badge}</span>}
     </NavLink>
   )
@@ -117,19 +124,30 @@ export default function Layout({ children }) {
   const hayMas = enMas.some(x => x[3] > 0)
 
   return (
-    <div className={'app modo-' + modo}>
+    <div className={'app modo-' + modo + (compacto ? ' nav-solo-iconos' : '')}>
       <aside className="lateral">
         <Link to="/" className="marca"><Logo size={24} /></Link>
         {(acceso?.empresa || perfil?.estudio) && <div className="espacio-trabajo"><Building2 size={13} /> <span>{acceso?.empresa || perfil?.estudio}</span></div>}
         <SelectorModo perfil={perfil} />
         <nav aria-label="Secciones">
-          {secciones.map(([titulo, items]) => (
-            <div key={titulo} className="nav-grupo">
-              <div className="nav-titulo">{titulo}</div>
-              {items.map(enlace)}
-            </div>
-          ))}
+          {secciones.map(([titulo, items]) => {
+            const cerrado = plegadas.includes(titulo)
+            // Si la sección está plegada, igual se ve la página en la que estás y lo que tiene pendientes
+            const visibles = cerrado && !compacto ? items.filter(it => it[3] > 0 || loc.pathname === it[0].split('?')[0]) : items
+            const pendientes = items.reduce((a, it) => a + (it[3] || 0), 0)
+            return (
+              <div key={titulo} className={'nav-grupo' + (cerrado ? ' plegado' : '')}>
+                <button type="button" className="nav-titulo" onClick={() => plegar(titulo)} aria-expanded={!cerrado} title={cerrado ? 'Mostrar' : 'Plegar'}>
+                  <span>{titulo}</span>{cerrado && pendientes > 0 && <span className="punto-titulo" />}<ChevronDown size={13} />
+                </button>
+                {visibles.map(enlace)}
+              </div>
+            )
+          })}
         </nav>
+        <button type="button" className="nav-compacto" onClick={() => setCompacto(c => !c)} title={compacto ? 'Mostrar el menú completo' : 'Achicar el menú a íconos'}>
+          {compacto ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}<span className="nav-texto">Achicar menú</span>
+        </button>
         <TarjetaHoy />
       </aside>
 
