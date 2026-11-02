@@ -13,7 +13,20 @@ export function AreaDoble({ datos, series, alto = 190 }) {
   const tope = Math.ceil(max / 4) * 4 || 4
   const x = i => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r))
   const y = v => pad.t + (1 - v / tope) * (H - pad.t - pad.b)
-  const camino = clave => datos.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d[clave] || 0).toFixed(1)}`).join(' ')
+  // Curva suave (que no se pasa por debajo de cero)
+  const camino = clave => {
+    const p = datos.map((d, i) => [x(i), y(d[clave] || 0)])
+    if (p.length < 3) return p.map(([a, b], i) => `${i ? 'L' : 'M'}${a.toFixed(1)},${b.toFixed(1)}`).join(' ')
+    const base = y(0)
+    let out = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`
+    for (let i = 0; i < p.length - 1; i++) {
+      const p0 = p[i - 1] ?? p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] ?? p2
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, Math.min(base, p1[1] + (p2[1] - p0[1]) / 6)]
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, Math.min(base, p2[1] - (p3[1] - p1[1]) / 6)]
+      out += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
+    }
+    return out
+  }
   const area = clave => `${camino(clave)} L${x(n - 1)},${y(0)} L${x(0)},${y(0)} Z`
   const marcas = [0, tope / 2, tope]
   const cadaCuanto = Math.max(1, Math.ceil(n / 7))
@@ -89,4 +102,48 @@ export function Sparkline({ valores, color = 'var(--acc)', ancho = 90, alto = 26
   const max = Math.max(1, ...valores)
   const p = valores.map((v, i) => `${(i / Math.max(1, valores.length - 1)) * ancho},${alto - 2 - (v / max) * (alto - 4)}`).join(' ')
   return <svg width={ancho} height={alto} className="sparkline" aria-hidden="true"><polyline points={p} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" /></svg>
+}
+
+/** Embudo: cada etapa con su barra y cuánto pasa a la siguiente */
+export function Embudo({ etapas, onElegir }) {
+  const max = Math.max(1, ...etapas.map(e => e.valor || 0))
+  return (
+    <div className="embudo-g">
+      {etapas.map((e, i) => {
+        const sig = etapas[i + 1]
+        const pasa = sig && e.valor > 0 ? Math.round((sig.valor / e.valor) * 100) : null
+        return (
+          <div key={e.label} className="embudo-g-fila">
+            <button type="button" className="embudo-g-etapa" onClick={() => onElegir?.(e)} title={`Ver ${e.label.toLowerCase()}`}>
+              <span className="embudo-g-label">{e.label}</span>
+              <span className="embudo-g-pista">{e.valor > 0 ? <span className="embudo-g-barra" style={{ width: `${Math.max(7, (e.valor / max) * 100)}%`, background: e.color }}><b>{fmt(e.valor)}</b></span> : <span className="embudo-g-cero">0</span>}</span>
+            </button>
+            {sig && <span className="embudo-g-pasa">{pasa === null ? '—' : `${pasa}% ↓`}</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Barras verticales por día, apiladas (ej.: sumadas y rechazadas) */
+export function BarrasDias({ datos, series, alto = 120 }) {
+  const [hover, setHover] = useState(null)
+  const max = Math.max(1, ...datos.map(d => series.reduce((a, s) => a + (d[s.clave] || 0), 0)))
+  return (
+    <div className="barras-dias" onMouseLeave={() => setHover(null)}>
+      <div className="barras-dias-zona" style={{ height: alto }}>
+        {datos.map((d, i) => (
+          <div key={i} className={'barras-dias-col' + (hover === i ? ' on' : '')} onMouseEnter={() => setHover(i)}>
+            <div className="barras-dias-pila">
+              {series.map(s => d[s.clave] > 0 && <span key={s.clave} style={{ height: `${(d[s.clave] / max) * 100}%`, background: s.color }} />)}
+            </div>
+            <small>{d.etiqueta}</small>
+          </div>
+        ))}
+      </div>
+      {hover !== null && <div className="g-tooltip barras-dias-tip" style={{ left: `${((hover + 0.5) / datos.length) * 100}%` }}><b>{datos[hover].titulo || datos[hover].etiqueta}</b>{series.map(s => <span key={s.clave}><i style={{ background: s.color }} />{s.nombre}: <b>{fmt(datos[hover][s.clave])}</b></span>)}</div>}
+      <div className="leyenda">{series.map(s => <span key={s.clave}><i style={{ background: s.color }} /> {s.nombre}</span>)}</div>
+    </div>
+  )
 }
