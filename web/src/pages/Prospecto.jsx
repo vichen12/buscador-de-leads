@@ -7,7 +7,7 @@ import {
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, MOTIVOS_PERDIDO, NO_CONTACTAR, fechaHora, fecha, handleIG, mensajeError } from '../lib/util.js'
 import { linkWhatsApp, linkEmail, linkGmail, numeroWhatsApp } from '@shared/clasificar.js'
-import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
+import { Avatar, Cargando, SelectorEstado, EstadoBadge, Modal, QueTieneChip, Aviso, EstadoEmail, useConfirmar, useToast, LogoEmpresa } from '../components/ui.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
 import { useArchivos } from '../lib/archivos.js'
@@ -261,12 +261,25 @@ export default function Prospecto() {
       <div className="detalle">
         <section className="tarjeta">
           <div className="ficha-cab">
-            <Avatar nombre={p.nombre} grande />
+            <LogoEmpresa nombre={p.nombre} web={p.web_actual} grande />
             <div style={{ minWidth: 0 }}>
               <h3>{p.nombre}</h3>
-              <div className="muted chico">{[p.rubro, p.zona].filter(Boolean).join(' · ') || 'Sin rubro'} <PorQue razones={p.razones} senales={p.senales} encaje={p.encaje} /></div>
+              <div className="ficha-chips">
+                {p.rubro && <span className="tipo">{p.rubro}</span>}
+                {p.zona && <span className="lugar"><MapPin size={12} /> {p.zona}</span>}
+                {p.puntaje > 0 && <span className={'encaje-pill n' + p.puntaje}>{[1, 2, 3, 4, 5].map(n => <Star key={n} size={10} fill="currentColor" className={n > p.puntaje ? 'off' : ''} />)}</span>}
+                <PorQue razones={p.razones} senales={p.senales} encaje={p.encaje} />
+              </div>
             </div>
           </div>
+          {(p.telefono || p.email || p.web_actual) && (
+            <div className="ficha-rapido">
+              {p.telefono && <a className="btn chico" href={`tel:${(p.telefono_e164 || p.telefono).split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={14} /> Llamar</a>}
+              {p.email && !optOut && <a className="btn chico" href={`mailto:${p.email}`}><Mail size={14} /> Email</a>}
+              {p.web_actual && <a className="btn chico" href={/^https?:/.test(p.web_actual) ? p.web_actual : 'https://' + p.web_actual} target="_blank" rel="noreferrer"><Globe size={14} /> Web</a>}
+              {p.google_maps_url && <a className="btn chico" href={p.google_maps_url} target="_blank" rel="noreferrer"><MapPin size={14} /> Maps</a>}
+            </div>
+          )}
           <SelectorEstado valor={p.estado} onCambiar={cambiarEstado} />
           <Etiquetas p={p} editable={!ajena} onCambio={et => setP(x => ({ ...x, etiquetas: et }))} />
 

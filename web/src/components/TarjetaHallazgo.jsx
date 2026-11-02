@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound, Building2, Target, SkipForward } from 'lucide-react'
 import Enlaces from './Enlaces.jsx'
 import PorQue from './PorQue.jsx'
+import { LogoEmpresa } from './ui.jsx'
 
 /** Una empresa encontrada, para revisar: sumarla a la lista o marcar que no sirve */
 const MOTIVOS = ['No es del rubro', 'Muy chica', 'Muy grande', 'Muy lejos', 'Ya es cliente', 'Es competencia', 'Datos malos']
@@ -13,28 +14,28 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
       {onSel && h.estado !== 'aprobado' && (
         <input type="checkbox" className="hallazgo-check" checked={!!sel} onChange={onSel} aria-label={'Seleccionar ' + h.nombre} />
       )}
+      <LogoEmpresa nombre={h.nombre} web={h.web ?? h.web_actual} />
       <div className="hallazgo-cuerpo">
         <div className="hallazgo-cab">
           <h3>{h.prospecto_id ? <Link to={`/prospectos/${h.prospecto_id}`}>{h.nombre}</Link> : h.nombre}</h3>
-          {h.puntaje > 0 && <span className="puntaje" title={`Encaje ${h.puntaje} de 5`}>{[1, 2, 3, 4, 5].map(n => <Star key={n} size={12} fill="currentColor" className={n > h.puntaje ? 'off' : ''} />)}</span>}
+          {h.puntaje > 0 && <span className={'encaje-pill n' + h.puntaje} title={`Qué tan bien encaja: ${h.puntaje} de 5`}>{[1, 2, 3, 4, 5].map(n => <Star key={n} size={11} fill="currentColor" className={n > h.puntaje ? 'off' : ''} />)}<b>{['', 'Poco', 'Algo', 'Bien', 'Muy bien', 'Ideal'][h.puntaje]}</b></span>}
           <PorQue razones={h.razones} />
         </div>
         <div className="hallazgo-sub">
           {h.rubro && <span className="tipo">{h.rubro}</span>}
-          {dir && <span><MapPin size={12} /> {dir}</span>}
+          {dir && <span className="lugar"><MapPin size={12} /> {dir}</span>}
+          {h.resenas > 0 && <span className="lugar"><Star size={12} /> {h.rating ? `${h.rating} · ` : ''}{h.resenas} reseñas</span>}
         </div>
-        {h.descripcion && <p className="hallazgo-que-es"><Building2 size={13} /> <span><b>Qué es:</b> {h.descripcion}</span></p>}
-        {h.encaje && (h.descripcion
-          ? <p className="hallazgo-te-sirve"><Target size={13} /> <span><b>Por qué te serviría:</b> {h.encaje}</span></p>
-          : <p className="hallazgo-encaje">{h.encaje}</p>)}
+        {h.descripcion && <p className="hallazgo-que-es">{h.descripcion}</p>}
+        {h.encaje && <div className="hallazgo-te-sirve"><Target size={14} /><div><small>Por qué te serviría</small>{h.encaje}</div></div>}
         {h.senales && <p className="hallazgo-senal"><Megaphone size={13} /> {h.senales}</p>}
         {h.decisor?.nombre && <p className="hallazgo-decisor"><UserRound size={13} style={{ verticalAlign: -2 }} /> Decide: <b>{h.decisor.nombre}</b>{h.decisor.cargo ? `, ${h.decisor.cargo}` : ''}{h.decisor.fuente && <> · <a href={h.decisor.fuente} target="_blank" rel="noreferrer">fuente</a></>}</p>}
-        <div className="hallazgo-contacto">
-          {h.telefono ? <a href={`tel:${h.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={13} /> {h.telefono}</a> : <span className="muted"><Phone size={13} /> Sin teléfono</span>}
-          {h.email && <a href={`mailto:${h.email}`}><Mail size={13} /> {h.email}</a>}
+        <div className="hallazgo-pie">
+          {h.telefono ? <a className="contacto-pill" href={`tel:${h.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={13} /> {h.telefono}</a> : <span className="contacto-pill vacio"><Phone size={13} /> Sin teléfono</span>}
+          {h.email && <a className="contacto-pill" href={`mailto:${h.email}`}><Mail size={13} /> {h.email}</a>}
+          <Enlaces e={h} />
         </div>
-        <Enlaces e={h} conTexto />
-        {h.nota && <p className="hallazgo-nota">{h.nota}</p>}
+        {h.nota && h.nota !== 'Parecida a las que te sirven' && <p className="hallazgo-nota">{h.nota}</p>}
         {h.estado === 'descartado' && onMotivo && (
           <div className="motivos"><small>¿Por qué no sirve? Así busco mejor:</small>
             {MOTIVOS.map(m => <button key={m} type="button" className={h.motivo === m ? 'on' : ''} onClick={() => onMotivo(h.motivo === m ? '' : m)}>{m}</button>)}

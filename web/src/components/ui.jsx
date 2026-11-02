@@ -80,6 +80,19 @@ export function Avatar({ nombre = '', grande, className = '' }) {
   return <span className={'avatar ' + (grande ? 'grande ' : '') + className} style={{ background: color }}>{ini}</span>
 }
 
+/** Logo de la empresa: el ícono de su sitio web si tiene; si no (o si no carga), sus iniciales */
+export function LogoEmpresa({ nombre = '', web = '', grande }) {
+  const [falla, setFalla] = useState(false)
+  let host = ''
+  try { host = web ? new URL(/^https?:/i.test(web) ? web : 'https://' + web).hostname.replace(/^www\./, '') : '' } catch { host = '' }
+  if (!host || falla || /facebook|instagram|linktr|wa\.me|google\.|goo\.gl|linkedin/i.test(host)) return <Avatar nombre={nombre} grande={grande} className="cuadrado logo-empresa" />
+  return (
+    <span className={'avatar cuadrado logo-empresa con-icono' + (grande ? ' grande' : '')}>
+      <img src={`https://icons.duckduckgo.com/ip3/${host}.ico`} alt="" loading="lazy" onError={() => setFalla(true)} onLoad={e => { if (e.currentTarget.naturalWidth < 8) setFalla(true) }} />
+    </span>
+  )
+}
+
 export const ICONO_ESTADO = { pendiente: Circle, contactado: Send, respondio: MessageSquareReply, reunion: CalendarCheck, propuesta: FileText, cliente: Trophy, perdido: XCircle, no_interesado: Ban, no_contactar: ShieldOff }
 
 export function EstadoBadge({ estado }) {

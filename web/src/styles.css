@@ -1919,3 +1919,49 @@ html[data-tema="oscuro"] .guia-opcion { background: var(--card); }
 .filtros-rechazadas p { margin: 0; }
 .btn.saltear { color: var(--mut); }
 html[data-tema="oscuro"] .fr-chip { background: var(--card); }
+
+/* ===== Tarjetas de empresa (rediseño) ===== */
+.hallazgo { gap: 14px; padding: 18px 20px; border-radius: 18px; transition: box-shadow .18s, border-color .18s, transform .18s; }
+.hallazgo:hover { border-color: #e2dbd0; }
+.logo-empresa { width: 46px; height: 46px; border-radius: 13px; font-size: 15px; flex: none; }
+.logo-empresa.con-icono { background: #fff; border: 1px solid var(--line); box-shadow: none; }
+.logo-empresa.con-icono img { width: 26px; height: 26px; object-fit: contain; }
+.logo-empresa.grande { width: 58px; height: 58px; border-radius: 16px; }
+.logo-empresa.grande.con-icono img { width: 34px; height: 34px; }
+.hallazgo-cuerpo { gap: 8px; }
+.hallazgo-cab h3 { font-size: 16.5px; letter-spacing: -.01em; }
+.encaje-pill { display: inline-flex; align-items: center; gap: 1px; border-radius: 99px; padding: 3px 9px 3px 7px; font-size: 11.5px; background: #f6f3ee; color: #c9a227; }
+.encaje-pill svg.off { color: #ddd5c8; }
+.encaje-pill b { margin-left: 5px; color: var(--ink-2); font-weight: 600; }
+.encaje-pill.n4, .encaje-pill.n5 { background: #eaf7ef; color: #1f9d55; }
+.encaje-pill.n4 b, .encaje-pill.n5 b { color: #157a42; }
+.hallazgo-sub { gap: 6px 14px; }
+.hallazgo-sub .lugar { color: var(--mut); }
+.hallazgo-que-es { margin: 2px 0 0; font-size: 14px; line-height: 1.55; color: var(--ink-2); display: block; }
+.hallazgo-te-sirve { display: flex; gap: 10px; align-items: flex-start; margin: 2px 0 0; background: linear-gradient(135deg, var(--acc-soft), #fff8f4); border: 1px solid #fde0d4; border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.hallazgo-te-sirve > svg { flex: none; margin-top: 2px; color: var(--acc); }
+.hallazgo-te-sirve small { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--acc-ink, var(--acc)); margin-bottom: 2px; }
+.hallazgo-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.contacto-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 8px; background: #f6f3ee; color: var(--ink); font-size: 13px; font-weight: 500; text-decoration: none; }
+.contacto-pill:hover { background: var(--acc-soft); color: var(--acc-ink); text-decoration: none; }
+.contacto-pill svg { color: var(--mut); }
+.contacto-pill.vacio { color: var(--mut); background: transparent; border: 1px dashed var(--line-2); }
+.hallazgo-acciones { min-width: 170px; }
+.hallazgo-acciones .btn { justify-content: center; }
+.hallazgo.descartado { opacity: 1; background: #fcfbf9; }
+.hallazgo.descartado .logo-empresa, .hallazgo.descartado .hallazgo-cuerpo { opacity: .7; }
+html[data-tema="oscuro"] .contacto-pill, html[data-tema="oscuro"] .encaje-pill { background: #262421; }
+html[data-tema="oscuro"] .hallazgo-te-sirve { background: #2a211d; border-color: #4a2f24; }
+html[data-tema="oscuro"] .logo-empresa.con-icono { background: #f2efe9; }
+@media (max-width: 700px) { .hallazgo { flex-wrap: wrap; } .hallazgo-acciones { flex-direction: row; flex-wrap: wrap; min-width: 0; width: 100%; } .logo-empresa { width: 38px; height: 38px; } }
+
+/* ===== Ficha de la empresa ===== */
+.ficha-cab { align-items: flex-start; }
+.ficha-cab h3 { font-size: 1.25rem; letter-spacing: -.015em; margin: 2px 0 6px; }
+.ficha-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; }
+.ficha-chips .tipo { background: #f3efe8; color: var(--ink-2); padding: 2px 9px; border-radius: 99px; font-weight: 600; font-size: 12px; }
+.ficha-chips .lugar { display: inline-flex; align-items: center; gap: 4px; color: var(--mut); }
+.ficha-rapido { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 14px; }
+.ficha-rapido .btn { text-decoration: none; }
+.datos { gap: 12px 10px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fcfbf9; }
+html[data-tema="oscuro"] .datos { background: #1f1d1b; }
