@@ -13,9 +13,9 @@ export async function descartarHallazgos(ids, motivo = '') {
   if (error) throw error
 }
 
-/** "Saltear": la saca de la bandeja sin aceptarla ni rechazarla. No cuenta como descartada: puede volver en otra búsqueda */
+/** "Saltear": la saca sin aceptarla ni rechazarla (también de Rechazadas). No cuenta como descartada: puede volver en otra búsqueda */
 export async function saltearHallazgos(ids) {
-  const { error } = await supabase.from('hallazgos').delete().in('id', ids).eq('estado', 'por_revisar')
+  const { error } = await supabase.from('hallazgos').delete().in('id', ids).in('estado', ['por_revisar', 'descartado'])
   if (error) throw error
 }
 

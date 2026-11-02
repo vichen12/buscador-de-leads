@@ -159,9 +159,13 @@ export default function Revisar() {
               opciones={[{ value: '', label: 'Siempre' }, { value: '1', label: 'Hoy' }, { value: '7', label: 'Últimos 7 días' }, { value: '30', label: 'Últimos 30 días' }]} />
             <span className="espacio" />
             {lista.length > 0 && <label className="sel-todos"><input type="checkbox" checked={todasSel} onChange={() => setSel(todasSel ? new Set() : new Set(lista.map(h => h.id)))} /> {sel.size ? `${sel.size} elegidas` : 'Elegir todas'}</label>}
-            {sel.size > 0 && <button className="btn fantasma chico" onClick={() => recuperar(ids)} disabled={ocupados.size > 0}><Undo2 size={14} /> Recuperar {sel.size}</button>}
+            {sel.size > 0 && <>
+              <button className="btn fantasma chico" onClick={() => saltear(ids)} disabled={ocupados.size > 0} title="Dejan de estar rechazadas y desaparecen"><SkipForward size={14} /> Saltear</button>
+              <button className="btn fantasma chico" onClick={() => recuperar(ids)} disabled={ocupados.size > 0}><Undo2 size={14} /> Volver a revisar</button>
+              <button className="btn primario chico" onClick={() => aprobar(ids)} disabled={ocupados.size > 0}>{ocupados.size ? <Loader2 size={14} className="spin" /> : <Check size={14} />} Sumar {sel.size} a mi lista</button>
+            </>}
           </div>
-          <p className="muted chico">Las rechazadas no vuelven a aparecer en ninguna búsqueda. Ponerles el motivo ayuda a que la próxima búsqueda traiga mejores.</p>
+          <p className="muted chico">Las rechazadas no vuelven a aparecer en ninguna búsqueda. Si cambiaste de idea, decidí acá mismo: sumarla a tu lista, volverla a revisar o saltearla.</p>
         </div>
       )}
 

@@ -53,8 +53,10 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
           {h.prospecto_id && <Link className="btn fantasma chico" to={`/prospectos/${h.prospecto_id}`}>Ver ficha <ArrowRight size={13} /></Link>}
         </>}
         {h.estado === 'descartado' && <>
-          <span className="chip duplicado">No sirve</span>
-          {onRecuperar && <button className="btn fantasma chico" onClick={onRecuperar} disabled={ocupado}><Undo2 size={13} /> Recuperar</button>}
+          <span className="chip duplicado">Rechazada{h.motivo ? ` · ${h.motivo}` : ''}</span>
+          {onAprobar && <button className="btn primario chico" onClick={onAprobar} disabled={ocupado}>{ocupado ? <Loader2 size={13} className="spin" /> : <Check size={13} />} Sumar a mi lista</button>}
+          {onRecuperar && <button className="btn fantasma chico" onClick={onRecuperar} disabled={ocupado} title="Vuelve a Por revisar para decidir después"><Undo2 size={13} /> Volver a revisar</button>}
+          {onSaltear && <button className="btn fantasma chico saltear" onClick={onSaltear} disabled={ocupado} title="Deja de estar rechazada y desaparece: puede volver a aparecer en otra búsqueda"><SkipForward size={13} /> Saltear</button>}
         </>}
       </div>
     </article>
