@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BookOpen, Copy, Mail, MessageCircle, Phone, Search } from 'lucide-react'
+import { BookOpen, Copy, Mail, MessageCircle, Phone, Search, Workflow, ChevronDown, Check } from 'lucide-react'
 import { useToast } from '../components/ui.jsx'
 
 // Biblioteca de plantillas. Variables: {{nombre}} {{empresa}} {{rubro}} {{zona}} {{mi_nombre}} {{mi_empresa}} {{link_agenda}}
@@ -24,34 +24,68 @@ const PLANTILLAS = [
   ['Consumidores (B2C)', 'email', 'Pedir reseña', '¿Nos contás cómo te fue?', 'Hola {{nombre}},\n\n¡Gracias por tu compra! Si te gustó, ¿nos dejarías una reseña? Nos ayuda muchísimo: [link]\n\n{{mi_empresa}}'],
   ['Consumidores (B2C)', 'whatsapp', 'Cumpleaños', '', '¡Feliz cumple, {{nombre}}! 🎉 De parte de todo {{mi_empresa}}, este mes tenés [regalo o beneficio]. ¡Que lo disfrutes!'],
 ]
-const ICONO = { email: Mail, whatsapp: MessageCircle, llamada: Phone }
+const CANAL = { email: ['Email', Mail], whatsapp: ['WhatsApp', MessageCircle], llamada: ['Llamada', Phone] }
+const VARIABLES = { nombre: 'nombre', empresa: 'empresa', rubro: 'rubro', zona: 'zona', mi_nombre: 'tu nombre', mi_empresa: 'tu empresa', link_agenda: 'link de agenda' }
+
+/** Texto con las variables {{...}} como etiquetas y los [huecos] para completar resaltados */
+function Texto({ t }) {
+  return t.split(/(\{\{\w+\}\}|\[[^\]]+\])/g).map((parte, i) => {
+    const v = parte.match(/^\{\{(\w+)\}\}$/)
+    if (v) return <span key={i} className="pl-var">{VARIABLES[v[1]] ?? v[1]}</span>
+    if (/^\[[^\]]+\]$/.test(parte)) return <span key={i} className="pl-hueco" title="Completalo vos">{parte.slice(1, -1)}</span>
+    return parte
+  })
+}
 
 export default function Plantillas() {
   const toast = useToast()
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
+  const [canal, setCanal] = useState('')
+  const [abierta, setAbierta] = useState(null)
+  const [copiada, setCopiada] = useState(null)
   const cats = [...new Set(PLANTILLAS.map(p => p[0]))]
-  const lista = PLANTILLAS.filter(p => (!cat || p[0] === cat) && (!q || p.join(' ').toLowerCase().includes(q.toLowerCase())))
-  const copiar = (asunto, cuerpo) => { navigator.clipboard.writeText((asunto ? `Asunto: ${asunto}\n\n` : '') + cuerpo); toast('Copiada. Pegala en un paso de secuencia (tipo "plantilla") o en un mensaje.', 'ok') }
+  const lista = PLANTILLAS.filter(p => (!cat || p[0] === cat) && (!canal || p[1] === canal) && (!q || p.join(' ').toLowerCase().includes(q.toLowerCase())))
+  const copiar = (titulo, asunto, cuerpo) => {
+    navigator.clipboard.writeText((asunto ? `Asunto: ${asunto}\n\n` : '') + cuerpo)
+    setCopiada(titulo); setTimeout(() => setCopiada(c => (c === titulo ? null : c)), 2000)
+    toast('Copiada. Pegala en un paso de secuencia (tipo "plantilla") o en un mensaje.', 'ok')
+  }
   return (
-    <>
-      <header className="cabecera"><div><h1><BookOpen size={24} style={{ verticalAlign: -4, color: 'var(--acc)' }} /> Plantillas</h1>
-        <p className="saludo">Textos probados para cada momento de la venta. Las palabras entre {'{{ }}'} se completan solas con los datos de cada empresa cuando las usás en una <Link to="/secuencias">secuencia</Link>.</p></div></header>
-      <div className="barra-filtros" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: 360 }}><Search size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--mut)' }} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar…" style={{ paddingLeft: 34 }} /></div>
-        <div className="chips-filtro"><button type="button" className={!cat ? 'activo' : ''} onClick={() => setCat('')}>Todas</button>{cats.map(c => <button key={c} type="button" className={cat === c ? 'activo' : ''} onClick={() => setCat(c)}>{c}</button>)}</div>
+    <div className="home plantillas-pag">
+      <header className="home-cab">
+        <div>
+          <p className="home-fecha">{PLANTILLAS.length} plantillas para cada momento de la venta</p>
+          <h1>Plantillas</h1>
+          <p className="home-sub">Las <span className="pl-var">etiquetas</span> se completan solas con los datos de cada empresa cuando las usás en una <Link to="/secuencias">secuencia</Link>. Lo <span className="pl-hueco">resaltado</span> lo completás vos.</p>
+        </div>
+      </header>
+      <div className="rep-filtros pl-filtros">
+        <div className="pl-buscar"><Search size={15} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar plantilla…" /></div>
+        <div className="rep-pastillas">{[['', 'Todas'], ...cats.map(c => [c, c])].map(([v, l]) => <button key={l} type="button" className={cat === v ? 'on' : ''} onClick={() => setCat(v)}>{l}</button>)}</div>
+        <div className="rep-pastillas">{[['', 'Todo canal'], ['email', 'Email'], ['whatsapp', 'WhatsApp'], ['llamada', 'Llamada']].map(([v, l]) => <button key={l} type="button" className={canal === v ? 'on' : ''} onClick={() => setCanal(v)}>{l}</button>)}</div>
       </div>
-      <div className="grilla-plantillas">{lista.map(([c, canal, titulo, asunto, cuerpo]) => {
-        const I = ICONO[canal]
+      {!lista.length && <div className="home-vacio"><Search size={18} /><span>No hay plantillas con ese filtro.</span></div>}
+      <div className="pl-grilla">{lista.map(([c, can, titulo, asunto, cuerpo]) => {
+        const [nombreCanal, I] = CANAL[can]
+        const larga = cuerpo.length > 230, abierto = abierta === titulo
         return (
-          <article key={titulo} className="tarjeta plantilla">
-            <div className="plantilla-cab"><I size={15} /><b>{titulo}</b><span className="chip">{c}</span></div>
-            {asunto && <div className="chico"><span className="muted">Asunto:</span> {asunto}</div>}
-            <pre>{cuerpo}</pre>
-            <button type="button" className="btn chico" onClick={() => copiar(asunto, cuerpo)}><Copy size={13} /> Copiar</button>
+          <article key={titulo} className={'pl-card ' + can}>
+            <header>
+              <span className="pl-canal"><I size={14} /> {nombreCanal}</span>
+              <span className="pl-cat">{c}</span>
+            </header>
+            <h3>{titulo}</h3>
+            {asunto && <div className="pl-asunto"><small>Asunto</small><span><Texto t={asunto} /></span></div>}
+            <div className={'pl-cuerpo' + (larga && !abierto ? ' cortado' : '')}><Texto t={cuerpo} /></div>
+            {larga && <button type="button" className="link chico pl-ver" onClick={() => setAbierta(abierto ? null : titulo)}><ChevronDown size={13} style={{ transform: abierto ? 'rotate(180deg)' : '' }} /> {abierto ? 'Ver menos' : 'Ver todo'}</button>}
+            <footer>
+              <button type="button" className={'btn chico' + (copiada === titulo ? ' ok' : ' primario')} onClick={() => copiar(titulo, asunto, cuerpo)}>{copiada === titulo ? <><Check size={13} /> Copiada</> : <><Copy size={13} /> Copiar</>}</button>
+              <Link to="/secuencias" className="btn chico fantasma"><Workflow size={13} /> Usar en una secuencia</Link>
+            </footer>
           </article>
         )
       })}</div>
-    </>
+    </div>
   )
 }

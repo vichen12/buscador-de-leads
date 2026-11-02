@@ -80,7 +80,7 @@ export function Avatar({ nombre = '', grande, className = '' }) {
   return <span className={'avatar ' + (grande ? 'grande ' : '') + className} style={{ background: color }}>{ini}</span>
 }
 
-/** Logo de la empresa: el ícono de su sitio web si tiene; si no (o si no carga), sus iniciales */
+/** Logo de la empresa: el ícono de su sitio web (si tiene uno de buena calidad); si no, sus iniciales */
 export function LogoEmpresa({ nombre = '', web = '', grande }) {
   const [falla, setFalla] = useState(false)
   let host = ''
@@ -88,7 +88,8 @@ export function LogoEmpresa({ nombre = '', web = '', grande }) {
   if (!host || falla || /facebook|instagram|linktr|wa\.me|google\.|goo\.gl|linkedin/i.test(host)) return <Avatar nombre={nombre} grande={grande} className="cuadrado logo-empresa" />
   return (
     <span className={'avatar cuadrado logo-empresa con-icono' + (grande ? ' grande' : '')}>
-      <img src={`https://icons.duckduckgo.com/ip3/${host}.ico`} alt="" loading="lazy" onError={() => setFalla(true)} onLoad={e => { if (e.currentTarget.naturalWidth < 8) setFalla(true) }} />
+      <img src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`} alt="" loading="lazy" onError={() => setFalla(true)}
+        onLoad={e => { if (e.currentTarget.naturalWidth < 32) setFalla(true) }} />
     </span>
   )
 }
