@@ -116,6 +116,55 @@ function partesDeZona(zona: string, maximo: number): { zona: string, code: strin
   return [{ zona, code: u.code, tz: u.tz }]
 }
 
+
+// ---- Google Maps (Places API oficial): trae muchas fichas reales por tipo de empresa; Claude las evalúa ----
+const CAMPOS_MAPS = ['places.id', 'places.displayName', 'places.formattedAddress', 'places.nationalPhoneNumber', 'places.internationalPhoneNumber',
+  'places.websiteUri', 'places.googleMapsUri', 'places.businessStatus', 'places.rating', 'places.userRatingCount', 'places.primaryTypeDisplayName'].join(',')
+async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, code: string): Promise<Dic[]> {
+  const listas = await Promise.all(terminos.map(async t => {
+    try {
+      const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': clavePlaces, 'X-Goog-FieldMask': CAMPOS_MAPS },
+        body: JSON.stringify({ textQuery: `${t} en ${zona}`, languageCode: 'es', pageSize: 20, ...(code ? { regionCode: code } : {}) }),
+      })
+      if (!r.ok) { console.error('places', r.status, (await r.text()).slice(0, 200)); return [] }
+      const d = await r.json()
+      return (d.places ?? []).filter((p: Dic) => !p.businessStatus || p.businessStatus === 'OPERATIONAL').map((p: Dic) => ({
+        nombre: p.displayName?.text ?? '', tipo: p.primaryTypeDisplayName?.text ?? '', direccion: p.formattedAddress ?? '',
+        telefono: p.nationalPhoneNumber || p.internationalPhoneNumber || '', web: p.websiteUri ?? '', google_maps: p.googleMapsUri ?? '',
+        rating: p.rating ?? '', resenas: p.userRatingCount ?? '', fuente: p.googleMapsUri ?? '', termino: t,
+      }))
+    } catch (e) { console.error('places', e); return [] }
+  }))
+  const vistos = new Set<string>()
+  return listas.flat().filter(p => { const k = clave(p.nombre); if (!k || vistos.has(k)) return false; vistos.add(k); return true })
+}
+/** Claude mira cada ficha de Maps y decide si sirve como cliente, con qué puntaje y por qué */
+async function evaluarFichas(key: string, modelo: string, brief: Brief, fichas: Dic[], contexto: string, aprendido: string, filtros: Dic[]): Promise<{ items: Dic[], usoIn: number, usoOut: number }> {
+  if (!fichas.length) return { items: [], usoIn: 0, usoOut: 0 }
+  const lotes: Dic[][] = []
+  for (let i = 0; i < fichas.length; i += 30) lotes.push(fichas.slice(i, i + 30))
+  const partes = await Promise.all(lotes.map(async lote => {
+    try {
+      const r = await llamarClaude(key, modelo, `${contexto || ''}
+Buscamos: ${brief.interpretacion}
+${brief.incluir.length ? `Tipos que entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}${filtros.length ? `Requisitos (marcá false SÓLO si por lo que se ve claramente no cumple; si no se sabe, null): ${filtros.map(f => `${f.id} = ${f.titulo}`).join('; ')}\n` : ''}${aprendido ? aprendido + '\n' : ''}
+Estas son fichas de Google Maps. Para cada una decidí si es un cliente potencial razonable de quien busca (no competencia, no proveedores del mismo rubro). Ante la duda, que entre con puntaje bajo. Usá lo que sabés de la empresa si la conocés.
+Respondé SOLO con JSON: {"items": [{"i": índice, "entra": true, "puntaje": 1-5, "segmento": "cuál de los tipos que entran es", "que_es": "qué es en una frase", "encaje": "por qué le serviría a quien busca, concreto", "a_favor": ["..."], "en_contra": ["..."], "cumple": {${filtros.map(f => `"${f.id}": null`).join(', ')}}}]}
+
+${lote.map((f, i) => `${i}. ${f.nombre} — ${f.tipo || 's/d'} — ${f.direccion}${f.web ? ` — ${f.web}` : ''}${f.resenas ? ` — ${f.rating}★ (${f.resenas} reseñas)` : ''} — encontrada buscando "${f.termino}"`).join('\n')}`, 12000)
+      const o = extraerObjeto(r.texto)
+      const items = (Array.isArray(o?.items) ? o!.items : []).filter((x: Dic) => x && x.entra !== false && lote[Number(x.i)]).map((x: Dic) => {
+        const f = lote[Number(x.i)]
+        return { ...f, puntaje: x.puntaje, segmento: x.segmento, que_es: x.que_es, encaje: x.encaje, cumple: x.cumple, razones: { a_favor: x.a_favor ?? [], en_contra: x.en_contra ?? [] }, evaluado: true }
+      })
+      return { items, usoIn: r.usoIn, usoOut: r.usoOut }
+    } catch (e) { console.error('evaluar fichas', e); return { items: [], usoIn: 0, usoOut: 0 } }
+  }))
+  return { items: partes.flatMap(p => p.items), usoIn: partes.reduce((a, p) => a + p.usoIn, 0), usoOut: partes.reduce((a, p) => a + p.usoOut, 0) }
+}
+
 /** La zona elegida en la búsqueda manda sobre cualquier lugar del perfil, la estrategia o las empresas de ejemplo */
 const reglaZona = (zona: string) => `ZONA OBLIGATORIA: ${zona}. La eligió la persona para ESTA búsqueda y manda sobre cualquier ciudad, provincia o país que aparezca en su perfil, su cliente ideal, su estrategia o en las empresas de ejemplo (esas sirven para saber QUÉ TIPO de empresa le sirve, nunca DÓNDE buscar). No la cambies ni la achiques a la ciudad de quien busca. Si la zona es un país o varios, repartí los resultados entre distintas provincias, regiones y ciudades (nunca más de un tercio de la misma provincia o ciudad).`
 const enfoqueParecidas = (ejemplos: string[], z: string) => ({ nombre: 'parecidas', texto: () => `Enfoque: empresas PARECIDAS a las que ya le sirven a esta persona: ${ejemplos.join('; ')}. Buscá en cualquier parte de ${z} (no sólo cerca de esas empresas) otras con las mismas características (tamaño, forma de operar, necesidad), del mismo rubro o de otros: sus competidores en otras ciudades, empresas del mismo rubro en otros polos industriales, las que aparecen junto a ellas en directorios y en "empresas similares". No traigas esas mismas.` })
@@ -152,12 +201,12 @@ ${o.contexto || 'Objetivo: armar una lista de prospectos comerciales para contac
 ${o.aprendido}
 ${o.enfoque}
 
-${reglas.length ? `Requisitos que TIENEN que cumplir TODOS (si no podés comprobarlo con lo que ves públicamente, no lo incluyas):\n- ${reglas.join('\n- ')}\nEn cada empresa completá "cumple" con cada requisito: true si lo comprobaste, false si no lo cumple.\n` : ''}
+${reglas.length ? `Requisitos que tienen que cumplir (si no lo podés comprobar pero es probable, incluila igual y poné null en "cumple"; dejá afuera sólo las que claramente no cumplen):\n- ${reglas.join('\n- ')}\nEn cada empresa completá "cumple" con cada requisito: true si lo comprobaste, false si claramente no lo cumple, null si no se sabe.\n` : ''}
 Reglas:
 - Si de un negocio encontraste el nombre pero no el teléfono, hacé una búsqueda más con su nombre para completarlo.
 - Usá sólo información pública. No inventes datos: si no encontrás algo, dejalo vacío.
 ${o.pedido ? `- Pedido especial del usuario (respetalo): ${o.pedido}\n` : ''}${o.excluir.length ? `- Ya los tengo cargados, NO los repitas: ${o.excluir.join('; ')}.\n` : ''}
-Buscá hasta ${o.cuantos} negocios. Al final respondé SOLO con un bloque JSON (sin texto después) con este formato:
+Traé ${o.cuantos} negocios o más (cuantos más reales y que encajen, mejor; hacé varias búsquedas distintas para llegar). Al final respondé SOLO con un bloque JSON (sin texto después) con este formato:
 \`\`\`json
 [{"nombre": "nombre comercial tal como lo conoce la gente", "tipo": "qué es, en 2-4 palabras", "direccion": "calle y número, localidad", "telefono": "", "email": "", "web": "https://...", "google_maps": "https://maps.google.com/... o https://maps.app.goo.gl/...", "instagram": "https://www.instagram.com/usuario/", "facebook": "https://www.facebook.com/...", "linkedin": "https://www.linkedin.com/company/...", "rating": "", "resenas": "", "fuente": "url donde lo encontraste", "segmento": "cuál de los tipos de empresa pedidos es (copialo tal cual)", "que_es": "qué es la empresa en una o dos frases concretas: qué hace o vende, a quién, tamaño aproximado y dónde opera", "encaje": "por qué LE SERVIRÍA a quien busca: conectá lo que vende quien busca con algo concreto que viste de esta empresa (qué viste de la empresa → por qué eso la hace candidata para lo que vende quien busca)", "puntaje": 4, "razones": {"a_favor": ["razón concreta y verificable que viste", "otra razón"], "en_contra": ["señal en contra si la hay"]}, "senales": "novedad reciente que da motivo para escribir ahora (está contratando, abrió sucursal, salió en noticias), o vacío", "decisor": {"nombre": "", "cargo": "", "linkedin": "", "fuente": "url donde lo viste"}, "nota": "dato útil para el primer contacto (opcional)"${o.filtros.length ? `, "cumple": {${o.filtros.map(f => `"${f.id}": true`).join(', ')}}` : ''}}]
 \`\`\`
@@ -460,12 +509,24 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     const mios = t.filter((_, k) => k % lotes === i % lotes)
     return mios.length ? mios : t
   }
+  // Google Maps en paralelo: muchas fichas reales por cada término, evaluadas por Claude
+  const mapsPromesa = (async () => {
+    const clavePlaces = await claveServicio('google_places')
+    if (!clavePlaces) return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0 }
+    const u = partes.length === 1 ? { code: partes[0].code, zona: partes[0].zona } : { code: '', zona }
+    const terminos = [...new Set([...brief!.buscar, ...brief!.incluir])].slice(0, 8)
+    const fichas = (await desdeMaps(clavePlaces, terminos, u.zona, u.code)).filter(f => !nomConocidos.has(clave(f.nombre)))
+    const ev = await evaluarFichas(key, modeloRapido, brief!, fichas.slice(0, 120), contexto, apr.texto, filtrosIA)
+    return { ...ev, fichas: fichas.length }
+  })()
   const corridas = await Promise.all(tareas.map(({ parte, e }, i) => {
     const u = paisDe(parte.zona)
     return unaBusqueda(key, modelo, prompt({ tipos: tiposDe(i), pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.filter((_, k) => k % lotes === i % lotes).slice(0, 4).join('", "') || brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, { code: parte.code, tz: parte.tz })
   }))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
-  const crudos = corridas.flatMap(c => extraerLista(c.salida))
+  const deMaps = await mapsPromesa
+  usoIn += deMaps.usoIn; usoOut += deMaps.usoOut
+  const crudos = [...deMaps.items, ...corridas.flatMap(c => extraerLista(c.salida))]
   if (!crudos.length) {
     if (usoIn) await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: usoIn, tokens_out: usoOut })
     const falla = corridas.find(c => c.error)
@@ -508,6 +569,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
       decisor: n.decisor?.nombre ? { nombre: String(n.decisor.nombre).slice(0, 80), cargo: String(n.decisor.cargo ?? '').slice(0, 80), linkedin: linkDe(n.decisor.linkedin, /linkedin\.com\//i), fuente: /^https?:\/\//.test(String(n.decisor.fuente ?? '')) ? String(n.decisor.fuente) : '' } : null,
       es_prospecto: esProspecto,
       no_cumple: filtrosIA.some(f => n.cumple && typeof n.cumple === 'object' && n.cumple[f.id] === false),
+      evaluado: !!n.evaluado,
     }
   }).filter(n => {
     const k = clave(n.nombre), t = normalizarTelefono(n.telefono)
@@ -520,18 +582,20 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   })
 
   // Paso 3: segunda mirada contra lo que se pidió
-  const ver = await verificar(key, modeloRapido, brief, candidatos, apr.texto, filtrosIA, zona)
+  const web = candidatos.filter(c => !c.evaluado)
+  const ver = await verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona)
   usoIn += ver.usoIn; usoOut += ver.usoOut
-  const noEncajan = candidatos.length - ver.quedan.size - ver.noCumplen
+  const noEncajan = web.length - ver.quedan.size - ver.noCumplen + Math.max(0, deMaps.fichas - deMaps.items.length)
   descartados += ver.noCumplen
-  const parecida = new Set(candidatos.filter((_, i) => ver.parecidas.has(i)).map(c => c.nombre))
-  const resultados = candidatos.filter((_, i) => ver.quedan.has(i))
+  const quedanWeb = new Set(web.filter((_, i) => ver.quedan.has(i)))
+  const parecida = new Set(web.filter((_, i) => ver.parecidas.has(i)).map(c => c.nombre))
+  const resultados = candidatos.filter(c => c.evaluado || quedanWeb.has(c))
     .map(c => parecida.has(c.nombre) ? { ...c, nota: c.nota ? c.nota : 'Parecida a las que te sirven', razones: { ...c.razones, a_favor: ['Parecida a empresas que ya te sirven', ...c.razones.a_favor].slice(0, 5) } } : c)
     .sort((a, b) => Number(parecida.has(b.nombre)) - Number(parecida.has(a.nombre)) || (b.puntaje ?? 0) - (a.puntaje ?? 0) || Number(!!b.telefono) - Number(!!a.telefono) || Number(!!b.email) - Number(!!a.email))
     // Variedad: ningún tipo de empresa se lleva más de un tercio de los resultados (salvo que haya pocos tipos)
     .filter(((cuenta: Record<string, number>) => (c: Dic) => {
       if (brief!.incluir.length <= 2 || !c.segmento) return true
-      const tope = Math.max(2, Math.ceil(cantidad / 3))
+      const tope = Math.max(3, Math.ceil(cantidad / 2.5))
       cuenta[c.segmento] = (cuenta[c.segmento] ?? 0) + 1
       return cuenta[c.segmento] <= tope
     })({}))
@@ -540,11 +604,11 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
 
   // Guardar en la bandeja "Por revisar"
   let busquedaId: string | null = null
-  let salida: Dic[] = resultados.map(({ es_prospecto, no_cumple, segmento, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
+  let salida: Dic[] = resultados.map(({ es_prospecto, no_cumple, segmento, evaluado, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
   if (guardar && resultados.length) {
     const { data: b } = await db.from('busquedas').insert({ owner_id: user.id, rubro, zona, pedido, requisitos: { filtros: [...ids], brief }, cantidad, encontrados: resultados.length }).select('id').single()
     busquedaId = b?.id ?? null
-    const filas = resultados.map(({ es_prospecto, no_cumple, segmento, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
+    const filas = resultados.map(({ es_prospecto, no_cumple, segmento, evaluado, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
       google_maps_url: r.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([r.nombre, r.direccion, zona].filter(Boolean).join(' '))}` }))
     const { data: ins, error } = await supabase.from('hallazgos').upsert(filas, { onConflict: 'owner_id,clave_nombre', ignoreDuplicates: true }).select('*')
     if (error) console.error('hallazgos', error)
