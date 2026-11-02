@@ -62,6 +62,60 @@ function paisDe(zona: string): Ubic {
   return p ? { code: p[1], tz: p[2], nombre: NOMBRE_PAIS[p[1]], multi: false } : { code: 'AR', tz: 'America/Argentina/Buenos_Aires', nombre: 'Argentina', multi: false }
 }
 
+
+// ---- Lugares: el tipo de empresa se entiende SIN lugares; el lugar sale sólo del selector "Dónde" ----
+const LUGARES = [
+  // Argentina: provincias, Gran Mendoza y ciudades grandes
+  'Buenos Aires', 'CABA', 'Capital Federal', 'GBA', 'Conurbano', 'Córdoba', 'Santa Fe', 'Rosario', 'Mendoza', 'Gran Mendoza', 'San Juan', 'San Luis', 'Neuquén', 'Río Negro',
+  'Chubut', 'Santa Cruz', 'Tierra del Fuego', 'La Pampa', 'Entre Ríos', 'Corrientes', 'Misiones', 'Chaco', 'Formosa', 'Santiago del Estero', 'Tucumán', 'Salta', 'Jujuy',
+  'Catamarca', 'La Rioja', 'Godoy Cruz', 'Guaymallén', 'Las Heras', 'Luján de Cuyo', 'Maipú', 'Lavalle', 'San Rafael', 'Mar del Plata', 'Bahía Blanca', 'La Plata', 'Bariloche',
+  'Comodoro Rivadavia', 'Paraná', 'Rafaela', 'Villa María', 'Río Cuarto',
+  // Otros países y sus ciudades grandes
+  'Santiago de Chile', 'Valparaíso', 'Concepción', 'Antofagasta', 'Montevideo', 'Canelones', 'Maldonado', 'Asunción', 'Lima', 'Arequipa', 'Bogotá', 'Medellín', 'Cali',
+  'Quito', 'Guayaquil', 'Ciudad de México', 'CDMX', 'Monterrey', 'Guadalajara', 'São Paulo', 'Sao Paulo', 'Río de Janeiro', 'Rio de Janeiro', 'Porto Alegre', 'Curitiba',
+  'Argentina', 'Chile', 'Uruguay', 'Paraguay', 'Bolivia', 'Perú', 'Colombia', 'Ecuador', 'México', 'Brasil', 'Venezuela', 'Latinoamérica',
+]
+const sinTildes = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+const escapar = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** Saca de un texto los lugares que NO son parte de la zona elegida (con su "de", "del Gran", "en"...) */
+function sinLugares(texto: string, zona: string) {
+  if (!texto) return texto
+  const z = sinTildes(zona)
+  let t = texto
+  for (const l of [...LUGARES].sort((a, b) => b.length - a.length)) {
+    if (z.includes(sinTildes(l))) continue
+    const variantes = [...new Set([l, l.normalize('NFD').replace(/[\u0300-\u036f]/g, '')])].map(escapar).join('|')
+    t = t.replace(new RegExp(`(?:,\\s*)?(?:\\s+(?:del|de la|de|en|en el|en la|zona|provincia de|ciudad de)\\s+)?(?:\\s*\\bGran\\s+)?(?<![\\p{L}])(?:${variantes})(?![\\p{L}])`, 'giu'), '')
+  }
+  return t.replace(/[ \t]+([,.;:])/g, '$1').replace(/\([ \t]*\)/g, '').replace(/,[ \t]*,/g, ',').replace(/[ \t]{2,}/g, ' ').replace(/^[ \t,]+|[ \t,]+$/gm, '').trim()
+}
+/** Divide la zona elegida en partes para buscar en paralelo y que los resultados queden repartidos */
+const REGIONES_BUSQUEDA: Record<string, string[]> = {
+  AR: ['Buenos Aires, CABA y GBA, Argentina', 'Córdoba, Argentina', 'Santa Fe y Rosario, Argentina', 'Mendoza, San Juan y San Luis, Argentina', 'Tucumán, Salta y el NOA, Argentina', 'Neuquén, Río Negro y la Patagonia, Argentina', 'Entre Ríos, Corrientes y el Litoral, Argentina', 'Bahía Blanca y el interior de Buenos Aires, Argentina'],
+  CL: ['Santiago (Región Metropolitana), Chile', 'Valparaíso y Viña del Mar, Chile', 'Concepción y Biobío, Chile', 'Antofagasta y el norte, Chile', 'Puerto Montt y el sur, Chile'],
+  UY: ['Montevideo, Uruguay', 'Canelones, Uruguay', 'Maldonado y Punta del Este, Uruguay', 'Colonia, Salto y Paysandú, Uruguay'],
+  BR: ['São Paulo, Brasil', 'Rio de Janeiro, Brasil', 'Minas Gerais, Brasil', 'Paraná e Santa Catarina, Brasil', 'Rio Grande do Sul, Brasil'],
+  MX: ['Ciudad de México y Estado de México, México', 'Monterrey (Nuevo León), México', 'Guadalajara (Jalisco), México', 'Querétaro y el Bajío, México', 'Puebla, México'],
+  CO: ['Bogotá, Colombia', 'Medellín (Antioquia), Colombia', 'Cali (Valle del Cauca), Colombia', 'Barranquilla y la costa Caribe, Colombia'],
+  PE: ['Lima y Callao, Perú', 'Arequipa, Perú', 'Trujillo y La Libertad, Perú', 'Piura y el norte, Perú'],
+  PY: ['Asunción y Central, Paraguay', 'Ciudad del Este (Alto Paraná), Paraguay', 'Encarnación (Itapúa), Paraguay'],
+}
+function partesDeZona(zona: string, maximo: number): { zona: string, code: string, tz: string }[] {
+  const z = ' ' + sinTildes(zona) + ' '
+  const paises = PAISES.filter(([n]) => z.includes(n)).filter((h, i, a) => a.findIndex(x => x[1] === h[1]) === i)
+  // Zona = sólo nombres de países (uno o varios): se reparte por país y, si sobra lugar, por regiones de cada país
+  const resto = paises.reduce((t, [n]) => t.replace(n, ' '), z).replace(/[,y\s]+/g, '')
+  if (paises.length && !resto) {
+    const porPais = paises.map(([, code, tz]) => ({ code, tz, regiones: [...(REGIONES_BUSQUEDA[code] ?? [NOMBRE_PAIS[code]])].sort(() => Math.random() - 0.5) }))
+    const partes: { zona: string, code: string, tz: string }[] = []
+    for (let vuelta = 0; partes.length < maximo && vuelta < 8; vuelta++)
+      for (const p of porPais) if (partes.length < maximo && p.regiones[vuelta]) partes.push({ zona: p.regiones[vuelta], code: p.code, tz: p.tz })
+    return partes
+  }
+  const u = paisDe(zona)
+  return [{ zona, code: u.code, tz: u.tz }]
+}
+
 /** La zona elegida en la búsqueda manda sobre cualquier lugar del perfil, la estrategia o las empresas de ejemplo */
 const reglaZona = (zona: string) => `ZONA OBLIGATORIA: ${zona}. La eligió la persona para ESTA búsqueda y manda sobre cualquier ciudad, provincia o país que aparezca en su perfil, su cliente ideal, su estrategia o en las empresas de ejemplo (esas sirven para saber QUÉ TIPO de empresa le sirve, nunca DÓNDE buscar). No la cambies ni la achiques a la ciudad de quien busca. Si la zona es un país o varios, repartí los resultados entre distintas provincias, regiones y ciudades (nunca más de un tercio de la misma provincia o ciudad).`
 const enfoqueParecidas = (ejemplos: string[], z: string) => ({ nombre: 'parecidas', texto: () => `Enfoque: empresas PARECIDAS a las que ya le sirven a esta persona: ${ejemplos.join('; ')}. Buscá en cualquier parte de ${z} (no sólo cerca de esas empresas) otras del mismo tipo, tamaño y forma de operar: sus competidores en otras ciudades, empresas del mismo rubro en otros polos industriales, las que aparecen junto a ellas en directorios y en "empresas similares". No traigas esas mismas.` })
@@ -182,9 +236,9 @@ const lista = (v: unknown, n = 10) => Array.isArray(v) ? v.map(x => String(x ?? 
 async function interpretar(key: string, modelo: string, rubro: string, zona: string, contexto: string, aprendido = '', pais = 'Argentina', multi = false): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
   const base: Brief = { interpretacion: rubro, buscar: [rubro], incluir: [], excluir: [] }
   try {
-    const r = await llamarClaude(key, modelo, `Sos analista comercial B2B ${multi ? 'en Latinoamérica' : `en ${pais}`}. Una persona quiere encontrar clientes potenciales y escribió: "${rubro}" (zona: ${zona}).
+    const r = await llamarClaude(key, modelo, `Sos analista comercial B2B ${multi ? 'en Latinoamérica' : `en ${pais}`}. Una persona quiere encontrar clientes potenciales y escribió: "${rubro}".
 ${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}${aprendido ? `\n${aprendido}\n` : ''}
-${reglaZona(zona)} En "interpretacion", "incluir" y "buscar" no nombres ninguna ciudad ni provincia que no sea la zona elegida.
+IMPORTANTE: describí sólo el TIPO de empresa, sin ningún lugar. En "interpretacion", "incluir", "excluir" y "buscar" NO pongas países, provincias, ciudades ni barrios (el lugar lo elige la persona aparte y se agrega solo).
 
 Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende. Las palabras ambiguas se resuelven por lo que vende: por ejemplo, si vende automatización de almacenes y escribe "depósito", busca empresas que TIENEN un depósito o centro de distribución propio (distribuidoras, mayoristas, fábricas, operadores logísticos, e-commerce grandes), NO empresas de mudanzas, guardamuebles, alquiler de bauleras o self storage. Si no hay contexto, elegí la lectura comercial más probable y descartá las lecturas que se confunden. Nunca incluyas como clientes a empresas que venden o instalan lo mismo que quien busca (competencia, integradores, revendedores) ni a sus proveedores: van siempre en "excluir".
 
@@ -195,12 +249,18 @@ Respondé SOLO con JSON:
     const o = extraerObjeto(r.texto)
     if (!o) return { brief: base, usoIn: r.usoIn, usoOut: r.usoOut }
     return {
-      brief: { interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 8).length ? lista(o.buscar, 8) : [rubro], incluir: lista(o.incluir, 8), excluir: lista(o.excluir, 8) },
+      brief: limpiarBrief({ interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 8).length ? lista(o.buscar, 8) : [rubro], incluir: lista(o.incluir, 8), excluir: lista(o.excluir, 8) }, zona),
       usoIn: r.usoIn, usoOut: r.usoOut,
     }
   } catch (e) { console.error('interpretar', e); return { brief: base, usoIn: 0, usoOut: 0 } }
 }
 
+/** El brief describe el tipo de empresa: se le sacan los lugares que no son la zona elegida */
+function limpiarBrief(b: Brief, zona: string): Brief {
+  const l = (x: string) => sinLugares(x, zona)
+  const terminos = (v: string[]) => [...new Set(v.map(l).filter(t => t.length > 2))]
+  return { interpretacion: l(b.interpretacion) || b.interpretacion, buscar: terminos(b.buscar).length ? terminos(b.buscar) : b.buscar.map(l), incluir: terminos(b.incluir), excluir: terminos(b.excluir) }
+}
 function briefDesde(b: unknown, rubro: string): Brief | null {
   if (!b || typeof b !== 'object') return null
   const o = b as Dic
@@ -318,7 +378,7 @@ export async function buscar(req: Request, h: Ayudas) {
   const modelo = (await claveServicio('modelo_busqueda')) || 'claude-haiku-5-5' // barato y rinde bien para buscar
 
   const { data: comercial } = await supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', user.id).maybeSingle()
-  const contexto = contextoEmpresa(comercial)
+  const contexto = sinLugares(contextoEmpresa(comercial), zona)
   const modeloRapido = (await claveServicio('modelo_resumen')) || 'claude-haiku-5-5'
 
   // Paso 1: entender qué quiere (y qué NO). Con modo "interpretar" sólo devuelve esto para que la persona lo ajuste.
@@ -329,8 +389,11 @@ export async function buscar(req: Request, h: Ayudas) {
     const { data: comp } = await db.from('perfiles').select('id').eq('empresa_id', yo.empresa_id).limit(200)
     equipo = [...new Set([user.id, ...(comp ?? []).map((c: Dic) => c.id)])]
   }
-  const apr = await aprendizaje(db, user.id, equipo)
+  const aprCrudo = await aprendizaje(db, user.id, equipo)
+  // Las empresas que le sirven enseñan el TIPO de empresa, no el lugar
+  const apr = { ...aprCrudo, texto: sinLugares(aprCrudo.texto, zona), ejemplos: aprCrudo.ejemplos.map(e => sinLugares(e, zona)) }
   let brief = briefDesde(body.brief, rubro)
+  if (brief) brief = limpiarBrief(brief, zona)
   if (!brief) {
     const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto, pais.nombre, pais.multi)
     brief = it.brief; usoIn += it.usoIn; usoOut += it.usoOut
@@ -353,11 +416,19 @@ export async function buscar(req: Request, h: Ayudas) {
 
   // Paso 2: varias búsquedas en paralelo, cada una con otro enfoque
   // Con empresas que ya le sirven, una de las búsquedas va siempre a buscar parecidas a esas
-  const enfoques = apr.ejemplos.length ? [enfoqueParecidas(apr.ejemplos, zona), ...ENFOQUES] : ENFOQUES
-  const lotes = Math.min(4, Math.max(apr.ejemplos.length ? 2 : 1, Math.ceil(cantidad / 10)))
-  const cuantos = Math.ceil(cantidad / lotes) + 3
-  const corridas = await Promise.all(enfoques.slice(0, lotes).map(e =>
-    unaBusqueda(key, modelo, prompt({ pais: pais.nombre, multi: pais.multi, rubro, zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, pais)))
+  // Si la zona es uno o varios países, cada búsqueda va a una parte distinta (país o región): así no se amontonan en un solo lugar
+  const partes = partesDeZona(zona, 4)
+  const lotes = Math.min(4, Math.max(apr.ejemplos.length ? 2 : 1, Math.ceil(cantidad / 10), partes.length))
+  const cuantos = Math.ceil(cantidad / lotes) + 2
+  const tareas = Array.from({ length: lotes }, (_, i) => {
+    const parte = partes[i % partes.length]
+    const e = i === 0 && apr.ejemplos.length ? enfoqueParecidas(apr.ejemplos, parte.zona) : ENFOQUES[(i - (apr.ejemplos.length ? 1 : 0) + ENFOQUES.length) % ENFOQUES.length]
+    return { parte, e }
+  })
+  const corridas = await Promise.all(tareas.map(({ parte, e }) => {
+    const u = paisDe(parte.zona)
+    return unaBusqueda(key, modelo, prompt({ pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, { code: parte.code, tz: parte.tz })
+  }))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
   const crudos = corridas.flatMap(c => extraerLista(c.salida))
   if (!crudos.length) {
