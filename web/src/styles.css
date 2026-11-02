@@ -1886,3 +1886,24 @@ html[data-tema="oscuro"] .sz-columnas .sz-titulo { background: var(--card); }
 .brief-opciones b { display: block; font-size: 13.5px; margin-bottom: 8px; }
 .brief-opciones.general { background: #fff4e5; border: 1px solid #f6d9a8; }
 .armador-pie { justify-content: flex-start; } .armador-pie .btn { order: -1; }
+/* Guía con preguntas */
+.guia-invitacion { width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; margin-top: 14px; padding: 16px 18px; border: 1px dashed var(--line-2); border-radius: 16px; background: var(--card, #fff); cursor: pointer; font: inherit; color: var(--ink); transition: border-color .15s, background .15s; }
+.guia-invitacion:hover { border-style: solid; border-color: var(--acc); background: var(--acc-soft); }
+.guia-invitacion > svg:first-child { color: var(--acc); flex: none; }
+.guia-invitacion span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.guia-invitacion small { color: var(--mut); font-size: 13px; }
+.tarjeta.guia { margin-top: 14px; }
+.guia-cab { display: flex; gap: 12px; align-items: flex-start; }
+.guia-cab small { color: var(--mut); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.guia-cab h3 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.01em; }
+.guia-progreso { display: flex; gap: 6px; margin: 14px 0 16px; }
+.guia-progreso span { flex: 1; height: 4px; border-radius: 99px; background: #eee8df; }
+.guia-progreso span.on { background: var(--acc); }
+.guia-opciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.guia-opcion { display: flex; align-items: center; gap: 8px; text-align: left; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 12px; background: #fff; font: inherit; font-size: 14.5px; cursor: pointer; color: var(--ink); transition: all .12s; }
+.guia-opcion:hover { border-color: var(--acc); background: var(--acc-soft); }
+.guia-opcion.on { border-color: var(--acc); background: var(--acc-soft); font-weight: 600; }
+.guia-opcion svg { color: var(--acc); flex: none; }
+.guia-pie { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.guia-pie input { flex: 1; max-width: 360px; }
+html[data-tema="oscuro"] .guia-opcion { background: var(--card); }

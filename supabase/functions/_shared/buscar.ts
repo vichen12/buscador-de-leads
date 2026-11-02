@@ -354,7 +354,7 @@ export async function buscar(req: Request, h: Ayudas) {
   const { data: acceso } = await supabase.rpc('mi_acceso')
   if (acceso && acceso.habilitado === false) return json({ error: 'Tu cuenta o tu empresa está suspendida.' }, 403)
 
-  const rubroCrudo = String(body.rubro ?? '').trim().slice(0, 160)
+  const rubroCrudo = String(body.rubro ?? '').trim().slice(0, 500)
   const zonaCruda = String(body.zona ?? '').trim().slice(0, 80)
   // "neuquen" → "Neuquen": si viene todo en minúsculas, mayúscula en cada palabra (salvo de/del/la…)
   const zona = zonaCruda === zonaCruda.toLowerCase()
@@ -375,7 +375,7 @@ export async function buscar(req: Request, h: Ayudas) {
   const tipos = new Set(filtros.map(tipoFiltro))
   const filtrosIA = filtros.filter(f => tipoFiltro(f) === 'ia')
   const guardar = body.guardar !== false
-  if (!rubro || !zona) return json({ error: 'Escribí qué buscás y dónde.' }, 400)
+  if ((!rubro && body.modo !== 'preguntar') || !zona) return json({ error: 'Escribí qué buscás y dónde.' }, 400)
 
   const { data: cupo } = await db.rpc('cupo_chat', { p_usuario: user.id })
   if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de IA de hoy. Mañana se renueva.`, codigo: 'LIMITE_CHAT', cupo }, 429)
@@ -398,6 +398,24 @@ export async function buscar(req: Request, h: Ayudas) {
   const aprCrudo = await aprendizaje(db, user.id, equipo)
   // Las empresas que le sirven enseñan el TIPO de empresa, no el lugar
   const apr = { ...aprCrudo, texto: sinLugares(aprCrudo.texto, zona), ejemplos: aprCrudo.ejemplos.map(e => sinLugares(e, zona)) }
+  // Guía: preguntas para que la búsqueda quede concreta (pensadas para este negocio y este pedido)
+  if (body.modo === 'preguntar') {
+    try {
+      const r = await llamarClaude(key, modeloRapido, `Sos un asistente que ayuda a una persona a armar una búsqueda de clientes potenciales (empresas) que sea CONCRETA, porque las búsquedas generales traen resultados malos.
+${contexto ? `Quién busca y qué vende:\n${contexto}\n` : 'No sabemos qué vende: una de las preguntas puede ser qué vende.\n'}${apr.texto ? `${apr.texto}\n` : ''}
+Lo que escribió: "${rubro || '(todavía nada)'}"
+
+Hacé de 2 a 3 preguntas cortas para concretar QUÉ TIPO de empresa buscar. Pensalas para lo que vende esta persona y lo que escribió (no genéricas): por ejemplo, qué industria o actividad, qué característica visible indica que necesita lo que vende (tamaño, si tiene tal cosa, si está creciendo), qué momento o problema. Cada pregunta con 4 a 6 respuestas posibles, cortas (2 a 6 palabras), concretas y distintas entre sí, de industrias variadas cuando corresponda. NO preguntes por el lugar ni pongas lugares (eso ya lo eligió aparte).
+Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", "..."], "varias": true o false}]}`, 2000)
+      usoIn += r.usoIn; usoOut += r.usoOut
+      const o = extraerObjeto(r.texto)
+      const preguntas = (Array.isArray(o?.preguntas) ? o!.preguntas : []).slice(0, 3).map((q: Dic) => ({
+        pregunta: String(q.pregunta ?? '').slice(0, 140), varias: !!q.varias,
+        opciones: lista(q.opciones, 6).map(x => sinLugares(x, zona).slice(0, 60)).filter(Boolean),
+      })).filter((q: Dic) => q.pregunta && q.opciones.length >= 2)
+      return json({ preguntas })
+    } catch (e) { console.error('preguntar', e); return json({ preguntas: [] }) }
+  }
   let brief = briefDesde(body.brief, rubro)
   if (brief) brief = limpiarBrief(brief, zona)
   if (!brief) {

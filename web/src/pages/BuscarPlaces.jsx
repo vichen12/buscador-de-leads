@@ -19,8 +19,6 @@ const FILTROS_DEFECTO = [
   { id: 'con_email', titulo: 'Con email', descripcion: 'Que tenga un email de contacto.', activo: false },
   { id: 'con_instagram', titulo: 'Con Instagram', descripcion: 'Que tenga Instagram.', activo: false },
 ]
-const TAMANOS = ['Chicas', 'Medianas', 'Grandes']
-const SENALES = ['con depósito propio', 'con flota propia', 'con varias sucursales', 'que venden online', 'que están contratando', 'que abrieron o ampliaron hace poco', 'que exportan', 'con muchos productos']
 const PASOS = ['Buscando en Google Maps…', 'Mirando directorios y redes…', 'Recorriendo la zona…', 'Revisando que encajen con lo que pediste…']
 
 /** Lista de chips que se pueden sacar y agregar */
@@ -62,14 +60,38 @@ export default function BuscarPlaces() {
   const filtros = est?.filtros?.length ? est.filtros : FILTROS_DEFECTO
 
   const [rubro, setRubro] = useState('')
-  // Armador guiado: tipo + tamaño + características → una búsqueda concreta
-  const [arm, setArm] = useState({ tipo: '', tamano: '', senales: [] })
-  const armar = cambio => {
-    const n = { ...arm, ...cambio }
-    setArm(n); setBrief(null)
-    const tam = { Chicas: 'chicas', Medianas: 'medianas', Grandes: 'grandes' }[n.tamano]
-    const texto = n.tipo ? [n.tipo + (tam ? ` (empresas ${tam})` : ''), n.senales.join(' y ')].filter(Boolean).join(' ') : ''
-    setRubro(texto)
+  // Guía con preguntas: si el pedido es muy general, Claude pregunta lo justo para concretarlo
+  const [guia, setGuia] = useState(null) // { base, preguntas, paso, respuestas: [[...]], otra, briefGeneral }
+  const [preguntando, setPreguntando] = useState(false)
+  async function pedirPreguntas(base, briefGeneral = null) {
+    if (!zona.trim()) { setError(`Elegí una provincia, ciudad o zona de ${nombrePais(paisBusq)}.`); return }
+    setPreguntando(true); setError(''); setBrief(null); setRes(null)
+    try {
+      const r = await llamarFuncion('buscar-negocios', { modo: 'preguntar', rubro: base, zona: zonaConPais(zonaNormal(zona), paisBusq) })
+      if (r.preguntas?.length) setGuia({ base, preguntas: r.preguntas, paso: 0, respuestas: r.preguntas.map(() => []), otra: '', briefGeneral })
+      else if (briefGeneral) setBrief(briefGeneral)
+    } catch (err) { setError(mensajeError(err)); if (briefGeneral) setBrief(briefGeneral) }
+    setPreguntando(false)
+  }
+  function responder(valor, varias) {
+    setGuia(g => {
+      const respuestas = g.respuestas.map((r, k) => k !== g.paso ? r : varias ? (r.includes(valor) ? r.filter(x => x !== valor) : [...r, valor]) : [valor])
+      return { ...g, respuestas }
+    })
+    if (!varias) setTimeout(() => avanzar(), 180)
+  }
+  const guiaRef = useRef(null)
+  useEffect(() => { guiaRef.current = guia }, [guia])
+  function avanzar(saltar = false) {
+    const g = guiaRef.current
+    if (!g) return
+    const respuestas = g.respuestas.map((r, k) => k !== g.paso ? r : saltar ? [] : g.otra.trim() ? [...r.filter(x => x !== g.otra.trim()), g.otra.trim()] : r)
+    if (g.paso < g.preguntas.length - 1) { setGuia({ ...g, respuestas, otra: '', paso: g.paso + 1 }); return }
+    // Listo: se arma la búsqueda concreta y se interpreta
+    const final = [g.base, respuestas.flat().filter(Boolean).join(', ')].filter(Boolean).join(' — ') || g.base
+    setGuia(null)
+    if (!final) return
+    setRubro(final); entender(null, final, true)
   }
   const [zona, setZona] = useState(sugZonas[0])
   const [cantidad, setCantidad] = useState(20)
@@ -97,17 +119,19 @@ export default function BuscarPlaces() {
   const zonaNormal = z => todasZonas.find(o => sinTilde(o) === sinTilde(z)) ?? z.trim()
 
   // Paso 1: Claude cuenta cómo entendió el pedido (qué entra y qué no) y la persona lo ajusta
-  async function entender(e, pedidoDirecto) {
+  async function entender(e, pedidoDirecto, sinGuia = false) {
     e?.preventDefault?.()
     const que = (typeof pedidoDirecto === 'string' ? pedidoDirecto : rubro).trim()
     if (!que) { rubroRef.current?.focus(); return }
     if (!zona.trim()) { setError(`Elegí una provincia, ciudad o zona de ${nombrePais(paisBusq)}: si buscás en todo el país, los resultados se dispersan.`); return }
     const z = zonaNormal(zona)
     setZona(z)
-    setEntendiendo(true); setError(''); setRes(null); setBrief(null)
+    setEntendiendo(true); setError(''); setRes(null); setBrief(null); setGuia(null)
     try {
       const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: que, zona: zonaConPais(z, paisBusq) })
-      setBrief({ ...r.brief, _aprendizaje: r.aprendizaje })
+      const b = { ...r.brief, _aprendizaje: r.aprendizaje }
+      if (r.brief?.especifica === false && !sinGuia) { setEntendiendo(false); await pedirPreguntas(que, b); return }
+      setBrief(b)
     } catch (err) { setError(mensajeError(err)) }
     setEntendiendo(false)
   }
@@ -218,27 +242,31 @@ export default function BuscarPlaces() {
         </section>
       )}
 
-      {!cargando && !res && !brief && !entendiendo && (
-        <section className="armador">
-          <div className="armador-cab"><Wand2 size={16} /><div><b>Armá una búsqueda concreta</b><span className="muted chico">Mientras más específica, mejores empresas trae. Elegí y se escribe sola arriba.</span></div></div>
-          <div className="armador-paso">
-            <span className="armador-num">1</span>
-            <div><div className="armador-titulo">¿Qué tipo de empresa?{est && <Link to="/negocio" className="chico"> según tu negocio</Link>}</div>
-              <div className="sug-chips">{sugRubros.slice(0, 14).map(r => <button key={r} type="button" className={'sug-chip' + (arm.tipo === r ? ' on' : '')} onClick={() => armar({ tipo: arm.tipo === r ? '' : r })}>{arm.tipo === r && <Check size={12} />}{r}</button>)}</div></div>
-          </div>
-          <div className="armador-paso">
-            <span className="armador-num">2</span>
-            <div><div className="armador-titulo">¿De qué tamaño? <span className="muted">(opcional)</span></div>
-              <div className="sug-chips">{TAMANOS.map(t => <button key={t} type="button" className={'sug-chip' + (arm.tamano === t ? ' on' : '')} onClick={() => armar({ tamano: arm.tamano === t ? '' : t })}>{arm.tamano === t && <Check size={12} />}{t}</button>)}</div></div>
-          </div>
-          <div className="armador-paso">
-            <span className="armador-num">3</span>
-            <div><div className="armador-titulo">¿Qué tienen que tener? <span className="muted">(una o más)</span></div>
-              <div className="sug-chips">{SENALES.map(t => { const on = arm.senales.includes(t); return <button key={t} type="button" className={'sug-chip' + (on ? ' on' : '')} onClick={() => armar({ senales: on ? arm.senales.filter(x => x !== t) : [...arm.senales, t] })}>{on && <Check size={12} />}{t}</button> })}</div></div>
-          </div>
-          {rubro.trim() && <div className="armador-pie"><span>Vas a buscar: <b>{rubro}</b> en <b>{zonaConPais(zona, paisBusq)}</b></span><button type="button" className="btn ia" onClick={entender} disabled={entendiendo || servicios.ia === false}><Sparkles size={15} /> Buscar</button></div>}
-        </section>
+      {!cargando && !res && !brief && !entendiendo && !guia && !preguntando && (
+        <button type="button" className="guia-invitacion" onClick={() => pedirPreguntas(rubro.trim())} disabled={servicios.ia === false}>
+          <Wand2 size={18} /><span><b>¿No sabés bien qué buscar? Te ayudo con unas preguntas</b><small>Mientras más concreta la búsqueda, mejores empresas trae. Te pregunto según lo que vendés.</small></span><ArrowRight size={16} />
+        </button>
       )}
+      {preguntando && <section className="tarjeta entendiendo"><div className="pensando"><i /><i /><i /></div><span>Pensando qué preguntarte para afinar la búsqueda…</span></section>}
+      {guia && (() => {
+        const q = guia.preguntas[guia.paso], elegidas = guia.respuestas[guia.paso]
+        return (
+          <section className="tarjeta guia">
+            <div className="guia-cab">
+              <span className="brief-icono"><Wand2 size={18} /></span>
+              <div style={{ flex: 1 }}><small>{guia.base ? <>Para concretar “{guia.base}”</> : 'Armemos la búsqueda'} · pregunta {guia.paso + 1} de {guia.preguntas.length}</small><h3>{q.pregunta}</h3></div>
+              <button type="button" className="btn fantasma chico" onClick={() => { const b = guia.briefGeneral; setGuia(null); if (b) setBrief(b) }}>{guia.briefGeneral ? 'Buscar igual así' : 'Cerrar'}</button>
+            </div>
+            <div className="guia-progreso">{guia.preguntas.map((_, k) => <span key={k} className={k <= guia.paso ? 'on' : ''} />)}</div>
+            <div className="guia-opciones">{q.opciones.map(o => { const on = elegidas.includes(o); return <button key={o} type="button" className={'guia-opcion' + (on ? ' on' : '')} onClick={() => responder(o, q.varias)}>{on && <Check size={14} />}{o}</button> })}</div>
+            <div className="guia-pie">
+              <input value={guia.otra} onChange={e => setGuia({ ...guia, otra: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); avanzar() } }} placeholder="Otra respuesta (escribila)" maxLength={80} />
+              <button type="button" className="link chico" onClick={() => avanzar(true)}>Saltar</button>
+              {(q.varias || guia.otra.trim()) && <button type="button" className="btn primario chico" onClick={() => avanzar()}>{guia.paso < guia.preguntas.length - 1 ? 'Siguiente' : 'Listo, buscar'} <ArrowRight size={13} /></button>}
+            </div>
+          </section>
+        )
+      })()}
 
       {entendiendo && (
         <section className="tarjeta entendiendo"><div className="pensando"><i /><i /><i /></div><span>Claude está entendiendo qué empresas te sirven…</span></section>
@@ -255,8 +283,8 @@ export default function BuscarPlaces() {
           </div>
           {brief.opciones?.length > 0 && (
             <div className={'brief-opciones' + (brief.especifica === false ? ' general' : '')}>
-              <b>{brief.especifica === false ? 'Así es muy general y la búsqueda se dispersa. Elegí algo más concreto:' : '¿Más específico? Probá con:'}</b>
-              <div className="sug-chips">{brief.opciones.map(o => <button key={o} type="button" className="sug-chip destacado" onClick={() => { setRubro(o); entender(null, o) }}>{o}</button>)}</div>
+              <b>{brief.especifica === false ? 'Es bastante general. Algo más concreto:' : '¿Más específico? Probá con:'}</b>
+              <div className="sug-chips">{brief.opciones.map(o => <button key={o} type="button" className="sug-chip destacado" onClick={() => { setRubro(o); entender(null, o, true) }}>{o}</button>)}</div>
             </div>
           )}
           {brief._aprendizaje && (brief._aprendizaje.sirven > 0 || brief._aprendizaje.no_sirven > 0 ? (
