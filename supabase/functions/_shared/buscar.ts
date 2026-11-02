@@ -350,14 +350,16 @@ export async function buscar(req: Request, h: Ayudas) {
   const { data: acceso } = await supabase.rpc('mi_acceso')
   if (acceso && acceso.habilitado === false) return json({ error: 'Tu cuenta o tu empresa está suspendida.' }, 403)
 
-  const rubro = String(body.rubro ?? '').trim().slice(0, 160)
+  const rubroCrudo = String(body.rubro ?? '').trim().slice(0, 160)
   const zonaCruda = String(body.zona ?? '').trim().slice(0, 80)
   // "neuquen" → "Neuquen": si viene todo en minúsculas, mayúscula en cada palabra (salvo de/del/la…)
   const zona = zonaCruda === zonaCruda.toLowerCase()
     ? zonaCruda.replace(/(^|[\s,(])([a-záéíóúñ])([a-záéíóúñ]*)/g, (m, a, b, c) => ['de', 'del', 'la', 'las', 'los', 'el', 'y'].includes(b + c) && a !== '' ? m : a + b.toUpperCase() + c)
     : zonaCruda
   const pais = paisDe(zona)
-  const pedido = String(body.pedido ?? '').trim().slice(0, 400)
+  // El lugar sale SOLO del selector "Dónde": si escribió un lugar en "Qué buscás" o en el pedido especial, se ignora
+  const rubro = sinLugares(rubroCrudo, zona) || rubroCrudo
+  const pedido = sinLugares(String(body.pedido ?? '').trim().slice(0, 400), zona)
   const cantidad = Math.min(Math.max(Number(body.cantidad) || 10, 5), 40)
   // Filtros elegidos: [{id, titulo, descripcion}]. Compatibilidad con la versión anterior ({requisitos: {sin_web, ...}}).
   let filtros: Dic[] = Array.isArray(body.filtros) ? body.filtros.slice(0, 12).map((f: Dic) => ({ id: String(f.id ?? '').slice(0, 40), titulo: String(f.titulo ?? '').slice(0, 80), descripcion: String(f.descripcion ?? '').slice(0, 220) })).filter((f: Dic) => f.titulo) : []
