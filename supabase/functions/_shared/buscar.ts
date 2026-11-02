@@ -120,7 +120,9 @@ function partesDeZona(zona: string, maximo: number): { zona: string, code: strin
 // ---- Google Maps (Places API oficial): trae muchas fichas reales por tipo de empresa; Claude las evalúa ----
 const CAMPOS_MAPS = ['places.id', 'places.displayName', 'places.formattedAddress', 'places.nationalPhoneNumber', 'places.internationalPhoneNumber',
   'places.websiteUri', 'places.googleMapsUri', 'places.businessStatus', 'places.rating', 'places.userRatingCount', 'places.primaryTypeDisplayName'].join(',')
+let errorMaps = ''
 async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, code: string): Promise<Dic[]> {
+  errorMaps = ''
   const listas = await Promise.all(terminos.map(async t => {
     try {
       const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -128,7 +130,7 @@ async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, 
         headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': clavePlaces, 'X-Goog-FieldMask': CAMPOS_MAPS },
         body: JSON.stringify({ textQuery: `${t} en ${zona}`, languageCode: 'es', pageSize: 20, ...(code ? { regionCode: code } : {}) }),
       })
-      if (!r.ok) { console.error('places', r.status, (await r.text()).slice(0, 200)); return [] }
+      if (!r.ok) { const t = (await r.text()).slice(0, 200); console.error('places', r.status, t); errorMaps = `${r.status} ${t}`; return [] }
       const d = await r.json()
       return (d.places ?? []).filter((p: Dic) => !p.businessStatus || p.businessStatus === 'OPERATIONAL').map((p: Dic) => ({
         nombre: p.displayName?.text ?? '', tipo: p.primaryTypeDisplayName?.text ?? '', direccion: p.formattedAddress ?? '',
@@ -144,7 +146,7 @@ async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, 
 async function evaluarFichas(key: string, modelo: string, brief: Brief, fichas: Dic[], contexto: string, aprendido: string, filtros: Dic[]): Promise<{ items: Dic[], usoIn: number, usoOut: number }> {
   if (!fichas.length) return { items: [], usoIn: 0, usoOut: 0 }
   const lotes: Dic[][] = []
-  for (let i = 0; i < fichas.length; i += 30) lotes.push(fichas.slice(i, i + 30))
+  for (let i = 0; i < fichas.length; i += 20) lotes.push(fichas.slice(i, i + 20))
   const partes = await Promise.all(lotes.map(async lote => {
     try {
       const r = await llamarClaude(key, modelo, `${contexto || ''}
@@ -153,9 +155,11 @@ ${brief.incluir.length ? `Tipos que entran: ${brief.incluir.join('; ')}\n` : ''}
 Estas son fichas de Google Maps. Para cada una decidí si es un cliente potencial razonable de quien busca (no competencia, no proveedores del mismo rubro). Ante la duda, que entre con puntaje bajo. Usá lo que sabés de la empresa si la conocés.
 Respondé SOLO con JSON: {"items": [{"i": índice, "entra": true, "puntaje": 1-5, "segmento": "cuál de los tipos que entran es", "que_es": "qué es en una frase", "encaje": "por qué le serviría a quien busca, concreto", "a_favor": ["..."], "en_contra": ["..."], "cumple": {${filtros.map(f => `"${f.id}": null`).join(', ')}}}]}
 
-${lote.map((f, i) => `${i}. ${f.nombre} — ${f.tipo || 's/d'} — ${f.direccion}${f.web ? ` — ${f.web}` : ''}${f.resenas ? ` — ${f.rating}★ (${f.resenas} reseñas)` : ''} — encontrada buscando "${f.termino}"`).join('\n')}`, 12000)
+${lote.map((f, i) => `${i}. ${f.nombre} — ${f.tipo || 's/d'} — ${f.direccion}${f.web ? ` — ${f.web}` : ''}${f.resenas ? ` — ${f.rating}★ (${f.resenas} reseñas)` : ''} — encontrada buscando "${f.termino}"`).join('\n')}`, 16000)
       const o = extraerObjeto(r.texto)
-      const items = (Array.isArray(o?.items) ? o!.items : []).filter((x: Dic) => x && x.entra !== false && lote[Number(x.i)]).map((x: Dic) => {
+      const crudos = Array.isArray(o?.items) ? o!.items : objetosDe(r.texto, Math.max(0, r.texto.indexOf('"items"')))
+      if (!crudos.length) console.error('evaluar fichas: respuesta sin items', r.texto.slice(0, 200))
+      const items = crudos.filter((x: Dic) => x && x.entra !== false && lote[Number(x.i)]).map((x: Dic) => {
         const f = lote[Number(x.i)]
         return { ...f, puntaje: x.puntaje, segmento: x.segmento, que_es: x.que_es, encaje: x.encaje, cumple: x.cumple, razones: { a_favor: x.a_favor ?? [], en_contra: x.en_contra ?? [] }, evaluado: true }
       })
@@ -341,11 +345,36 @@ ${items.map((n, i) => `${i}. ${n.nombre} — ${n.rubro}${n.encaje ? ` — ${n.en
   } catch (e) { console.error('verificar', e); return { quedan: todos, parecidas: new Set<number>(), noCumplen: 0, usoIn: 0, usoOut: 0 } }
 }
 
+/** Saca los objetos {...} de una lista JSON aunque venga cortada (si la respuesta se cortó por largo, no se pierde todo) */
+function objetosDe(texto: string, desde = 0): Dic[] {
+  const out: Dic[] = []
+  let prof = 0, enTexto = false, escape = false, inicio = -1, base = -1
+  for (let i = desde; i < texto.length; i++) {
+    const c = texto[i]
+    if (enTexto) { if (escape) escape = false; else if (c === '\\') escape = true; else if (c === '"') enTexto = false; continue }
+    if (c === '"') { enTexto = true; continue }
+    if (c === '[' || c === '{') {
+      if (c === '{' && base >= 0 && prof === base) inicio = i
+      if (c === '[' && base < 0) base = prof + 1
+      prof++
+    } else if (c === ']' || c === '}') {
+      prof--
+      if (c === '}' && prof === base && inicio >= 0) {
+        try { out.push(JSON.parse(texto.slice(inicio, i + 1).replace(/,\s*([}\]])/g, '$1'))) } catch { /* objeto roto: se saltea */ }
+        inicio = -1
+      }
+      if (prof < base) break
+    }
+  }
+  return out
+}
 function extraerLista(texto: string): Dic[] {
   const bloques = [...texto.matchAll(/```json\s*([\s\S]*?)```/g)].map(m => m[1])
   const bloque = bloques.at(-1) ?? texto.match(/\[[\s\S]*\]/)?.[0]
-  if (!bloque) return []
-  try { const v = JSON.parse(bloque); return Array.isArray(v) ? v : [] } catch { return [] }
+  if (bloque) { try { const v = JSON.parse(bloque); if (Array.isArray(v)) return v } catch { /* sigue abajo */ } }
+  // Respuesta cortada o con basura: rescatar empresa por empresa
+  const ini = texto.lastIndexOf('```json')
+  return objetosDe(texto, ini >= 0 ? ini : Math.max(0, texto.indexOf('[')))
 }
 
 async function unaBusqueda(key: string, modelo: string, texto: string, limiteMs: number, ubic: { code: string, tz: string } = { code: 'AR', tz: 'America/Argentina/Buenos_Aires' }) {
@@ -361,7 +390,7 @@ async function unaBusqueda(key: string, modelo: string, texto: string, limiteMs:
         method: 'POST', signal: ctl.signal,
         headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
         body: JSON.stringify({
-          model: modelo, max_tokens: 8000, messages,
+          model: modelo, max_tokens: 16000, messages,
           tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8,
                     ...(ubic.code ? { user_location: { type: 'approximate', country: ubic.code, timezone: ubic.tz } } : {}) }],
         }),
@@ -512,13 +541,13 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   // Google Maps en paralelo: muchas fichas reales por cada término, evaluadas por Claude
   const mapsPromesa = (async () => {
     const clavePlaces = await claveServicio('google_places')
-    if (!clavePlaces) return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0 }
+    if (!clavePlaces) return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'sin_clave' }
     const u = partes.length === 1 ? { code: partes[0].code, zona: partes[0].zona } : { code: '', zona }
     const terminos = [...new Set([...brief!.buscar, ...brief!.incluir])].slice(0, 8)
     const fichas = (await desdeMaps(clavePlaces, terminos, u.zona, u.code)).filter(f => !nomConocidos.has(clave(f.nombre)))
     const ev = await evaluarFichas(key, modeloRapido, brief!, fichas.slice(0, 120), contexto, apr.texto, filtrosIA)
-    return { ...ev, fichas: fichas.length }
-  })()
+    return { ...ev, fichas: fichas.length, estado: errorMaps ? 'error: ' + errorMaps.slice(0, 120) : 'ok' }
+  })().catch(e => { console.error('maps', e); return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'error: ' + String(e).slice(0, 120) } })
   const corridas = await Promise.all(tareas.map(({ parte, e }, i) => {
     const u = paisDe(parte.zona)
     return unaBusqueda(key, modelo, prompt({ tipos: tiposDe(i), pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.filter((_, k) => k % lotes === i % lotes).slice(0, 4).join('", "') || brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, { code: parte.code, tz: parte.tz })
@@ -527,6 +556,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   const deMaps = await mapsPromesa
   usoIn += deMaps.usoIn; usoOut += deMaps.usoOut
   const crudos = [...deMaps.items, ...corridas.flatMap(c => extraerLista(c.salida))]
+  console.log('busqueda', JSON.stringify({ zona, maps: deMaps.estado, fichas: deMaps.fichas, sirven: deMaps.items.length, web: corridas.map(c => extraerLista(c.salida).length), largo: corridas.map(c => c.salida.length) }))
   if (!crudos.length) {
     if (usoIn) await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: usoIn, tokens_out: usoOut })
     const falla = corridas.find(c => c.error)
@@ -619,6 +649,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   const { data: cupoNuevo } = await db.rpc('cupo_chat', { p_usuario: user.id })
   return json({
     resultados: salida, busqueda_id: busquedaId, brief, descartados, no_encajan: noEncajan, ya_conocidos: yaConocidos, ya_descartados: yaDescartados, cupo: cupoNuevo,
+    diagnostico: { maps: deMaps.estado, maps_fichas: deMaps.fichas, maps_sirven: deMaps.items.length, web: corridas.map(c => extraerLista(c.salida).length), web_errores: corridas.filter(c => c.error).map(c => String(c.error).slice(0, 80)) },
     busquedas: corridas.reduce((a, c) => a + c.busquedas, 0), enfoques: lotes, modelo, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, parecidas: parecida.size },
     aviso: corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : '',
   })

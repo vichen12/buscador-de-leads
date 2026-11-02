@@ -1907,3 +1907,4 @@ html[data-tema="oscuro"] .sz-columnas .sz-titulo { background: var(--card); }
 .guia-pie { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
 .guia-pie input { flex: 1; max-width: 360px; }
 html[data-tema="oscuro"] .guia-opcion { background: var(--card); }
+.diagnostico { display: inline-block; margin-top: 6px; font-size: 13px; color: #9a5b00; background: #fff4e5; border-radius: 8px; padding: 6px 10px; }

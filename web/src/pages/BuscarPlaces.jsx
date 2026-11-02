@@ -334,6 +334,14 @@ export default function BuscarPlaces() {
                   res.ya_conocidos > 0 && `${res.ya_conocidos} que ya tenías${res.ya_descartados ? ' o descartaste' : ''}`,
                   res.no_encajan > 0 && `${res.no_encajan} que no encajaban`,
                   res.descartados > 0 && `${res.descartados} que no cumplían los filtros`].filter(Boolean).join(', ')}.</>}
+                {res.diagnostico && res.resultados.length < Math.min(5, cantidad) && (
+                  <><br /><span className="diagnostico">
+                    {res.diagnostico.maps === 'sin_clave' ? 'Google Maps no está conectado (falta la clave de Google Places en Super admin → Claves): sólo se buscó en la web, que trae pocas.'
+                      : String(res.diagnostico.maps).startsWith('error') ? `Google Maps dio un error: ${String(res.diagnostico.maps).slice(7)}`
+                      : `Google Maps trajo ${res.diagnostico.maps_fichas} fichas y ${res.diagnostico.maps_sirven} encajaban.`}
+                    {' '}Búsqueda web: {res.diagnostico.web.reduce((a, b) => a + b, 0)} empresas{res.diagnostico.web_errores?.length ? ` (con errores: ${res.diagnostico.web_errores.join('; ')})` : ''}.
+                  </span></>
+                )}
                 {res.aprendizaje?.parecidas > 0 && <><br /><Sparkles size={12} style={{ verticalAlign: -1 }} /> {res.aprendizaje.parecidas} se parecen a las que ya te sirven: están primeras.</>}
               </p>
             </div>
