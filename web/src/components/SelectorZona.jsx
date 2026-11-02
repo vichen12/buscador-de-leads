@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
-import { Globe2, MapPin, Star, X, Building2 } from 'lucide-react'
+import { Globe2, MapPin, Star, X, Building2, Check } from 'lucide-react'
 import { PAISES, REGIONES, PROVINCIAS_AR, CIUDADES, ZONAS, REGIONES_PAIS, nombrePais, lugaresDe } from '../lib/catalogo.js'
 
 const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
@@ -19,13 +19,20 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
     document.addEventListener('mousedown', cerrar); return () => document.removeEventListener('mousedown', cerrar)
   }, [value])
 
-  const grupos = useMemo(() => soloPais ? [
-    // Buscar en un solo país: sólo lugares concretos de ese país
-    { titulo: 'Tus zonas', icono: Star, items: sugeridas.map(z => ({ v: z })), chips: true },
-    ...(soloPais === 'AR' && region === 'Mendoza' ? [{ titulo: 'Mendoza', icono: MapPin, items: ['Gran Mendoza', ...ZONAS.flatMap(g => g.items)].map(x => ({ v: x })), chips: true }] : []),
-    { titulo: `Ciudades · ${nombrePais(soloPais)}`, icono: Building2, items: (CIUDADES.find(c => c.pais === nombrePais(soloPais))?.items ?? []).map(x => ({ v: x })), chips: true },
-    { titulo: soloPais === 'AR' ? 'Provincias' : `Regiones · ${nombrePais(soloPais)}`, icono: MapPin, items: (REGIONES_PAIS[soloPais] ?? []).map(x => ({ v: x })), chips: true },
-  ].filter(g => g.items.length) : [
+  const gruposPais = useMemo(() => {
+    if (!soloPais) return null
+    // Un solo país: dos columnas limpias (ciudades y provincias/regiones), sin repetir nada
+    const vistos = new Set()
+    const unicos = arr => arr.filter(x => { const k = limpiar(x); if (!x || vistos.has(k)) return false; vistos.add(k); return true }).map(v => ({ v }))
+    const mza = soloPais === 'AR' && region === 'Mendoza' ? ['Gran Mendoza', ...ZONAS.flatMap(g => g.items)] : []
+    const ciudades = unicos([...mza, ...(CIUDADES.find(c => c.pais === nombrePais(soloPais))?.items ?? []), ...sugeridas.filter(z => !(REGIONES_PAIS[soloPais] ?? []).some(r => limpiar(r) === limpiar(z)))])
+    const regiones = unicos(REGIONES_PAIS[soloPais] ?? [])
+    return [
+      { titulo: 'Ciudades', icono: Building2, items: ciudades },
+      { titulo: soloPais === 'AR' ? 'Provincias' : soloPais === 'MX' || soloPais === 'BR' || soloPais === 'US' ? 'Estados' : 'Regiones', icono: MapPin, items: regiones },
+    ].filter(g => g.items.length)
+  }, [sugeridas, soloPais, region])
+  const gruposTodos = useMemo(() => [
     { titulo: 'Tus zonas', icono: Star, items: sugeridas.map(z => ({ v: z })), chips: true },
     { titulo: 'Países', icono: Globe2, items: PAISES.map(p => ({ v: p.nombre })), chips: true },
     { titulo: 'Varios países', icono: Globe2, items: REGIONES.map(v => ({ v })), chips: true },
@@ -34,7 +41,8 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
     // Primero las ciudades del país de la cuenta
     ...[...CIUDADES].sort((a, b) => (b.pais === nombrePais(pais)) - (a.pais === nombrePais(pais))).map(c => ({ titulo: `Ciudades · ${c.pais}`, icono: Building2, items: c.items.map(x => ({ v: c.pais === 'Argentina' ? x : `${x}, ${c.pais}`, label: x })), chips: true })),
     ...(pais === 'AR' && region === 'Mendoza' ? [{ titulo: 'Mendoza', icono: MapPin, items: ZONAS.flatMap(g => g.items).map(x => ({ v: x })), chips: true }] : []),
-  ].filter(g => g.items.length), [sugeridas, pais, region, soloPais])
+  ].filter(g => g.items.length), [sugeridas, pais, region])
+  const grupos = gruposPais ?? gruposTodos
 
   const t = limpiar(texto)
   const filtrando = !!t && (multi || limpiar(texto) !== limpiar(value))
@@ -69,6 +77,7 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
           {filtrando && !planos.length && (
             <button type="button" className="sz-libre" onClick={() => elegir(texto.trim())}><MapPin size={14} /> Buscar en “{texto.trim()}”</button>
           )}
+          <div className={soloPais && !filtrando ? 'sz-columnas' : ''}>
           {visibles.map(g => {
             const Icono = g.icono
             return (
@@ -82,7 +91,7 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
                       <button key={g.titulo + i.v} type="button" role="option" aria-selected={on}
                         className={(on ? 'on ' : '') + (filtrando && idx === activo ? 'activo' : '')}
                         onMouseDown={e => e.preventDefault()} onClick={() => elegir(i.v)}>
-                        {i.label ?? i.v}{i.extra && <small> · {i.extra}</small>}
+                        <span>{i.label ?? i.v}</span>{i.extra && <small> · {i.extra}</small>}{on && <Check size={14} className="sz-check" />}
                       </button>
                     )
                   })}
@@ -90,6 +99,7 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
               </div>
             )
           })}
+          </div>
         </div>
       )}
     </div>
