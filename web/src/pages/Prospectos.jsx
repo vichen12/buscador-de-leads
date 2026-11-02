@@ -6,7 +6,7 @@ import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { ESTADOS, ESTADOS_VISIBLES, fecha, mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
 import { descargarCSV } from '../lib/util.js'
-import { Avatar, Esqueleto, EstadoBadge, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
+import { Avatar, LogoEmpresa, Esqueleto, EstadoBadge, EstadoEmail, useConfirmar, useToast } from '../components/ui.jsx'
 import NuevoProspecto from '../components/NuevoProspecto.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import Enlaces from '../components/Enlaces.jsx'
@@ -332,7 +332,7 @@ export default function Prospectos() {
                     <td><input type="checkbox" checked={sel.has(p.id)} onChange={() => toggle(p.id)} aria-label={'Seleccionar ' + p.nombre} /></td>
                     <td>
                       <div className="negocio">
-                        <Avatar nombre={p.nombre} />
+                        <LogoEmpresa nombre={p.nombre} web={p.web_actual} />
                         <div className="negocio-txt">
                           <Link to={`/prospectos/${p.id}`} className="fuerte nombre-empresa">{p.nombre}</Link>
                           <div className="muted chico">{[p.rubro, p.zona].filter(Boolean).join(' · ')}

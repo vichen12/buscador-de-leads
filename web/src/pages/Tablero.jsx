@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase.js'
 import { ESTADOS, ESTADOS_VISIBLES, fecha, hoyLocal, saludoHora } from '../lib/util.js'
 import { Avatar, Esqueleto, Aviso, Contador } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
-import { AreaDoble, Dona, BarrasH, Sparkline } from '../components/Graficos.jsx'
+import { Sparkline, Columnas, Embudo, BarraPartes } from '../components/Graficos.jsx'
+import { useNavigate } from 'react-router-dom'
 
 export default function Tablero() {
   const { perfil, tablero: t, refrescar, servicios, comercial, porRevisar, session } = useApp()
@@ -40,6 +41,7 @@ export default function Tablero() {
     })
   }, [])
 
+  const nav = useNavigate()
   if (!t) return <Esqueleto />
   const tasa = t.contactados ? Math.round((t.respondieron / t.contactados) * 100) : 0
   const maxDia = Math.max(1, ...t.envios_7_dias.map(d => d.envios))
@@ -48,15 +50,16 @@ export default function Tablero() {
   const nombre = (perfil?.nombre || '').split(' ')[0]
 
   return (
-    <>
-      <header className="cabecera">
+    <div className="home tablero">
+      <header className="home-cab">
         <div>
+          <p className="home-fecha">Tablero general</p>
           <h1>{saludoHora()}{nombre ? `, ${nombre}` : ''}</h1>
-          <p className="saludo">{t.total === 0 ? 'Empecemos cargando tus primeros prospectos.'
+          <p className="home-sub">{t.total === 0 ? 'Empecemos cargando tus primeros prospectos.'
             : quedan > 0 ? `Hoy te quedan ${quedan} envíos. ${t.seguimientos_vencidos ? `Y ${t.seguimientos_vencidos} seguimientos esperan respuesta.` : ''}`
             : 'Llegaste al cupo de hoy. Mañana seguimos.'}</p>
         </div>
-        <div className="acciones">
+        <div className="rep-acciones">
           <Link className="btn" to="/importar"><Upload size={16} /> Importar</Link>
           <Link className="btn primario" to="/prospectos?estado=pendiente"><Send size={16} /> Contactar pendientes</Link>
         </div>
@@ -87,10 +90,10 @@ export default function Tablero() {
           </div>
         </div>
       ) : <>
-        <div className="kpis stagger">
+        <div className="rep-kpis tablero-kpis">
           <Kpi icono={Users} color="#52525b" fondo="#f1f1f3" titulo="Prospectos" valor={t.total} />
           {lim
-            ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" grafico={<Sparkline valores={t.envios_7_dias.map(d => d.envios)} />} valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
+            ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" grafico={<Sparkline valores={t.envios_7_dias.map(d => d.envios)} color="#fd4a22" ancho={64} alto={24} />} valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
             : <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />}
           {tasas
             ? <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Respuesta · 30 días" valor={`${tasas.d30.contactados ? Math.round((tasas.d30.respondieron / tasas.d30.contactados) * 100) : 0}%`} pie={`${tasas.d30.respondieron} de ${tasas.d30.contactados} · últimos 7 días: ${tasas.d7.contactados ? Math.round((tasas.d7.respondieron / tasas.d7.contactados) * 100) + '%' : '—'}`} />
@@ -99,33 +102,22 @@ export default function Tablero() {
           <Kpi icono={CalendarClock} color="#8b2c3c" fondo="#f8ecee" titulo="Seguimientos para hoy" valor={t.seguimientos_vencidos ?? 0} alerta={t.seguimientos_vencidos > 0} />
         </div>
 
-        <div className="grilla-2">
-          <section className="tarjeta">
-            <div className="tarjeta-titulo"><h3>Embudo</h3><Link to="/prospectos?vista=pipeline" className="chico">Ver pipeline <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link></div>
-            <div className="embudo">
-              {Object.entries(ESTADOS_VISIBLES).map(([k, e]) => {
-                const n = t.por_estado[k] ?? 0
-                return (
-                  <Link key={k} to={`/prospectos?estado=${k}`} className="embudo-fila">
-                    <span>{e.label}</span>
-                    <span className="embudo-barra"><span style={{ width: (t.total ? Math.max(2, (n / t.total) * 100) : 0) + '%', background: e.barra }} /></span>
-                    <b>{n}</b>
-                  </Link>
-                )
-              })}
-            </div>
+        <div className="home-grid tablero-grid">
+          <section className="home-card">
+            <header><div><h3>Dónde está cada empresa</h3><small>{t.total} en tu lista · tocá una etapa</small></div><Link to="/prospectos?vista=pipeline" className="chico">Ver pipeline <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link></header>
+            <Embudo onElegir={e => nav(`/prospectos?estado=${e.clave}`)} etapas={Object.entries(ESTADOS_VISIBLES).map(([k, e]) => ({ clave: k, label: e.label, valor: t.por_estado[k] ?? 0, color: k === 'cliente' ? '#15803d' : ['perdido', 'no_contactar', 'no_interesado'].includes(k) ? '#8f887d' : '#fd4a22' }))} />
           </section>
-          <section className="tarjeta">
-            <div className="tarjeta-titulo"><h3>Actividad de los últimos 30 días</h3>{tasas && <span className="chip">{tasas.d30.enviados} envíos · {tasas.r30.totales.respuestas} respuestas</span>}</div>
-            {tasas ? <AreaDoble datos={tasas.r30.por_dia.map(d => ({ ...d, etiqueta: new Date(d.dia + 'T12:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }), titulo: new Date(d.dia + 'T12:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) }))}
-              series={[{ clave: 'enviados', nombre: 'Envíos', color: '#ff9a7a' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#16161a' }]} /> : <Esqueleto filas={3} />}
+          <section className="home-card">
+            <header><div><h3>Envíos y respuestas</h3><small>Últimos 30 días</small></div>{tasas && <div className="home-card-nums"><span><b>{tasas.d30.enviados}</b><em><i style={{ background: '#fd4a22' }} />envíos</em></span><span><b>{tasas.r30.totales.respuestas ?? tasas.d30.respondieron}</b><em><i style={{ background: '#16161a' }} />respuestas</em></span></div>}</header>
+            {tasas ? <Columnas alto={200} datos={tasas.r30.por_dia.map(d => { const f = new Date(d.dia + 'T12:00'); return { ...d, etiqueta: `${f.getDate()}/${f.getMonth() + 1}`, titulo: f.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) } })}
+              series={[{ clave: 'enviados', nombre: 'Envíos', color: '#fd4a22' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#16161a' }]} /> : <Esqueleto filas={3} />}
           </section>
         </div>
 
         {tasas && <Analitica r={tasas.r30} />}
 
-        <div className="grilla-2">
-          <section className="tarjeta">
+        <div className="home-grid tablero-grid">
+          <section className="home-card">
             <div className="tarjeta-titulo"><h3><Flame size={16} /> Listos para enviar</h3><Link to="/prospectos?estado=pendiente" className="chico">Ver todos</Link></div>
             {listos.length === 0 ? <p className="muted">Generá borradores desde Prospectos y van a aparecer acá, ordenados por reseñas.</p> : (
               <div className="accion-lista">
@@ -139,7 +131,7 @@ export default function Tablero() {
               </div>
             )}
           </section>
-          <section className="tarjeta">
+          <section className="home-card">
             <div className="tarjeta-titulo"><h3><CalendarClock size={16} /> Para hacer hoy</h3><Link to="/seguimientos" className="chico">Ver todo</Link></div>
             {vencidos.length === 0 && tareas.length === 0 ? <p className="muted">Nada pendiente. Las tareas de tus secuencias y los seguimientos de quien no responda en {perfil?.dias_seguimiento ?? 5} días aparecen acá.</p> : (
               <div className="accion-lista">
@@ -162,6 +154,7 @@ export default function Tablero() {
           </section>
         </div>
 
+        <details className="rep-detalle"><summary><ChevronRight size={15} /> Ver todos los rubros de tu lista</summary>
         <section className="tarjeta sin-pad">
           <div className="tarjeta-titulo" style={{ padding: '18px 22px 0' }}><h3>Por rubro</h3><Link to="/reportes" className="chico">Ver reportes completos <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link></div>
           <div className="scroll-x">
@@ -174,8 +167,9 @@ export default function Tablero() {
             </table>
           </div>
         </section>
+        </details>
       </>}
-    </>
+    </div>
   )
 }
 
@@ -193,13 +187,13 @@ function Analitica({ r }) {
   const e = r.embudo, t = r.totales
   const etapas = [['Contactadas', t.contactados], ['Respondieron', t.respondieron], ['Reunión', t.reuniones], ['Clientes', t.clientes]]
   return (
-    <div className="grilla-3">
-      <section className="tarjeta">
-        <div className="tarjeta-titulo"><h3>Cómo te responden</h3><Link to="/respuestas" className="chico">Ver respuestas</Link></div>
-        {clases.length ? <Dona items={clases} sub="respuestas" /> : <p className="muted">Cuando te contesten, Claude clasifica cada respuesta y la ves acá.</p>}
+    <div className="tablero-tres">
+      <section className="home-card">
+        <header><div><h3>Cómo te responden</h3><small>Clasificadas por Claude · 30 días</small></div><Link to="/respuestas" className="chico">Ver</Link></header>
+        {clases.length ? <BarraPartes partes={clases.map(c => ({ label: c.label, valor: c.valor, color: c.color }))} /> : <div className="home-vacio"><MessageCircle size={18} /><span>Cuando te contesten, Claude clasifica cada respuesta y la ves acá.</span></div>}
       </section>
-      <section className="tarjeta">
-        <div className="tarjeta-titulo"><h3>Conversión en 30 días</h3></div>
+      <section className="home-card">
+        <header><div><h3>Conversión</h3><small>Últimos 30 días</small></div></header>
         <div className="conversion">
           {etapas.map(([label, n], i) => (
             <div key={label} className="conv-paso">
@@ -216,9 +210,9 @@ function Analitica({ r }) {
         </div>
         {!abierto && !ganado && <p className="muted chico" style={{ marginTop: 8 }}>Cargá el valor estimado en cada empresa para ver cuánto hay en juego.</p>}
       </section>
-      <section className="tarjeta">
-        <div className="tarjeta-titulo"><h3>Rubros que más responden</h3><Link to="/reportes" className="chico">Reportes</Link></div>
-        {rubros.length ? <BarrasH items={rubros} formato={n => n + '%'} /> : <p className="muted">Todavía no hay contactos en estos 30 días.</p>}
+      <section className="home-card">
+        <header><div><h3>Rubros que más responden</h3><small>Últimos 30 días</small></div><Link to="/reportes" className="chico">Reportes</Link></header>
+        {rubros.length ? <div className="rep-ranking">{rubros.map((x, i) => <div key={x.label} className={i === 0 && x.valor > 0 ? 'top' : ''}><span title={x.label}>{x.label}</span><b>{x.valor}%</b><div className="home-rubro-barra"><i style={{ width: `${(x.valor / Math.max(1, rubros[0].valor)) * 100}%`, background: i === 0 && x.valor > 0 ? '#15803d' : undefined }} /></div><small>{x.sub}</small></div>)}</div> : <div className="home-vacio"><Users size={18} /><span>Todavía no hay contactos en estos 30 días.</span></div>}
       </section>
     </div>
   )
@@ -253,12 +247,12 @@ function PrimerosPasos() {
   )
 }
 
-function Kpi({ icono: Icono, color, fondo, titulo, valor, pie, alerta, grafico }) {
+function Kpi({ titulo, valor, pie, alerta, grafico }) {
   return (
-    <div className={'kpi' + (alerta ? ' alerta' : '')}>
-      <div className="kpi-top"><span>{titulo}</span><span className="kpi-icono" style={{ color, background: fondo }}><Icono size={16} /></span></div>
-      <div className="kpi-valor"><b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>{grafico}</div>
-      {pie && <small>{pie}</small>}
+    <div className={'home-kpi rep-kpi' + (alerta ? ' alerta' : '')}>
+      <small>{titulo}</small>
+      <div><b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>{grafico}</div>
+      {pie && <span className="rep-kpi-pie">{pie}</span>}
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, Download, Send, MessageCircle, CalendarCheck, Trophy, Building2, FlaskConical, RefreshCw, Sparkles } from 'lucide-react'
+import { BarChart3, Download, Send, MessageCircle, CalendarCheck, Trophy, Building2, FlaskConical, RefreshCw, Sparkles, Lightbulb, TrendingUp, TrendingDown, MapPin, Search, PenLine, ChevronDown, Target } from 'lucide-react'
+import { Columnas, Embudo, BarraPartes } from '../components/Graficos.jsx'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { ESTADOS, MOTIVOS_PERDIDO, hoyLocal } from '../lib/util.js'
 import { Esqueleto, ErrorCarga, Vacio, Contador } from '../components/ui.jsx'
@@ -65,140 +67,194 @@ export default function Reportes() {
   }
 
   return (
-    <>
-      <header className="cabecera">
+    <div className="home reportes">
+      <header className="home-cab">
         <div>
+          <p className="home-fecha">{new Date(desde + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} al {new Date(hasta + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
           <h1>Reportes</h1>
-          <p className="saludo">Qué funciona y qué no: de dónde salen las respuestas, las reuniones y los clientes.</p>
+          <p className="home-sub">Qué te funciona y qué no: qué empresas responden, dónde y con qué mensajes.</p>
         </div>
-        <div className="acciones">
-          <button type="button" className="btn" onClick={cargar} disabled={cargando}><RefreshCw size={15} className={cargando ? 'spin' : ''} /> Actualizar</button>
+        <div className="rep-acciones">
+          <button type="button" className="btn" onClick={cargar} disabled={cargando} title="Actualizar"><RefreshCw size={15} className={cargando ? 'spin' : ''} /></button>
+          <button type="button" className="btn" onClick={exportar} disabled={!datos}><Download size={15} /> Excel</button>
           <button type="button" className="btn ia" disabled={!datos} onClick={() => {
             const t = datos.totales
             const top = (l, n = 5) => l.slice(0, n).map(x => `${x.clave}: ${x.respondieron}/${x.contactados}`).join('; ')
             window.dispatchEvent(new CustomEvent('preguntar-a-claude', { detail: `Sos mi coach de ventas. Analizá mis resultados del ${desde} al ${hasta} y decime 3 cosas concretas para mejorar la semana que viene. Envíos ${t.enviados}, contactadas ${t.contactados}, respondieron ${t.respondieron}, reuniones ${t.reuniones}, clientes ${t.clientes}. Por rubro (respondieron/contactadas): ${top(datos.por_rubro)}. Por zona: ${top(datos.por_zona)}. Mensajes personalizados vs genéricos: ${top(datos.por_personalizacion)}. Motivos de pérdida: ${datos.motivos_perdida.map(m => m.clave + ' ' + m.cantidad).join(', ') || 'ninguno'}.` }))
           }}><Sparkles size={15} /> Consejos de Claude</button>
-          <button type="button" className="btn primario" onClick={exportar} disabled={!datos}><Download size={15} /> Descargar Excel</button>
         </div>
       </header>
 
-      <div className="filtros-reporte tarjeta">
-        <label>Período
-          <select value={rango} onChange={e => setRango(e.target.value)}>{RANGOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-        </label>
-        {rango === 'otro' && <>
-          <label>Desde<input type="date" value={desde} max={hasta} onChange={e => setDesde(e.target.value)} /></label>
-          <label>Hasta<input type="date" value={hasta} min={desde} max={hoy} onChange={e => setHasta(e.target.value)} /></label>
-        </>}
+      <div className="rep-filtros">
+        <div className="rep-pastillas" role="tablist">{RANGOS.map(([v, l]) => <button key={v} type="button" role="tab" aria-selected={rango === v} className={rango === v ? 'on' : ''} onClick={() => setRango(v)}>{l.replace('Últimos ', '').replace('Último ', '1 ')}</button>)}</div>
+        {rango === 'otro' && <div className="rep-fechas"><input type="date" value={desde} max={hasta} onChange={e => setDesde(e.target.value)} /><span>al</span><input type="date" value={hasta} min={desde} max={hoy} onChange={e => setHasta(e.target.value)} /></div>}
         {equipo && (
-          <label>De quién
-            <select value={quien} onChange={e => setQuien(e.target.value)}>
-              <option value="todos">Todo el equipo</option>
-              <option value="yo">Sólo lo mío</option>
-              {Object.entries(nombres).filter(([id]) => id !== session.user.id).map(([id, n]) => <option key={id} value={id}>{n}</option>)}
-            </select>
-          </label>
+          <select className="rep-quien" value={quien} onChange={e => setQuien(e.target.value)}>
+            <option value="todos">Todo el equipo</option>
+            <option value="yo">Sólo lo mío</option>
+            {Object.entries(nombres).filter(([id]) => id !== session.user.id).map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+          </select>
         )}
       </div>
 
       {error ? <ErrorCarga error={error} onReintentar={cargar} />
         : !datos ? <Esqueleto filas={6} />
         : <Contenido d={datos} nombres={nombres} equipo={equipo} cargando={cargando} />}
-    </>
+    </div>
   )
 }
 
+/** Lo mejor de una lista (con al menos `min` contactadas para que no sea casualidad) */
+function mejor(lista, min = 3) {
+  const val = (lista ?? []).filter(x => x.contactados >= min && x.clave && x.clave !== 'sin')
+  if (val.length < 2) return null
+  const orden = [...val].sort((a, b) => pct(b.respondieron, b.contactados) - pct(a.respondieron, a.contactados) || b.contactados - a.contactados)
+  return { top: orden[0], peor: orden.at(-1) }
+}
+
+/** Conclusiones en palabras, para entender el reporte sin leer tablas */
+function conclusiones(d) {
+  const t = d.totales, out = []
+  const tasa = pct(t.respondieron, t.contactados)
+  if (t.contactados) out.push({ icono: MessageCircle, tono: tasa >= 10 ? 'bien' : tasa >= 4 ? 'medio' : 'mal', texto: <>De cada 100 empresas que contactaste, <b>{tasa} te respondieron</b>{tasa >= 10 ? ': muy buena tasa.' : tasa >= 4 ? ': está bien, se puede mejorar.' : ': es baja, probá mensajes más personalizados o rubros que respondan más.'}</> })
+  const r = mejor(d.por_rubro)
+  if (r) out.push({ icono: TrendingUp, tono: 'bien', texto: <>El rubro que más responde es <b>{r.top.clave}</b> ({pct(r.top.respondieron, r.top.contactados)}%). {pct(r.peor.respondieron, r.peor.contactados) < pct(r.top.respondieron, r.top.contactados) && <>El que menos: {r.peor.clave} ({pct(r.peor.respondieron, r.peor.contactados)}%).</>}</> })
+  const z = mejor(d.por_zona)
+  if (z) out.push({ icono: MapPin, tono: 'bien', texto: <>La zona que mejor te funciona es <b>{z.top.clave}</b>: {z.top.respondieron} de {z.top.contactados} respondieron.</> })
+  const per = (d.por_personalizacion ?? []).find(x => /personal/i.test(x.clave)), gen = (d.por_personalizacion ?? []).find(x => /gen/i.test(x.clave))
+  if (per && gen && per.contactados >= 3 && gen.contactados >= 3) {
+    const a = pct(per.respondieron, per.contactados), b = pct(gen.respondieron, gen.contactados)
+    out.push({ icono: PenLine, tono: a >= b ? 'bien' : 'medio', texto: a >= b ? <>Los mensajes <b>personalizados responden {a}%</b> contra {b}% de los genéricos: seguí personalizando.</> : <>Curioso: los genéricos responden {b}% y los personalizados {a}%. Revisá cómo estás personalizando.</> })
+  }
+  const motivo = d.motivos_perdida?.[0]
+  if (motivo?.cantidad) out.push({ icono: TrendingDown, tono: 'mal', texto: <>Lo que más te hace perder es <b>{MOTIVOS_PERDIDO[motivo.clave] ?? 'sin motivo cargado'}</b> ({motivo.cantidad} {motivo.cantidad === 1 ? 'empresa' : 'empresas'}).</> })
+  if (t.reuniones || t.clientes) out.push({ icono: Trophy, tono: 'bien', texto: <>Conseguiste <b>{t.reuniones} {t.reuniones === 1 ? 'reunión' : 'reuniones'}</b> y <b>{t.clientes} {t.clientes === 1 ? 'cliente' : 'clientes'}</b> en este período.</> })
+  return out.slice(0, 4)
+}
+
 function Contenido({ d, nombres, equipo, cargando }) {
+  const nav = useNavigate()
   const t = d.totales
-  const maxDia = Math.max(1, ...d.por_dia.map(x => Math.max(x.enviados, x.respuestas)))
   const sinNada = !t.enviados && !t.contactados && !Object.keys(d.embudo).length
   if (sinNada) return <Vacio icono={BarChart3} titulo="Todavía no hay datos para este período">Cuando empieces a contactar empresas vas a ver acá qué rubros, zonas y mensajes te traen más respuestas.</Vacio>
-  const embudo = ['pendiente', 'contactado', 'respondio', 'reunion', 'propuesta', 'cliente', 'perdido']
-  const maxEmb = Math.max(1, ...embudo.map(e => d.embudo[e] ?? 0))
+  const ideas = conclusiones(d)
+  // Muchos días: se agrupa por semana para que se lea
+  const dias = d.por_dia ?? []
+  const porSemana = dias.length > 45
+  const serie = porSemana
+    ? Object.values(dias.reduce((a, x) => { const f = new Date(x.dia + 'T12:00:00'); const lunes = new Date(f); lunes.setDate(f.getDate() - ((f.getDay() + 6) % 7)); const k = lunes.toISOString().slice(0, 10); a[k] = a[k] ?? { etiqueta: `${lunes.getDate()}/${lunes.getMonth() + 1}`, titulo: `Semana del ${lunes.getDate()}/${lunes.getMonth() + 1}`, enviados: 0, respuestas: 0 }; a[k].enviados += x.enviados; a[k].respuestas += x.respuestas; return a }, {}))
+    : dias.map(x => { const f = new Date(x.dia + 'T12:00:00'); return { etiqueta: `${f.getDate()}/${f.getMonth() + 1}`, titulo: f.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'numeric' }), enviados: x.enviados, respuestas: x.respuestas } })
+  const clases = Object.entries(d.clasificacion_respuestas ?? {}).sort((a, b) => b[1] - a[1])
+  const COLOR_CLASE = { interesado: '#15803d', reunion: '#0f766e', pide_info: '#2563eb', derivar: '#7c3aed', no_interesado: '#b91c1c', baja: '#78716c', otro: '#a8a29e' }
   return (
     <div style={{ opacity: cargando ? 0.6 : 1, transition: 'opacity .2s' }}>
-      <div className="kpis">
-        <Kpi icono={Send} titulo="Envíos" valor={t.enviados} pie={`${t.contactados} empresas contactadas`} />
-        <Kpi icono={MessageCircle} titulo="Tasa de respuesta" valor={`${pct(t.respondieron, t.contactados)}%`} pie={`${t.respondieron} de ${t.contactados} respondieron`} />
-        <Kpi icono={CalendarCheck} titulo="Reuniones" valor={t.reuniones} pie={`${pct(t.reuniones, t.contactados)}% de las contactadas`} />
-        <Kpi icono={Trophy} titulo="Clientes" valor={t.clientes} pie={`${pct(t.clientes, t.contactados)}% de las contactadas`} />
-        <Kpi icono={Building2} titulo="Empresas nuevas" valor={t.nuevas_empresas} pie="Sumadas a tu lista" />
-      </div>
-
-      <div className="dos-col">
-        <section className="tarjeta">
-          <h3 className="titulo-tarjeta">Embudo actual</h3>
-          <div className="embudo">
-            {embudo.map(e => {
-              const n = d.embudo[e] ?? 0
-              return (
-                <div key={e} className="embudo-fila con-valor">
-                  <span>{ESTADOS[e].label}</span>
-                  <span className="embudo-barra"><span style={{ width: `${Math.max(2, (n / maxEmb) * 100)}%`, background: ESTADOS[e].barra }} /></span>
-                  <b>{n}</b>
-                  <small className="muted">{d.valor_por_estado[e] ? plata(d.valor_por_estado[e]) : ''}</small>
-                </div>
-              )
-            })}
-          </div>
+      {ideas.length > 0 && (
+        <section className="home-seccion">
+          <h2 className="home-titulo">En pocas palabras</h2>
+          <div className="rep-ideas">{ideas.map((x, i) => <div key={i} className={'rep-idea ' + x.tono}><span><x.icono size={17} /></span><p>{x.texto}</p></div>)}</div>
         </section>
-        <section className="tarjeta">
-          <h3 className="titulo-tarjeta">Envíos y respuestas por día</h3>
-          <div className="barras-dia" role="img" aria-label="Envíos y respuestas por día">
-            {d.por_dia.map(x => (
-              <div key={x.dia} className="barra-dia" title={`${x.dia}: ${x.enviados} envíos, ${x.respuestas} respuestas`}>
-                <i className="env" style={{ height: `${(x.enviados / maxDia) * 100}%` }} />
-                <i className="resp" style={{ height: `${(x.respuestas / maxDia) * 100}%` }} />
-              </div>
-            ))}
-          </div>
-          <div className="leyenda"><span><i className="env" /> Envíos</span><span><i className="resp" /> Respuestas</span></div>
-          {!!Object.keys(d.clasificacion_respuestas).length && (
-            <div className="chips-fila">
-              {Object.entries(d.clasificacion_respuestas).sort((a, b) => b[1] - a[1]).map(([k, v]) => <span key={k} className="chip">{CLASES[k] ?? k}: <b>{v}</b></span>)}
-            </div>
-          )}
-        </section>
-      </div>
+      )}
 
-      <Tabla titulo="Por rubro" ayuda="Qué tipo de empresa te contesta más" filas={d.por_rubro} />
-      <Tabla titulo="Por zona" filas={d.por_zona} />
-      <Tabla titulo="Por búsqueda" ayuda="Qué búsquedas te trajeron mejores empresas" filas={d.por_busqueda} />
-      <div className="dos-col">
-        <Tabla titulo='Por "te sirve"' ayuda="¿Las que marcaste con más llamas responden más?" filas={d.por_calificacion} etiqueta={r => (r.clave === 'sin' ? 'Sin calificar' : '🔥'.repeat(Number(r.clave)))} />
-        <Tabla titulo="Por tipo de mensaje" ayuda="Mensajes con frases personalizadas vs. genéricos" filas={d.por_personalizacion} sinTotal />
-      </div>
-      {equipo && <Tabla titulo="Por vendedor" filas={d.por_vendedor} etiqueta={r => nombres[r.owner_id] || 'Sin nombre'} extra={r => plata(r.valor_ganado)} extraTitulo="Ganado" />}
-
-      <div className="dos-col">
-        <section className="tarjeta">
-          <h3 className="titulo-tarjeta">Por qué se perdieron</h3>
-          {!d.motivos_perdida.length ? <p className="muted">No hay empresas perdidas. ¡Bien!</p> : (
-            <table className="tabla compacta"><thead><tr><th>Motivo</th><th>Empresas</th><th>Valor estimado</th></tr></thead>
-              <tbody>{d.motivos_perdida.map(m => <tr key={m.clave}><td className="fuerte">{MOTIVOS_PERDIDO[m.clave] ?? 'Sin motivo'}</td><td>{m.cantidad}</td><td>{plata(m.valor)}</td></tr>)}</tbody></table>
-          )}
-        </section>
-        <section className="tarjeta">
-          <h3 className="titulo-tarjeta">Por canal</h3>
-          {!d.por_canal.length ? <p className="muted">Sin envíos en este período.</p> : (
-            <table className="tabla compacta"><thead><tr><th>Canal</th><th>Envíos</th><th>Empresas</th></tr></thead>
-              <tbody>{d.por_canal.map(c => <tr key={c.clave}><td className="fuerte">{CANALES[c.clave] ?? c.clave}</td><td>{c.enviados}</td><td>{c.empresas}</td></tr>)}</tbody></table>
-          )}
-        </section>
-      </div>
-
-      <section className="tarjeta">
-        <h3 className="titulo-tarjeta"><FlaskConical size={16} /> Pruebas A/B de asunto</h3>
-        {!d.ab.length ? <p className="muted">En Envío masivo podés probar dos asuntos: la mitad recibe uno y la mitad el otro, y acá ves cuál funcionó mejor.</p> : (
-          <table className="tabla compacta"><thead><tr><th>Envío</th><th>Variante</th><th>Asunto</th><th>Enviados</th><th>Respondieron</th><th>Tasa</th></tr></thead>
-            <tbody>{d.ab.map(a => {
-              const otra = d.ab.find(b => b.lote_id === a.lote_id && b.variante !== a.variante)
-              const gana = otra && a.enviados >= 10 && pct(a.respondieron, a.enviados) > pct(otra.respondieron, otra.enviados)
-              return <tr key={a.lote_id + a.variante}><td>{a.lote}</td><td><span className="chip">{a.variante.toUpperCase()}</span></td><td className="fuerte">{a.asunto}{gana && <span className="chip ok" style={{ marginLeft: 8 }}>Ganador</span>}</td><td>{a.enviados}</td><td>{a.respondieron}</td><td>{pct(a.respondieron, a.enviados)}%</td></tr>
-            })}</tbody></table>
-        )}
+      <section className="home-seccion">
+        <h2 className="home-titulo">Los números</h2>
+        <div className="rep-kpis">
+          <Kpi titulo="Empresas contactadas" valor={t.contactados} pie={`${t.enviados} mensajes enviados`} />
+          <Kpi titulo="Respondieron" valor={`${pct(t.respondieron, t.contactados)}%`} pie={`${t.respondieron} de ${t.contactados}`} />
+          <Kpi titulo="Reuniones" valor={t.reuniones} pie={t.contactados ? `${pct(t.reuniones, t.contactados)}% de las contactadas` : ''} />
+          <Kpi titulo="Clientes" valor={t.clientes} pie={t.contactados ? `${pct(t.clientes, t.contactados)}% de las contactadas` : ''} verde />
+          <Kpi titulo="Empresas nuevas" valor={t.nuevas_empresas} pie="sumadas a tu lista" />
+        </div>
       </section>
+
+      <section className="home-seccion">
+        <h2 className="home-titulo">Cómo fue el período</h2>
+        <div className="home-grid">
+          <article className="home-card ancho">
+            <header><div><h3>Envíos y respuestas</h3><small>{porSemana ? 'Por semana' : 'Por día'} · pasá el mouse para ver el detalle</small></div>
+              <div className="home-card-nums"><span><b>{t.enviados}</b><em><i style={{ background: '#fd4a22' }} />envíos</em></span><span><b>{t.respondieron}</b><em><i style={{ background: '#16161a' }} />respondieron</em></span></div></header>
+            {serie.some(x => x.enviados || x.respuestas) ? <Columnas datos={serie} series={[{ clave: 'enviados', nombre: 'Envíos', color: '#fd4a22' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#16161a' }]} /> : <div className="home-vacio"><Send size={18} /><span>Sin envíos en este período.</span></div>}
+          </article>
+          <article className="home-card">
+            <header><div><h3>Dónde está cada empresa hoy</h3><small>Tocá una etapa para verlas</small></div></header>
+            <Embudo onElegir={e => nav(`/prospectos?estado=${e.clave}`)} etapas={['pendiente', 'contactado', 'respondio', 'reunion', 'propuesta', 'cliente'].map(e => ({ clave: e, label: ESTADOS[e].label, valor: d.embudo[e] ?? 0, color: e === 'cliente' ? '#15803d' : '#fd4a22' }))} />
+            {(d.embudo.perdido ?? 0) > 0 && <small className="muted">Además, {d.embudo.perdido} perdidas.</small>}
+          </article>
+          <article className="home-card">
+            <header><div><h3>Qué te contestaron</h3><small>Cómo clasificó Claude las respuestas</small></div></header>
+            {clases.length ? <BarraPartes partes={clases.slice(0, 6).map(([k, v]) => ({ label: CLASES[k] ?? k, valor: v, color: COLOR_CLASE[k] ?? '#a8a29e' }))} /> : <div className="home-vacio"><MessageCircle size={18} /><span>Todavía no hay respuestas en este período.</span></div>}
+          </article>
+        </div>
+      </section>
+
+      <section className="home-seccion">
+        <h2 className="home-titulo">Qué te funciona mejor</h2>
+        <div className="home-grid">
+          <Ranking titulo="Por rubro" ayuda="Qué tipo de empresa te contesta más" icono={Building2} filas={d.por_rubro} />
+          <Ranking titulo="Por zona" ayuda="Dónde te contestan más" icono={MapPin} filas={d.por_zona} />
+          <Ranking titulo="Por búsqueda" ayuda="Qué búsquedas trajeron mejores empresas" icono={Search} filas={d.por_busqueda} />
+          <Ranking titulo="Por tipo de mensaje" ayuda="Personalizados vs. genéricos" icono={PenLine} filas={d.por_personalizacion} />
+          {equipo && <Ranking titulo="Por vendedor" ayuda="Cómo le va a cada uno" icono={Target} filas={d.por_vendedor} etiqueta={r => nombres[r.owner_id] || 'Sin nombre'} />}
+          <article className="home-card">
+            <header><div><h3>Por qué se perdieron</h3><small>Los motivos que cargaste</small></div></header>
+            {!d.motivos_perdida.length ? <div className="home-vacio"><Trophy size={18} /><span>No perdiste ninguna en este período.</span></div> : (
+              <div className="home-rubros">{d.motivos_perdida.slice(0, 5).map(m => <div key={m.clave}><span>{MOTIVOS_PERDIDO[m.clave] ?? 'Sin motivo'}</span><b>{m.cantidad}</b><div className="home-rubro-barra"><i style={{ width: `${(m.cantidad / d.motivos_perdida[0].cantidad) * 100}%`, background: '#8f887d' }} /></div></div>)}</div>
+            )}
+          </article>
+        </div>
+      </section>
+
+      {d.ab.length > 0 && (
+        <section className="home-seccion">
+          <h2 className="home-titulo"><FlaskConical size={13} style={{ verticalAlign: -2 }} /> Pruebas de asunto (A/B)</h2>
+          <div className="rep-ab">{Object.values(d.ab.reduce((a, x) => { (a[x.lote_id] = a[x.lote_id] ?? []).push(x); return a }, {})).map(par => {
+            const [a, b] = par
+            const ta = pct(a.respondieron, a.enviados), tb = b ? pct(b.respondieron, b.enviados) : 0
+            return (
+              <article key={a.lote_id} className="home-card"><header><div><h3>{a.lote}</h3><small>{a.enviados + (b?.enviados ?? 0)} enviados</small></div></header>
+                {par.map(x => { const tx = pct(x.respondieron, x.enviados); const gana = b && x.enviados >= 10 && tx === Math.max(ta, tb) && ta !== tb
+                  return <div key={x.variante} className={'rep-ab-fila' + (gana ? ' gana' : '')}><span className="chip">{x.variante.toUpperCase()}</span><p>{x.asunto}</p><b>{tx}%</b>{gana && <span className="chip ok">Ganó</span>}</div> })}
+              </article>
+            )
+          })}</div>
+        </section>
+      )}
+
+      <details className="rep-detalle">
+        <summary><ChevronDown size={15} /> Ver todas las tablas con el detalle</summary>
+        <Tabla titulo="Por rubro" filas={d.por_rubro} />
+        <Tabla titulo="Por zona" filas={d.por_zona} />
+        <Tabla titulo="Por búsqueda" filas={d.por_busqueda} />
+        <Tabla titulo='Por "te sirve"' filas={d.por_calificacion} etiqueta={r => (r.clave === 'sin' ? 'Sin calificar' : '🔥'.repeat(Number(r.clave)))} />
+        {equipo && <Tabla titulo="Por vendedor" filas={d.por_vendedor} etiqueta={r => nombres[r.owner_id] || 'Sin nombre'} extra={r => plata(r.valor_ganado)} extraTitulo="Ganado" />}
+        <section className="tarjeta"><h3 className="titulo-tarjeta">Por canal</h3>
+          {!d.por_canal.length ? <p className="muted">Sin envíos en este período.</p> : <table className="tabla compacta"><thead><tr><th>Canal</th><th>Envíos</th><th>Empresas</th></tr></thead><tbody>{d.por_canal.map(c => <tr key={c.clave}><td className="fuerte">{CANALES[c.clave] ?? c.clave}</td><td>{c.enviados}</td><td>{c.empresas}</td></tr>)}</tbody></table>}
+        </section>
+      </details>
     </div>
+  )
+}
+
+/** Ranking en tarjeta: cada fila con cuántas respondieron de las contactadas y la mejor destacada */
+function Ranking({ titulo, ayuda, icono: Icono, filas, etiqueta = r => r.clave }) {
+  const lista = (filas ?? []).filter(r => r.contactados > 0).sort((a, b) => pct(b.respondieron, b.contactados) - pct(a.respondieron, a.contactados) || b.contactados - a.contactados).slice(0, 5)
+  const max = Math.max(1, ...lista.map(r => pct(r.respondieron, r.contactados)))
+  return (
+    <article className="home-card">
+      <header><div><h3>{titulo}</h3><small>{ayuda}</small></div><span className="rep-icono"><Icono size={16} /></span></header>
+      {!lista.length ? <div className="home-vacio"><Icono size={18} /><span>Todavía no contactaste empresas en este período.</span></div> : (
+        <div className="rep-ranking">{lista.map((r, i) => {
+          const tasa = pct(r.respondieron, r.contactados)
+          return (
+            <div key={i} className={i === 0 && lista.length > 1 && tasa > 0 ? 'top' : ''}>
+              <span title={etiqueta(r)}>{etiqueta(r) === 'sin' ? 'Sin dato' : etiqueta(r)}</span>
+              <b>{tasa}%</b>
+              <div className="home-rubro-barra"><i style={{ width: `${(tasa / max) * 100}%`, background: i === 0 && tasa > 0 ? '#15803d' : undefined }} /></div>
+              <small>{r.respondieron} de {r.contactados} respondieron{r.clientes ? ` · ${r.clientes} ${r.clientes === 1 ? 'cliente' : 'clientes'}` : ''}</small>
+            </div>
+          )
+        })}</div>
+      )}
+    </article>
   )
 }
 
@@ -228,12 +284,12 @@ function Tabla({ titulo, ayuda, filas, etiqueta = r => r.clave, sinTotal, extra,
   )
 }
 
-function Kpi({ icono: Icono, titulo, valor, pie }) {
+function Kpi({ titulo, valor, pie, verde }) {
   return (
-    <div className="kpi">
-      <div className="kpi-top"><span>{titulo}</span><span className="kpi-icono" style={{ color: '#ff4a1c', background: '#fff1ec' }}><Icono size={16} /></span></div>
-      <b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>
-      {pie && <small>{pie}</small>}
+    <div className={'home-kpi rep-kpi' + (verde ? ' verde' : '')}>
+      <small>{titulo}</small>
+      <div><b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b></div>
+      {pie && <span className="rep-kpi-pie">{pie}</span>}
     </div>
   )
 }
