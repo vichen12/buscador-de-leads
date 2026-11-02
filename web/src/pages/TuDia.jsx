@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase.js'
 import { hoyLocal, fecha, saludoHora } from '../lib/util.js'
 import { Esqueleto } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
-import { AreaDoble, Dona, BarrasH, Sparkline, Embudo, BarrasDias } from '../components/Graficos.jsx'
+import { Sparkline, Embudo, Columnas, BarraPartes } from '../components/Graficos.jsx'
 import { useNavigate } from 'react-router-dom'
 
 const PRIORIDAD = { interesado: 0, reunion: 0, pide_info: 1, derivar: 2, otro: 3, no_interesado: 4 }
@@ -73,86 +73,113 @@ export default function TuDia() {
   ].filter(Boolean)
   const nombreMeta = { envios: 'Envíos', respuestas: 'Respuestas', reuniones: 'Reuniones', clientes: 'Clientes' }
 
+  const primero = bloques[0]
+  const env = d.graf.actividad.reduce((a, x) => a + x.envios, 0), resp = d.graf.actividad.reduce((a, x) => a + x.respuestas, 0)
+  const tasa = env ? Math.round((resp / env) * 100) : 0
+  const buscador = d.graf.estados
+  const totalBuscador = (buscador.aprobado ?? 0) + (buscador.por_revisar ?? 0) + (buscador.descartado ?? 0)
+  const hoy = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+
   return (
-    <>
-      <header className="cabecera">
-        <div><h1><Sun size={26} style={{ verticalAlign: -4, color: 'var(--acc)' }} /> {saludoHora()}{perfil?.nombre ? `, ${perfil.nombre.split(' ')[0]}` : ''}</h1>
-          <p className="saludo">{bloques.length ? `Tenés ${bloques.length} ${bloques.length === 1 ? 'cosa' : 'cosas'} para hoy, en el orden en que conviene hacerlas.` : 'Estás al día. Buen momento para buscar empresas nuevas.'}</p></div>
-        <div className="racha" title="Días hábiles seguidos con al menos un envío"><Flame size={18} /> <b>{d.racha}</b> {d.racha === 1 ? 'día' : 'días'} seguidos</div>
+    <div className="home">
+      <header className="home-cab">
+        <div>
+          <p className="home-fecha">{hoy}</p>
+          <h1>{saludoHora()}{perfil?.nombre ? `, ${perfil.nombre.split(' ')[0]}` : ''}</h1>
+          <p className="home-sub">{bloques.length ? `Tenés ${bloques.length} ${bloques.length === 1 ? 'cosa' : 'cosas'} para hoy, ordenadas por lo que más conviene.` : 'Estás al día. Buen momento para buscar empresas nuevas.'}</p>
+        </div>
+        <div className="home-racha" title="Días hábiles seguidos con al menos un envío"><Flame size={16} /> <b>{d.racha}</b> {d.racha === 1 ? 'día seguido' : 'días seguidos'}</div>
       </header>
 
-      <section className="dia-resumen">
-        {[
-          { icono: Send, valor: d.logros.envios ?? 0, texto: 'envíos esta semana', to: '/envios', linea: d.graf.envios7 },
-          { icono: MessageSquareReply, valor: d.logros.respuestas ?? 0, texto: 'respuestas esta semana', to: '/respuestas', linea: d.graf.respuestas7 },
-          { icono: Handshake, valor: d.logros.reuniones ?? 0, texto: 'reuniones esta semana', to: '/prospectos?estado=reunion' },
-          { icono: Users, valor: d.totalLista, texto: `en tu lista${d.porEstado.cliente ? ` · ${d.porEstado.cliente} clientes` : ''}`, to: '/prospectos' },
-          quedan !== null ? { icono: Mail, valor: quedan, texto: `emails que podés mandar hoy (de ${lim.limite_hoy})`, to: '/envios' } : { icono: Trophy, valor: d.logros.clientes ?? 0, texto: 'clientes nuevos esta semana', to: '/prospectos?estado=cliente' },
-        ].map(x => <Link key={x.texto} to={x.to} className="dia-dato"><x.icono size={16} /><b>{x.valor}</b>{x.linea && <Sparkline valores={x.linea} color="var(--acc)" ancho={64} alto={22} />}<span>{x.texto}</span></Link>)}
-      </section>
-      <section className="dia-graficos">
-        <div className="tarjeta dia-g grande">
-          <div className="dia-g-cab"><div><h3>Tu actividad</h3><small>Últimos 14 días</small></div>
-            <div className="dia-g-totales"><span><b>{d.graf.actividad.reduce((a, x) => a + x.envios, 0)}</b> envíos</span><span><b>{d.graf.actividad.reduce((a, x) => a + x.respuestas, 0)}</b> respuestas</span></div></div>
-          {d.graf.total14 > 0
-            ? <AreaDoble datos={d.graf.actividad} series={[{ clave: 'envios', nombre: 'Envíos', color: '#ff7a50' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#16161a' }, { clave: 'sumadas', nombre: 'Empresas sumadas', color: '#22a06b' }]} alto={170} />
-            : <div className="dia-g-vacio"><Sparkles size={18} /> Cuando mandes mensajes y sumes empresas, acá vas a ver tu ritmo día por día.</div>}
-        </div>
-        <div className="tarjeta dia-g">
-          <div className="dia-g-cab"><div><h3>Tu lista por etapa</h3><small>De sin contactar a cliente</small></div></div>
-          {d.totalLista > 0 ? <Embudo onElegir={e => nav(`/prospectos?estado=${e.clave}`)} etapas={[
-            { clave: 'pendiente', label: 'Sin contactar', valor: d.porEstado.pendiente ?? 0, color: '#ffd2c2' },
-            { clave: 'contactado', label: 'Contactadas', valor: d.porEstado.contactado ?? 0, color: '#ffab8f' },
-            { clave: 'respondio', label: 'Respondieron', valor: d.porEstado.respondio ?? 0, color: '#ff7a50' },
-            { clave: 'reunion', label: 'Reunión', valor: d.porEstado.reunion ?? 0, color: '#f0531c' },
-            { clave: 'propuesta', label: 'Propuesta', valor: d.porEstado.propuesta ?? 0, color: '#c93d10' },
-            { clave: 'cliente', label: 'Clientes', valor: d.porEstado.cliente ?? 0, color: '#22a06b' },
-          ]} /> : <div className="dia-g-vacio"><Users size={18} /> Sumá empresas a tu lista y acá ves cómo avanzan.</div>}
-        </div>
-        <div className="tarjeta dia-g">
-          <div className="dia-g-cab"><div><h3>Lo que trajo el buscador</h3><small>Últimos 30 días</small></div></div>
-          {Object.values(d.graf.estados).some(Boolean) ? <Dona tam={132} sub="encontradas" items={[
-            { label: 'Sumadas a tu lista', valor: d.graf.estados.aprobado ?? 0, color: '#22a06b' },
-            { label: 'Por revisar', valor: d.graf.estados.por_revisar ?? 0, color: '#ffab8f' },
-            { label: 'Rechazadas', valor: d.graf.estados.descartado ?? 0, color: '#d6cfc4' },
-          ]} /> : <div className="dia-g-vacio"><Search size={18} /> Todavía no buscaste empresas este mes.</div>}
-          {d.graf.actividad.some(x => x.sumadas || x.rechazadas) && <BarrasDias alto={70} datos={d.graf.actividad} series={[{ clave: 'sumadas', nombre: 'Sumadas', color: '#22a06b' }, { clave: 'rechazadas', nombre: 'Rechazadas', color: '#d6cfc4' }]} />}
-        </div>
-        <div className="tarjeta dia-g rubros">
-          <div className="dia-g-cab"><div><h3>Rubros en tu lista</h3><small>Qué tipo de empresas estás trabajando</small></div></div>
-          {d.rubros.length ? <BarrasH items={d.rubros.map(([label, valor], i) => ({ label, valor, color: ['#ff7a50', '#ff9a75', '#ffb59a', '#ffcbb8', '#ffdccf', '#ffe9e1'][i] }))} /> : <div className="dia-g-vacio"><Users size={18} /> Sin empresas todavía.</div>}
+      <section className="home-top">
+        <article className="home-foco">
+          <small>{primero ? 'Lo primero de hoy' : 'Todo al día'}</small>
+          <h2>{primero ? primero.titulo : 'Buscá empresas nuevas'}</h2>
+          <p>{primero ? primero.sub : d.ultima ? `Tu última búsqueda fue "${d.ultima.rubro}" en ${d.ultima.zona}.` : 'Contale a Claude qué empresas querés y dónde.'}</p>
+          <div className="home-foco-pie">
+            <Link className="home-foco-btn" to={primero ? primero.to : '/buscar'}>{primero ? 'Empezar' : 'Buscar clientes'} <ArrowRight size={16} /></Link>
+            {quedan !== null && <span><Mail size={14} /> Podés mandar <b>{quedan}</b> emails hoy</span>}
+          </div>
+        </article>
+        <div className="home-kpis">
+          <Link to="/envios" className="home-kpi"><small>Envíos esta semana</small><div><b>{d.logros.envios ?? 0}</b><Sparkline valores={d.graf.envios7} color="#fd4a22" ancho={70} alto={26} /></div></Link>
+          <Link to="/respuestas" className="home-kpi"><small>Respuestas esta semana</small><div><b>{d.logros.respuestas ?? 0}</b>{env > 0 && <span className="home-kpi-tag">{tasa}% responde</span>}</div></Link>
+          <Link to="/prospectos?estado=reunion" className="home-kpi"><small>Reuniones esta semana</small><div><b>{d.logros.reuniones ?? 0}</b></div></Link>
+          <Link to="/prospectos" className="home-kpi"><small>En tu lista</small><div><b>{d.totalLista}</b>{d.porEstado.cliente > 0 && <span className="home-kpi-tag verde">{d.porEstado.cliente} clientes</span>}</div></Link>
         </div>
       </section>
 
-      {d.metas.length > 0 && (
-        <section className="tarjeta metas-mini">
-          <div className="tarjeta-titulo"><h3><Target size={16} /> Tus metas de la semana</h3><Link to="/metas" className="chico">Editar</Link></div>
-          <div className="metas-grilla">{d.metas.map(m => {
-            const v = d.logros[m.tipo] ?? 0, pct = Math.min(100, (v / m.objetivo) * 100)
-            return <div key={m.id}><div className="cupo-top"><span>{nombreMeta[m.tipo]}</span><b>{v} / {m.objetivo}</b></div><div className="cupo-barra"><span style={{ width: pct + '%', background: pct >= 100 ? 'var(--ok)' : undefined }} /></div></div>
-          })}</div>
+      {bloques.length > 0 && (
+        <section className="home-seccion">
+          <h2 className="home-titulo">Para hoy</h2>
+          <ol className="home-tareas">
+            {bloques.map((b, i) => (
+              <li key={i} className="home-tarea">
+                <Link to={b.to} className="home-tarea-cab">
+                  <span className="home-tarea-num">{i + 1}</span>
+                  <span className="home-tarea-icono"><b.icono size={17} /></span>
+                  <div><h3>{b.titulo}</h3><p>{b.sub}</p></div>
+                  <ArrowRight size={16} className="home-tarea-flecha" />
+                </Link>
+                {b.items.length > 0 && <div className="home-tarea-items">{b.items.slice(0, 3).map(it => <Link key={it.k} to={it.to}><b>{it.texto}</b>{it.sub && <span>{it.sub}</span>}</Link>)}</div>}
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 
-      {d.metas.length === 0 && (
-        <Link to="/metas" className="dia-sugerencia"><Target size={16} /><span><b>Poné una meta para la semana</b> (por ejemplo, 30 envíos y 3 reuniones) y acá vas a ver cómo venís.</span><ArrowRight size={14} /></Link>
-      )}
-      <Link to="/buscar" className="dia-sugerencia"><Search size={16} /><span><b>Buscá empresas nuevas</b>{d.ultima ? ` · la última fue "${d.ultima.rubro}" en ${d.ultima.zona}, ${fecha(d.ultima.created_at)}` : ' · contale a Claude qué empresas querés y dónde'}</span><ArrowRight size={14} /></Link>
-
-      {!bloques.length ? (
-        <div className="tarjeta vacio"><div className="icono-grande"><CheckCircle2 size={26} /></div><h3>Nada pendiente</h3><p>Aprovechá para buscar empresas nuevas o armar una secuencia.</p>
-          <div className="acciones" style={{ justifyContent: 'center' }}><Link className="btn primario" to="/buscar">Buscar clientes</Link></div></div>
-      ) : (
-        <ol className="tu-dia">
-          {bloques.map((b, i) => (
-            <li key={i} className="tarjeta">
-              <div className="tu-dia-cab"><span className="paso-num">{i + 1}</span><b.icono size={18} /><div><h3>{b.titulo}</h3><p className="muted chico">{b.sub}</p></div><Link to={b.to} className="btn chico primario">Ir <ArrowRight size={13} /></Link></div>
-              {b.items.length > 0 && <div className="accion-lista">{b.items.map(it => <Link key={it.k} to={it.to} className="accion-item"><div><b className="fuerte">{it.texto}</b>{it.sub && <div className="muted chico">{it.sub}</div>}</div><span className="espacio" /><ArrowRight size={14} /></Link>)}</div>}
-            </li>
-          ))}
-        </ol>
-      )}
-    </>
+      <section className="home-seccion">
+        <h2 className="home-titulo">Cómo venís</h2>
+        <div className="home-grid">
+          <article className="home-card ancho">
+            <header><div><h3>Envíos y respuestas</h3><small>Últimos 14 días</small></div>
+              <div className="home-card-nums"><span><b>{env}</b><em><i style={{ background: '#fd4a22' }} />envíos</em></span><span><b>{resp}</b><em><i style={{ background: '#16161a' }} />respuestas</em></span>{env > 0 && <span><b>{tasa}%</b>tasa de respuesta</span>}</div></header>
+            {env + resp > 0
+              ? <Columnas datos={d.graf.actividad} series={[{ clave: 'envios', nombre: 'Envíos', color: '#fd4a22' }, { clave: 'respuestas', nombre: 'Respuestas', color: '#16161a' }]} />
+              : <div className="home-vacio"><Send size={18} /><span>Cuando mandes los primeros mensajes, acá vas a ver tu ritmo día por día.</span><Link to="/prospectos?estado=pendiente">Escribir ahora</Link></div>}
+          </article>
+          <article className="home-card">
+            <header><div><h3>Tu lista por etapa</h3><small>Tocá una etapa para ver esas empresas</small></div></header>
+            {d.totalLista > 0 ? <Embudo onElegir={e => nav(`/prospectos?estado=${e.clave}`)} etapas={[
+              { clave: 'pendiente', label: 'Sin contactar', valor: d.porEstado.pendiente ?? 0, color: '#fd4a22' },
+              { clave: 'contactado', label: 'Contactadas', valor: d.porEstado.contactado ?? 0, color: '#fd4a22' },
+              { clave: 'respondio', label: 'Respondieron', valor: d.porEstado.respondio ?? 0, color: '#fd4a22' },
+              { clave: 'reunion', label: 'Reunión', valor: d.porEstado.reunion ?? 0, color: '#fd4a22' },
+              { clave: 'propuesta', label: 'Propuesta', valor: d.porEstado.propuesta ?? 0, color: '#fd4a22' },
+              { clave: 'cliente', label: 'Clientes', valor: d.porEstado.cliente ?? 0, color: '#15803d' },
+            ]} /> : <div className="home-vacio"><Users size={18} /><span>Sumá empresas a tu lista y acá ves cómo avanzan.</span></div>}
+          </article>
+          <article className="home-card">
+            <header><div><h3>Lo que trajo el buscador</h3><small>Últimos 30 días</small></div></header>
+            {totalBuscador > 0 ? <>
+              <div className="home-grande"><b>{totalBuscador ? Math.round(((buscador.aprobado ?? 0) / totalBuscador) * 100) : 0}%</b><span>de las {totalBuscador} empresas encontradas te sirvieron</span></div>
+              <BarraPartes partes={[
+                { label: 'Sumadas', valor: buscador.aprobado ?? 0, color: '#15803d' },
+                { label: 'Por revisar', valor: buscador.por_revisar ?? 0, color: '#fd4a22' },
+                { label: 'Rechazadas', valor: buscador.descartado ?? 0, color: '#8f887d' },
+              ]} />
+            </> : <div className="home-vacio"><Search size={18} /><span>Todavía no buscaste empresas este mes.</span><Link to="/buscar">Buscar</Link></div>}
+          </article>
+          <article className="home-card">
+            <header><div><h3>Rubros en tu lista</h3><small>Los que más estás trabajando</small></div></header>
+            {d.rubros.length ? (
+              <div className="home-rubros">{d.rubros.slice(0, 5).map(([label, valor]) => (
+                <div key={label}><span title={label}>{label}</span><b>{valor}</b><div className="home-rubro-barra"><i style={{ width: `${(valor / Math.max(...d.rubros.map(r => r[1]))) * 100}%` }} /></div></div>
+              ))}{d.rubros.length > 5 && <small className="muted">y {d.rubros.length - 5} rubros más</small>}</div>
+            ) : <div className="home-vacio"><Users size={18} /><span>Sin empresas todavía.</span></div>}
+          </article>
+          <article className="home-card">
+            <header><div><h3>Metas de la semana</h3><small>{d.metas.length ? 'Cómo venís' : 'Ponete un objetivo'}</small></div><Link to="/metas" className="chico">{d.metas.length ? 'Editar' : 'Poner metas'}</Link></header>
+            {d.metas.length ? (
+              <div className="home-metas">{d.metas.map(m => {
+                const v = d.logros[m.tipo] ?? 0, pct = Math.min(100, (v / m.objetivo) * 100)
+                return <div key={m.id}><div><span>{nombreMeta[m.tipo]}</span><b>{v}<small> / {m.objetivo}</small></b></div><div className="home-rubro-barra"><i style={{ width: pct + '%', background: pct >= 100 ? '#15803d' : undefined }} /></div></div>
+              })}</div>
+            ) : <div className="home-vacio"><Target size={18} /><span>Por ejemplo: 30 envíos y 3 reuniones por semana. Acá vas a ver cómo venís.</span></div>}
+          </article>
+        </div>
+      </section>
+    </div>
   )
 }
 

@@ -147,3 +147,46 @@ export function BarrasDias({ datos, series, alto = 120 }) {
     </div>
   )
 }
+
+/** Columnas agrupadas por día (ej.: envíos y respuestas), con guías y detalle al pasar el mouse */
+export function Columnas({ datos, series, alto = 180 }) {
+  const [hover, setHover] = useState(null)
+  const max = Math.max(1, ...datos.flatMap(d => series.map(s => d[s.clave] || 0)))
+  const paso = max <= 4 ? 1 : max <= 10 ? 2 : max <= 25 ? 5 : max <= 60 ? 10 : Math.ceil(max / 5 / 10) * 10
+  const tope = Math.ceil(max / paso) * paso
+  const guias = Array.from({ length: Math.floor(tope / paso) + 1 }, (_, i) => i * paso)
+  return (
+    <div className="cols" onMouseLeave={() => setHover(null)}>
+      <div className="cols-area" style={{ height: alto }}>
+        <div className="cols-guias">{[...guias].reverse().map(g => <div key={g}><span>{fmt(g)}</span></div>)}</div>
+        <div className="cols-dias">
+          {datos.map((d, i) => (
+            <div key={i} className={'cols-dia' + (hover === i ? ' on' : '')} onMouseEnter={() => setHover(i)}>
+              <div className="cols-barras">{series.map(s => <span key={s.clave} style={{ height: `${((d[s.clave] || 0) / tope) * 100}%`, background: s.color }} />)}</div>
+            </div>
+          ))}
+        </div>
+        {hover !== null && (
+          <div className="cols-tip" style={{ left: `calc(36px + (100% - 36px) * ${(hover + 0.5) / datos.length})` }}>
+            <b>{datos[hover].titulo || datos[hover].etiqueta}</b>
+            {series.map(s => <span key={s.clave}><i style={{ background: s.color }} />{s.nombre}<b>{fmt(datos[hover][s.clave])}</b></span>)}
+          </div>
+        )}
+      </div>
+      <div className="cols-ejes">{datos.map((d, i) => <span key={i}>{i % 2 === (datos.length - 1) % 2 ? d.etiqueta : ''}</span>)}</div>
+    </div>
+  )
+}
+
+/** Una barra partida en partes (ej.: sumadas / por revisar / rechazadas) */
+export function BarraPartes({ partes }) {
+  const total = partes.reduce((a, p) => a + (p.valor || 0), 0)
+  return (
+    <div className="partes">
+      <div className="partes-barra">{total > 0 && partes.filter(p => p.valor > 0).map(p => <span key={p.label} style={{ width: `${(p.valor / total) * 100}%`, background: p.color }} title={`${p.label}: ${p.valor}`} />)}</div>
+      <div className="partes-leyenda">{partes.map(p => (
+        <div key={p.label}><i style={{ background: p.color }} /><span>{p.label}</span><b>{fmt(p.valor)}</b></div>
+      ))}</div>
+    </div>
+  )
+}
