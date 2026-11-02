@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Sun, MessageSquareReply, ListTodo, CalendarClock, Sparkles, Inbox, MapPin, Flame, Target, ArrowRight, CheckCircle2, FileText } from 'lucide-react'
+import { Sun, MessageSquareReply, ListTodo, CalendarClock, Sparkles, Inbox, MapPin, Flame, Target, ArrowRight, CheckCircle2, FileText, Send, Users, Search, Mail, Trophy, Handshake } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { hoyLocal, fecha, saludoHora } from '../lib/util.js'
 import { Esqueleto } from '../components/ui.jsx'
@@ -24,7 +24,17 @@ export default function TuDia() {
       supabase.rpc('mi_racha'),
       supabase.from('metas').select('*').eq('owner_id', yo).eq('periodo', 'semana'),
       supabase.rpc('logros', { p_owner: yo, p_desde: inicioSemana() }),
-    ]).then(([r, t, s, b, v, pr, racha, metas, logros]) => setD({
+      // Empresas encontradas para revisar (con nombre, para ver qué hay sin entrar)
+      supabase.from('hallazgos').select('id, nombre, rubro, direccion, zona, puntaje').eq('owner_id', yo).eq('estado', 'por_revisar').order('puntaje', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(4),
+      // De tu lista, las que todavía no contactaste
+      supabase.from('prospectos').select('id, nombre, rubro, zona, telefono, email', { count: 'exact' }).eq('owner_id', yo).eq('estado', 'pendiente').order('puntaje', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(4),
+      // Cómo está tu lista
+      supabase.from('prospectos').select('estado').eq('owner_id', yo).limit(5000),
+      supabase.from('busquedas').select('rubro, zona, created_at').eq('owner_id', yo).order('created_at', { ascending: false }).limit(1),
+    ]).then(([r, t, s, b, v, pr, racha, metas, logros, rev, sinContactar, lista, ultima]) => setD({
+      revisar: rev.data ?? [], sinContactar: sinContactar.data ?? [], sinContactarTotal: sinContactar.count ?? 0,
+      porEstado: (lista.data ?? []).reduce((a, x) => { a[x.estado] = (a[x.estado] ?? 0) + 1; return a }, {}), totalLista: (lista.data ?? []).length,
+      ultima: ultima.data?.[0] ?? null,
       respuestas: (r.data ?? []).sort((a, b) => (PRIORIDAD[a.clasificacion] ?? 3) - (PRIORIDAD[b.clasificacion] ?? 3)),
       tareas: t.data ?? [], seguimientos: s.data ?? [], borradores: b.data ?? [], visitas: v.data ?? [], propuestas: pr.data ?? [],
       racha: racha.data ?? 0, metas: metas.data ?? [], logros: logros.data ?? {},
@@ -47,7 +57,10 @@ export default function TuDia() {
       items: d.seguimientos.slice(0, 4).map(x => ({ k: x.id, texto: x.nombre, sub: `Tocaba el ${fecha(x.proximo_seguimiento)}`, to: `/prospectos/${x.id}?tab=seguimiento` })) },
     d.borradores.length && quedan !== 0 && { icono: Sparkles, titulo: `Mandá ${quedan !== null ? Math.min(quedan, d.borradores.length) : d.borradores.length} emails nuevos`, sub: quedan !== null ? `Te quedan ${quedan} envíos hoy en tu casilla.` : 'Tenés borradores listos para revisar.', to: '/envios',
       items: d.borradores.slice(0, 4).map(x => ({ k: x.id, texto: x.nombre, sub: x.rubro, to: `/prospectos/${x.id}?tab=email` })) },
-    porRevisar > 0 && { icono: Inbox, titulo: `Revisá ${porRevisar} empresas encontradas`, sub: 'Sumá a tu lista las que te sirven.', to: '/revisar', items: [] },
+    porRevisar > 0 && { icono: Inbox, titulo: `Revisá ${porRevisar} ${porRevisar === 1 ? 'empresa encontrada' : 'empresas encontradas'}`, sub: 'Sumá a tu lista las que te sirven y descartá las que no: así la próxima búsqueda trae más parecidas a las buenas.', to: '/revisar',
+      items: d.revisar.map(x => ({ k: x.id, texto: x.nombre, sub: [x.rubro, x.direccion || x.zona].filter(Boolean).join(' · '), to: '/revisar' })) },
+    d.sinContactarTotal > 0 && { icono: Send, titulo: `Escribile a ${d.sinContactarTotal === 1 ? 'la empresa' : `las ${d.sinContactarTotal} empresas`} de tu lista sin contactar`, sub: 'Ya las elegiste: Claude te arma el primer mensaje para cada una.', to: '/prospectos?estado=pendiente',
+      items: d.sinContactar.map(x => ({ k: x.id, texto: x.nombre, sub: [x.rubro, x.zona, x.email ? 'con email' : x.telefono ? 'con teléfono' : 'sin datos de contacto'].filter(Boolean).join(' · '), to: `/prospectos/${x.id}` })) },
   ].filter(Boolean)
   const nombreMeta = { envios: 'Envíos', respuestas: 'Respuestas', reuniones: 'Reuniones', clientes: 'Clientes' }
 
@@ -59,6 +72,23 @@ export default function TuDia() {
         <div className="racha" title="Días hábiles seguidos con al menos un envío"><Flame size={18} /> <b>{d.racha}</b> {d.racha === 1 ? 'día' : 'días'} seguidos</div>
       </header>
 
+      <section className="dia-resumen">
+        {[
+          { icono: Send, valor: d.logros.envios ?? 0, texto: 'envíos esta semana', to: '/envios' },
+          { icono: MessageSquareReply, valor: d.logros.respuestas ?? 0, texto: 'respuestas esta semana', to: '/respuestas' },
+          { icono: Handshake, valor: d.logros.reuniones ?? 0, texto: 'reuniones esta semana', to: '/prospectos?estado=reunion' },
+          { icono: Users, valor: d.totalLista, texto: `en tu lista${d.porEstado.cliente ? ` · ${d.porEstado.cliente} clientes` : ''}`, to: '/prospectos' },
+          quedan !== null ? { icono: Mail, valor: quedan, texto: `emails que podés mandar hoy (de ${lim.limite_hoy})`, to: '/envios' } : { icono: Trophy, valor: d.logros.clientes ?? 0, texto: 'clientes nuevos esta semana', to: '/prospectos?estado=cliente' },
+        ].map(x => <Link key={x.texto} to={x.to} className="dia-dato"><x.icono size={16} /><b>{x.valor}</b><span>{x.texto}</span></Link>)}
+      </section>
+      {d.totalLista > 0 && (
+        <div className="dia-embudo" title="Cómo está tu lista">
+          {[['pendiente', 'Sin contactar'], ['contactado', 'Contactadas'], ['respondio', 'Respondieron'], ['reunion', 'Reunión'], ['propuesta', 'Propuesta'], ['cliente', 'Clientes']].map(([k, t]) => (
+            <Link key={k} to={`/prospectos?estado=${k}`} className={'dia-etapa' + (d.porEstado[k] ? '' : ' cero')}><b>{d.porEstado[k] ?? 0}</b><span>{t}</span></Link>
+          ))}
+        </div>
+      )}
+
       {d.metas.length > 0 && (
         <section className="tarjeta metas-mini">
           <div className="tarjeta-titulo"><h3><Target size={16} /> Tus metas de la semana</h3><Link to="/metas" className="chico">Editar</Link></div>
@@ -68,6 +98,11 @@ export default function TuDia() {
           })}</div>
         </section>
       )}
+
+      {d.metas.length === 0 && (
+        <Link to="/metas" className="dia-sugerencia"><Target size={16} /><span><b>Poné una meta para la semana</b> (por ejemplo, 30 envíos y 3 reuniones) y acá vas a ver cómo venís.</span><ArrowRight size={14} /></Link>
+      )}
+      <Link to="/buscar" className="dia-sugerencia"><Search size={16} /><span><b>Buscá empresas nuevas</b>{d.ultima ? ` · la última fue "${d.ultima.rubro}" en ${d.ultima.zona}, ${fecha(d.ultima.created_at)}` : ' · contale a Claude qué empresas querés y dónde'}</span><ArrowRight size={14} /></Link>
 
       {!bloques.length ? (
         <div className="tarjeta vacio"><div className="icono-grande"><CheckCircle2 size={26} /></div><h3>Nada pendiente</h3><p>Aprovechá para buscar empresas nuevas o armar una secuencia.</p>
