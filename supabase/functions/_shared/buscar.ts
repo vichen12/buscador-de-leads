@@ -118,7 +118,7 @@ function partesDeZona(zona: string, maximo: number): { zona: string, code: strin
 
 /** La zona elegida en la búsqueda manda sobre cualquier lugar del perfil, la estrategia o las empresas de ejemplo */
 const reglaZona = (zona: string) => `ZONA OBLIGATORIA: ${zona}. La eligió la persona para ESTA búsqueda y manda sobre cualquier ciudad, provincia o país que aparezca en su perfil, su cliente ideal, su estrategia o en las empresas de ejemplo (esas sirven para saber QUÉ TIPO de empresa le sirve, nunca DÓNDE buscar). No la cambies ni la achiques a la ciudad de quien busca. Si la zona es un país o varios, repartí los resultados entre distintas provincias, regiones y ciudades (nunca más de un tercio de la misma provincia o ciudad).`
-const enfoqueParecidas = (ejemplos: string[], z: string) => ({ nombre: 'parecidas', texto: () => `Enfoque: empresas PARECIDAS a las que ya le sirven a esta persona: ${ejemplos.join('; ')}. Buscá en cualquier parte de ${z} (no sólo cerca de esas empresas) otras del mismo tipo, tamaño y forma de operar: sus competidores en otras ciudades, empresas del mismo rubro en otros polos industriales, las que aparecen junto a ellas en directorios y en "empresas similares". No traigas esas mismas.` })
+const enfoqueParecidas = (ejemplos: string[], z: string) => ({ nombre: 'parecidas', texto: () => `Enfoque: empresas PARECIDAS a las que ya le sirven a esta persona: ${ejemplos.join('; ')}. Buscá en cualquier parte de ${z} (no sólo cerca de esas empresas) otras con las mismas características (tamaño, forma de operar, necesidad), del mismo rubro o de otros: sus competidores en otras ciudades, empresas del mismo rubro en otros polos industriales, las que aparecen junto a ellas en directorios y en "empresas similares". No traigas esas mismas.` })
 const ENFOQUES = [
   { nombre: 'mapas', texto: (r: string, z: string) => `Enfoque: Google Maps y fichas de negocios. Buscá cada término útil + "${z}" (ej. "${r} ${z}").` },
   { nombre: 'directorios', texto: (r: string, z: string) => `Enfoque: directorios de empresas, parques industriales, cámaras empresariales y del sector, guías comerciales y listados ("${r} ${z}", "empresas de <rubro> ${z}", "parque industrial ${z}", "cámara de <rubro> ${z}").` },
@@ -135,7 +135,7 @@ Cliente ideal: ${e.cliente_ideal || r.cliente_ideal || 's/d'}
 ${e.criterios?.length ? `Señales de buen prospecto: ${e.criterios.join('; ')}\n` : ''}${e.descartar?.length ? `Descartá: ${e.descartar.join('; ')}\n` : ''}${r.no_quiere ? `NO quiere: ${String(r.no_quiere).slice(0, 300)}\n` : ''}${r.ejemplos ? `Empresas que ya son sus clientes o que le encantaría tener (buscá parecidas): ${String(r.ejemplos).slice(0, 400)}\n` : ''}`
 }
 
-function prompt(o: { pais: string, multi?: boolean, rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string }) {
+function prompt(o: { tipos?: string[], pais: string, multi?: boolean, rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string }) {
   const reglas = o.filtros.length
     ? o.filtros.map(f => `${f.titulo}${f.descripcion ? ` (${f.descripcion})` : ''}`)
     : []
@@ -146,7 +146,7 @@ Pedido original: "${o.rubro}".
 Qué buscamos exactamente (el TIPO de empresa; el lugar es ${o.zona}): ${b.interpretacion}
 ${b.incluir.length ? `Tipos de empresa que SÍ entran: ${b.incluir.join('; ')}.
 ` : ''}${b.excluir.length ? `NO incluyas (aunque aparezcan con palabras parecidas): ${b.excluir.join('; ')}.
-` : ''}Términos útiles para buscar: ${b.buscar.map(t => `"${t}"`).join(', ')}.
+` : ''}${o.tipos?.length ? `En ESTA búsqueda concentrate en estos tipos de empresa (traé de cada uno, no de uno solo): ${o.tipos.join('; ')}.\n` : ''}Términos útiles para buscar: ${b.buscar.map(t => `"${t}"`).join(', ')}.
 
 ${o.contexto || 'Objetivo: armar una lista de prospectos comerciales para contactar.'}
 ${o.aprendido}
@@ -159,7 +159,7 @@ Reglas:
 ${o.pedido ? `- Pedido especial del usuario (respetalo): ${o.pedido}\n` : ''}${o.excluir.length ? `- Ya los tengo cargados, NO los repitas: ${o.excluir.join('; ')}.\n` : ''}
 Buscá hasta ${o.cuantos} negocios. Al final respondé SOLO con un bloque JSON (sin texto después) con este formato:
 \`\`\`json
-[{"nombre": "nombre comercial tal como lo conoce la gente", "tipo": "qué es, en 2-4 palabras (ej.: Distribuidora mayorista)", "direccion": "calle y número, localidad", "telefono": "", "email": "", "web": "https://...", "google_maps": "https://maps.google.com/... o https://maps.app.goo.gl/...", "instagram": "https://www.instagram.com/usuario/", "facebook": "https://www.facebook.com/...", "linkedin": "https://www.linkedin.com/company/...", "rating": "", "resenas": "", "fuente": "url donde lo encontraste", "que_es": "qué es la empresa en una o dos frases concretas: qué hace o vende, a quién, tamaño aproximado y dónde opera", "encaje": "por qué LE SERVIRÍA a quien busca: conectá lo que vende quien busca con algo concreto que viste de esta empresa (ej.: tiene depósito propio y está buscando preparadores de pedidos → candidata a ordenar y automatizar su almacén)", "puntaje": 4, "razones": {"a_favor": ["razón concreta y verificable, ej. Tiene depósito propio", "3 sucursales"], "en_contra": ["señal en contra si la hay"]}, "senales": "novedad reciente que da motivo para escribir ahora (está contratando, abrió sucursal, salió en noticias), o vacío", "decisor": {"nombre": "", "cargo": "", "linkedin": "", "fuente": "url donde lo viste"}, "nota": "dato útil para el primer contacto (opcional)"${o.filtros.length ? `, "cumple": {${o.filtros.map(f => `"${f.id}": true`).join(', ')}}` : ''}}]
+[{"nombre": "nombre comercial tal como lo conoce la gente", "tipo": "qué es, en 2-4 palabras", "direccion": "calle y número, localidad", "telefono": "", "email": "", "web": "https://...", "google_maps": "https://maps.google.com/... o https://maps.app.goo.gl/...", "instagram": "https://www.instagram.com/usuario/", "facebook": "https://www.facebook.com/...", "linkedin": "https://www.linkedin.com/company/...", "rating": "", "resenas": "", "fuente": "url donde lo encontraste", "segmento": "cuál de los tipos de empresa pedidos es (copialo tal cual)", "que_es": "qué es la empresa en una o dos frases concretas: qué hace o vende, a quién, tamaño aproximado y dónde opera", "encaje": "por qué LE SERVIRÍA a quien busca: conectá lo que vende quien busca con algo concreto que viste de esta empresa (qué viste de la empresa → por qué eso la hace candidata para lo que vende quien busca)", "puntaje": 4, "razones": {"a_favor": ["razón concreta y verificable que viste", "otra razón"], "en_contra": ["señal en contra si la hay"]}, "senales": "novedad reciente que da motivo para escribir ahora (está contratando, abrió sucursal, salió en noticias), o vacío", "decisor": {"nombre": "", "cargo": "", "linkedin": "", "fuente": "url donde lo viste"}, "nota": "dato útil para el primer contacto (opcional)"${o.filtros.length ? `, "cumple": {${o.filtros.map(f => `"${f.id}": true`).join(', ')}}` : ''}}]
 \`\`\`
 "nombre": el nombre comercial limpio, sin sufijos como "- Inicio" o "| Facebook". "web": la URL del sitio propio del negocio (aunque sea un link de reservas), o vacío. "google_maps", "instagram", "facebook" y "linkedin": sólo si viste el link real, si no vacío. "rating" y "resenas" sólo si los viste. "puntaje": de 1 a 5, qué tan buen prospecto es según lo que buscamos; "razones": las razones concretas de ese puntaje (a favor y en contra), sólo cosas que viste. "decisor": la persona que decide la compra de lo que vendemos (dueño, gerente comercial, compras, logística, según el rubro) si aparece en su web, en LinkedIn público o en notas de prensa, con la url donde lo viste; si no lo encontraste, dejalo vacío (no inventes nombres). "senales": sólo novedades reales y recientes que hayas visto.`
 }
@@ -194,9 +194,10 @@ async function aprendizaje(db: any, owner: string, equipo: string[]) {
   const flojos = todos.filter(malo).slice(0, 10)
   const no = (malos ?? []) as Dic[]
   const total = muy.length + si.length + flojos.length + no.length
-  const ejemplos = [...muy, ...si].slice(0, 8).map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}`)
+  // Sólo las que de verdad funcionaron (respondieron, reunión, cliente o calificadas con 3) disparan la búsqueda de parecidas
+  const ejemplos = muy.slice(0, 8).map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}`)
   if (!total) return { texto: '', sirven: 0, noSirven: 0, ejemplos }
-  const texto = `LO MÁS IMPORTANTE — lo que aprendimos de esta persona por las empresas que ya eligió y las que descartó. Buscá empresas PARECIDAS a las que le sirven (mismo tipo, tamaño y forma de operar) y evitá las parecidas a las descartadas:
+  const texto = `Lo que aprendimos de esta persona por las empresas que ya eligió y las que descartó. Usalo para entender QUÉ CARACTERÍSTICAS hacen buena a una empresa para ella (tamaño, forma de operar, necesidad) y cuáles no, NO para quedarte en el mismo rubro: buscá esas características también en otras industrias. Si casi todas son del mismo rubro, es porque es lo que se le mostró hasta ahora, no porque sólo quiera eso:
 ${muy.length ? `- Le sirven MUCHO (respondieron, tienen reunión o son clientes): ${muy.map(linea).join('; ')}\n` : ''}${si.length ? `- Le sirven (las sumó a su lista): ${si.map(linea).join('; ')}\n` : ''}${flojos.length ? `- NO le sirvieron después de contactarlas: ${flojos.map(p => `${linea(p)}${p.perdido_motivo ? ` — motivo: ${p.perdido_motivo}` : ''}`).join('; ')}\n` : ''}${no.length ? `- Descartadas (NO le sirven): ${no.map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.motivo ? ` — motivo: ${p.motivo}` : ''}`).join('; ')}\n` : ''}`
   return { texto, sirven: muy.length + si.length, noSirven: no.length + flojos.length, ejemplos }
 }
@@ -240,16 +241,18 @@ async function interpretar(key: string, modelo: string, rubro: string, zona: str
 ${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}${aprendido ? `\n${aprendido}\n` : ''}
 IMPORTANTE: describí sólo el TIPO de empresa, sin ningún lugar. En "interpretacion", "incluir", "excluir" y "buscar" NO pongas países, provincias, ciudades ni barrios (el lugar lo elige la persona aparte y se agrega solo).
 
-Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende. Las palabras ambiguas se resuelven por lo que vende: por ejemplo, si vende automatización de almacenes y escribe "depósito", busca empresas que TIENEN un depósito o centro de distribución propio (distribuidoras, mayoristas, fábricas, operadores logísticos, e-commerce grandes), NO empresas de mudanzas, guardamuebles, alquiler de bauleras o self storage. Si no hay contexto, elegí la lectura comercial más probable y descartá las lecturas que se confunden. Nunca incluyas como clientes a empresas que venden o instalan lo mismo que quien busca (competencia, integradores, revendedores) ni a sus proveedores: van siempre en "excluir".
+Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende quien busca. Primero preguntate QUÉ NECESIDAD o característica hace que una empresa le compre (por ejemplo: tener mucho stock, una flota, muchos empleados, atención al público, un local grande, exportar), y después pensá en TODAS las industrias donde aparece esa necesidad. Las palabras ambiguas se resuelven por lo que vende (si vende algo para depósitos y escribe "depósito", son empresas que TIENEN depósito propio, no las que alquilan bauleras o hacen mudanzas). Si no hay contexto, elegí la lectura comercial más probable.
+VARIEDAD (obligatorio): en "incluir" poné de 5 a 8 tipos de empresa de industrias DISTINTAS entre sí (no cinco variantes del mismo rubro, por ejemplo no alimentos + bebidas + golosinas + almacén). No te quedes en el rubro más obvio ni en el rubro de las empresas de ejemplo: esas muestran qué características sirven, no el único rubro posible. Sólo si la persona pidió un rubro puntual (ej.: "bodegas", "farmacias"), quedate en ese rubro.
+Nunca incluyas como clientes a empresas que venden o instalan lo mismo que quien busca (competencia, integradores, revendedores) ni a sus proveedores: van siempre en "excluir".
 
-${multi ? `La zona abarca varios países (${pais}): incluí términos con las variantes de vocabulario de cada país (ej.: "depósito" en Argentina, "bodega" en Chile, "almacén" en México).` : `Los términos de búsqueda tienen que estar en el vocabulario de ${pais} (ej.: en Chile "bodega" es depósito; en México "almacén").`}
+${multi ? `La búsqueda abarca varios países (${pais}): incluí términos con las variantes de vocabulario de cada país (ej.: "depósito" en Argentina, "bodega" en Chile, "almacén" en México).` : `Los términos de búsqueda tienen que estar en el vocabulario de ${pais} (ej.: en Chile "bodega" es depósito; en México "almacén").`}
 
 Respondé SOLO con JSON:
-{"interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["5 a 8 términos concretos como aparecen en Google Maps o directorios"], "incluir": ["3 a 6 tipos de empresa que sí entran"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
+{"interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["6 a 10 términos concretos como aparecen en Google Maps o directorios, repartidos entre los distintos tipos de "incluir""], "incluir": ["5 a 8 tipos de empresa de industrias distintas que sí entran, del que más encaja al que menos"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
     const o = extraerObjeto(r.texto)
     if (!o) return { brief: base, usoIn: r.usoIn, usoOut: r.usoOut }
     return {
-      brief: limpiarBrief({ interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 8).length ? lista(o.buscar, 8) : [rubro], incluir: lista(o.incluir, 8), excluir: lista(o.excluir, 8) }, zona),
+      brief: limpiarBrief({ interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 10).length ? lista(o.buscar, 10) : [rubro], incluir: lista(o.incluir, 8), excluir: lista(o.excluir, 8) }, zona),
       usoIn: r.usoIn, usoOut: r.usoOut,
     }
   } catch (e) { console.error('interpretar', e); return { brief: base, usoIn: 0, usoOut: 0 } }
@@ -264,7 +267,7 @@ function limpiarBrief(b: Brief, zona: string): Brief {
 function briefDesde(b: unknown, rubro: string): Brief | null {
   if (!b || typeof b !== 'object') return null
   const o = b as Dic
-  return { interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 8).length ? lista(o.buscar, 8) : [rubro], incluir: lista(o.incluir, 10), excluir: lista(o.excluir, 10) }
+  return { interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 10).length ? lista(o.buscar, 10) : [rubro], incluir: lista(o.incluir, 10), excluir: lista(o.excluir, 10) }
 }
 
 /** Segunda mirada: descarta lo que no es el tipo de empresa pedido o no cumple los filtros, y marca las más parecidas a las que le sirven */
@@ -427,9 +430,16 @@ export async function buscar(req: Request, h: Ayudas) {
     const e = i === 0 && apr.ejemplos.length ? enfoqueParecidas(apr.ejemplos, parte.zona) : ENFOQUES[(i - (apr.ejemplos.length ? 1 : 0) + ENFOQUES.length) % ENFOQUES.length]
     return { parte, e }
   })
-  const corridas = await Promise.all(tareas.map(({ parte, e }) => {
+  // Cada búsqueda recorre tipos de empresa distintos (así no se van todas al rubro más obvio)
+  const tiposDe = (i: number) => {
+    const t = brief!.incluir
+    if (t.length <= 2 || lotes === 1) return t
+    const mios = t.filter((_, k) => k % lotes === i % lotes)
+    return mios.length ? mios : t
+  }
+  const corridas = await Promise.all(tareas.map(({ parte, e }, i) => {
     const u = paisDe(parte.zona)
-    return unaBusqueda(key, modelo, prompt({ pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, { code: parte.code, tz: parte.tz })
+    return unaBusqueda(key, modelo, prompt({ tipos: tiposDe(i), pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.filter((_, k) => k % lotes === i % lotes).slice(0, 4).join('", "') || brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, { code: parte.code, tz: parte.tz })
   }))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
   const crudos = corridas.flatMap(c => extraerLista(c.salida))
@@ -468,6 +478,7 @@ export async function buscar(req: Request, h: Ayudas) {
       nota: String(n.nota ?? '').slice(0, 500),
       encaje: String(n.encaje ?? '').slice(0, 300),
       descripcion: String(n.que_es ?? '').trim().slice(0, 400),
+      segmento: String(n.segmento ?? '').trim().toLowerCase().slice(0, 80),
       puntaje: puntaje >= 1 && puntaje <= 5 ? puntaje : null,
       razones: { a_favor: (Array.isArray(n.razones?.a_favor) ? n.razones.a_favor : []).map(String).filter(Boolean).slice(0, 5), en_contra: (Array.isArray(n.razones?.en_contra) ? n.razones.en_contra : []).map(String).filter(Boolean).slice(0, 4) },
       senales: String(n.senales ?? '').slice(0, 300),
@@ -494,16 +505,23 @@ export async function buscar(req: Request, h: Ayudas) {
   const resultados = candidatos.filter((_, i) => ver.quedan.has(i))
     .map(c => parecida.has(c.nombre) ? { ...c, nota: c.nota ? c.nota : 'Parecida a las que te sirven', razones: { ...c.razones, a_favor: ['Parecida a empresas que ya te sirven', ...c.razones.a_favor].slice(0, 5) } } : c)
     .sort((a, b) => Number(parecida.has(b.nombre)) - Number(parecida.has(a.nombre)) || (b.puntaje ?? 0) - (a.puntaje ?? 0) || Number(!!b.telefono) - Number(!!a.telefono) || Number(!!b.email) - Number(!!a.email))
+    // Variedad: ningún tipo de empresa se lleva más de un tercio de los resultados (salvo que haya pocos tipos)
+    .filter(((cuenta: Record<string, number>) => (c: Dic) => {
+      if (brief!.incluir.length <= 2 || !c.segmento) return true
+      const tope = Math.max(2, Math.ceil(cantidad / 3))
+      cuenta[c.segmento] = (cuenta[c.segmento] ?? 0) + 1
+      return cuenta[c.segmento] <= tope
+    })({}))
     .slice(0, cantidad + 5)
   if (usoIn) await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: usoIn, tokens_out: usoOut })
 
   // Guardar en la bandeja "Por revisar"
   let busquedaId: string | null = null
-  let salida: Dic[] = resultados.map(({ es_prospecto, no_cumple, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
+  let salida: Dic[] = resultados.map(({ es_prospecto, no_cumple, segmento, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
   if (guardar && resultados.length) {
     const { data: b } = await db.from('busquedas').insert({ owner_id: user.id, rubro, zona, pedido, requisitos: { filtros: [...ids], brief }, cantidad, encontrados: resultados.length }).select('id').single()
     busquedaId = b?.id ?? null
-    const filas = resultados.map(({ es_prospecto, no_cumple, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
+    const filas = resultados.map(({ es_prospecto, no_cumple, segmento, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
       google_maps_url: r.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([r.nombre, r.direccion, zona].filter(Boolean).join(' '))}` }))
     const { data: ins, error } = await supabase.from('hallazgos').upsert(filas, { onConflict: 'owner_id,clave_nombre', ignoreDuplicates: true }).select('*')
     if (error) console.error('hallazgos', error)

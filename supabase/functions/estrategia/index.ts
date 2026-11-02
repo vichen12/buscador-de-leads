@@ -70,7 +70,7 @@ function prompt(r: Dic, web: { url: string, texto: string }) {
   return `Sos un experto en prospección comercial B2B y B2C en Latinoamérica. Una empresa te contó qué hace para que la ayudes a encontrar clientes potenciales buscando en la web (Google Maps, redes, directorios).
 
 Lo que contó (puede ser una sola frase: deducí vos lo que falte, como el cliente ideal, el tamaño y las señales):
-- Qué vende y a quién: ${txt(r.que_vende) || 's/d'}
+- Qué vende y a quién: ${txt(r.que_vende, 5000) || 's/d'}
 - Empresa: ${txt(r.empresa) || 's/d'}
 - Cliente ideal: ${txt(r.cliente_ideal) || 'deducilo'}
 - Tamaño de cliente que busca: ${[].concat(r.tamanos ?? []).join(', ') || 's/d'}
@@ -81,6 +81,9 @@ Lo que contó (puede ser una sola frase: deducí vos lo que falte, como el clien
 - Qué la diferencia / por qué le compran: ${txt(r.diferencial) || 's/d'}
 - Web o redes de la empresa: ${txt(r.web, 200) || 's/d'}
 ${web.texto ? `\nLO QUE DICE SU PÁGINA WEB (${web.url}). Usala como fuente principal para entender qué vende, a quién, en qué países opera y qué la diferencia:\n-----\n${web.texto}\n-----\n` : web.url ? `\nNo pude leer su web (${web.url}). Si tenés la herramienta de búsqueda, buscala para entender qué vende.\n` : ''}
+Ojo: si "Qué vende" es un documento largo (un speech, una plantilla de mails, un manual o un pitch), no lo resumas como si el documento fuera el producto: sacá de ahí QUÉ VENDE ESA EMPRESA a sus clientes y a qué tipo de empresas. Las herramientas que usa para vender (apps, CRM, plantillas) no son lo que vende.
+Rubros: variados, de industrias DISTINTAS donde aparece la necesidad (no diez variantes del mismo rubro, como alimentos, bebidas, golosinas y almacenes). Ningún grupo puede tener más de un tercio de los rubros.
+
 Armá su estrategia de prospección. Pensá en qué tipos de negocio u organización concretos (rubros buscables en Google Maps) son sus mejores clientes, incluso los que no son obvios. Los filtros tienen que ser cosas verificables mirando la presencia pública de un negocio (web, redes, fichas, reseñas, tamaño aparente, si tiene flota, sucursales, horarios, si vende online, etc.), específicas para ESTE negocio.
 
 Filtros estándar que podés incluir si sirven (usá exactamente estos id): ${FILTROS_BASE.map(f => f.id).join(', ')}. "sin_web" sólo si lo que vende tiene que ver con tener o no tener web.
