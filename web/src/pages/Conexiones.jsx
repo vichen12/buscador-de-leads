@@ -157,7 +157,7 @@ function FormularioWeb() {
   return (
     <section className="tarjeta conexion">
       <div className="conexion-cab"><span className="conexion-icono"><Globe size={20} /></span><div><h3>Formulario para tu web</h3><span className="chip ok"><CheckCircle2 size={12} /> Listo para usar</span></div></div>
-      <p>Pegalo en tu página o compartí el link. Cada mensaje entra solo como empresa nueva en tu Pipeline, con una tarea para responder y un aviso en la campanita.</p>
+      <p>Pegalo en tu página o compartí el link. Cada mensaje entra solo como empresa nueva en tu lista, con una tarea para responder y un aviso en la campanita.</p>
       <div className="codigo-copiar"><code>{url}</code><button type="button" className="btn chico" onClick={() => copiar(url, 'link')}>{copiado === 'link' ? 'Copiado' : 'Copiar link'}</button><a className="btn chico fantasma" href={url} target="_blank" rel="noreferrer">Ver</a></div>
       <div className="codigo-copiar"><code>{codigo}</code><button type="button" className="btn chico" onClick={() => copiar(codigo, 'codigo')}>{copiado === 'codigo' ? 'Copiado' : 'Copiar código'}</button></div>
     </section>

@@ -106,7 +106,7 @@ export async function guardarPais(perfilId, pais, region, otros = []) {
 
 /** A quién vende la cuenta: empresas (B2B), consumidores (B2C) o los dos */
 export const TIPOS_VENTA = [
-  ['b2b', ['b2b'], Building2, 'Empresas', 'B2B · Buscás empresas, les escribís y seguís un pipeline.'],
+  ['b2b', ['b2b'], Building2, 'Empresas', 'B2B · Buscás empresas, les escribís y seguís cada una en tu lista.'],
   ['b2c', ['b2c'], Heart, 'Consumidores', 'B2C · Trabajás con tus clientes, campañas, aliados y creadores.'],
   ['ambos', ['b2b', 'b2c'], Layers, 'Los dos', 'Dos espacios separados; los cambiás arriba del menú.'],
 ]

@@ -10,7 +10,7 @@ export function Metricas() {
   const [m, setM] = useState(null)
   useEffect(() => { supabase.rpc('admin_metricas').then(({ data }) => setM(data)) }, [])
   if (!m) return <Loader2 size={18} className="spin" />
-  const items = [['Usuarios activos', m.usuarios], ['Empresas', m.empresas], ['Usaron la app (7 días)', m.activos_7], ['Empresas en pipelines', m.prospectos], ['Clientes B2C', m.clientes_b2c], ['Envíos (30 días)', m.envios_30], ['Respuestas (30 días)', m.respuestas_30], ['Consultas de IA (30 días)', m.ia_30], ['Errores (7 días)', m.errores_7], ['Sugerencias nuevas', m.feedback_nuevo]]
+  const items = [['Usuarios activos', m.usuarios], ['Empresas', m.empresas], ['Usaron la app (7 días)', m.activos_7], ['Empresas en las listas', m.prospectos], ['Clientes B2C', m.clientes_b2c], ['Envíos (30 días)', m.envios_30], ['Respuestas (30 días)', m.respuestas_30], ['Consultas de IA (30 días)', m.ia_30], ['Errores (7 días)', m.errores_7], ['Sugerencias nuevas', m.feedback_nuevo]]
   return (
     <>
       <div className="metricas-admin">{items.map(([l, v]) => <div key={l} className="kpi"><div className="kpi-top"><span>{l}</span></div><b>{Number(v || 0).toLocaleString('es-AR')}</b></div>)}</div>

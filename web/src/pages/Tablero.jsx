@@ -104,7 +104,7 @@ export default function Tablero() {
 
         <div className="home-grid tablero-grid">
           <section className="home-card">
-            <header><div><h3>Dónde está cada empresa</h3><small>{t.total} en tu lista · tocá una etapa</small></div><Link to="/prospectos?vista=pipeline" className="chico">Ver pipeline <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link></header>
+            <header><div><h3>Dónde está cada empresa</h3><small>{t.total} en tu lista · tocá una etapa</small></div><Link to="/prospectos?vista=pipeline" className="chico">Ver por etapas <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link></header>
             <Embudo onElegir={e => nav(`/prospectos?estado=${e.clave}`)} etapas={Object.entries(ESTADOS_VISIBLES).map(([k, e]) => ({ clave: k, label: e.label, valor: t.por_estado[k] ?? 0, color: k === 'cliente' ? '#15803d' : ['perdido', 'no_contactar', 'no_interesado'].includes(k) ? '#8f887d' : '#fd4a22' }))} />
           </section>
           <section className="home-card">

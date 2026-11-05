@@ -184,7 +184,7 @@ export default function Prospectos() {
   return (
     <>
       <header className="cabecera">
-        <div><h1>Pipeline</h1><p>Las empresas que pasaste en limpio: calificalas, contactalas y seguí cada una. {lista.length ? `${filtrados.length} de ${lista.length}.` : ''}</p></div>
+        <div><h1>Tu lista</h1><p>Las empresas que pasaste en limpio: calificalas, contactalas y seguí cada una. {lista.length ? `${filtrados.length} de ${lista.length}.` : ''}</p></div>
         <div className="acciones">
           {hayEquipo && (
             <div className="selector-vista" role="tablist" aria-label="De quién">
@@ -194,7 +194,7 @@ export default function Prospectos() {
           )}
           <div className="selector-vista" role="tablist">
             <button className={vista === 'lista' ? 'activo' : ''} onClick={() => set('vista', '')}><List size={15} /> Tabla</button>
-            <button className={vista === 'pipeline' ? 'activo' : ''} onClick={() => set('vista', 'pipeline')}><Columns3 size={15} /> Pipeline</button>
+            <button className={vista === 'pipeline' ? 'activo' : ''} onClick={() => set('vista', 'pipeline')}><Columns3 size={15} /> Por etapas</button>
           </div>
           <Link className="btn" to="/envios"><Send size={16} /> Envío masivo</Link>
           <button className="btn" onClick={() => setDuplicados(true)}><Merge size={16} /> Unir duplicados</button>

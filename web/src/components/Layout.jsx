@@ -87,7 +87,7 @@ export default function Layout({ children }) {
       ['/importar', 'Importar', Upload],
     ]],
     ['Trabajo diario', [
-      ['/prospectos', 'Pipeline', Users, 0, true],
+      ['/prospectos', 'Tu lista', Users, 0, true],
       ['/seguimientos', 'Seguimientos', CalendarClock, vencidos, true],
       ['/interesados', 'Interesados', Flame],
       ['/respuestas', 'Respuestas', MessageSquareReply, sinLeer, true],
