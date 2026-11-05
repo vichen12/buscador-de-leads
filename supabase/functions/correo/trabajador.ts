@@ -8,6 +8,7 @@ import { claveServicio } from '../_shared/supabase.ts'
 import { enviarUno, revisarCasilla, ErrorEnvio, explicar } from '../_shared/correo.ts'
 import { cargarContexto, pasoSecuencia, aplicarPlantilla, clasificarRespuesta, type Contexto } from '../_shared/redactar.ts'
 import { resumenSemanal } from '../_shared/resumen.ts'
+import { anotarChatUso, anotarSinCupo } from '../_shared/uso.ts'
 
 type Dic = Record<string, any>
 const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
@@ -124,10 +125,12 @@ async function procesarSecuencias(db: any, fin: number) {
         if (!key) throw new Error('Falta la clave de Claude para escribir este paso')
         const r = await pasoSecuencia(ctx, p, paso, { numero: ins.paso, total: pasos.length, historial, asuntoHilo: ins.asunto_hilo, contacto })
         asunto = r.asunto; cuerpo = r.cuerpo
-        await db.from('chat_uso').insert({ owner_id: ins.owner_id, tokens_in: 0, tokens_out: 0 })
+        await anotarChatUso(db, ins.owner_id, 'prospecta_secuencia', ctx.uso, ctx.modelo)
       }
     } catch (e) {
       console.error('paso de secuencia', e)
+      // Claude pudo haber contestado algo inservible: se pagó, pero el paso no descuenta cupo
+      await anotarSinCupo(db, { funcion: 'prospecta_secuencia', usuario: ins.owner_id, uso: ctx.uso, ok: false })
       await db.from('inscripciones').update({ proximo_at: new Date(Date.now() + 3 * 3600000).toISOString(), motivo: 'No se pudo escribir el paso: se reintenta en 3 horas' }).eq('id', ins.id)
       continue
     }
@@ -165,12 +168,16 @@ async function revisarCasillas(db: any, fin: number) {
     if (Date.now() > fin - 30000) break
     const { data: clave } = await db.rpc('correo_leer_secreto', { p_owner: cfg.owner_id })
     if (!clave) continue
+    let ctx: Contexto | null = null
     try {
-      const ctx = key ? await cargarContexto(db, cfg.owner_id, key, modelo) : null
-      await revisarCasilla(db, cfg.owner_id, cfg, clave, ctx ? (m: Dic, p: Dic) => clasificarRespuesta(ctx, m.texto, m.asunto, p) : undefined)
+      ctx = key ? await cargarContexto(db, cfg.owner_id, key, modelo) : null
+      const c = ctx
+      await revisarCasilla(db, cfg.owner_id, cfg, clave, c ? (m: Dic, p: Dic) => clasificarRespuesta(c, m.texto, m.asunto, p) : undefined)
       n++
     } catch (e) {
       await db.from('conexiones_correo').update({ ultimo_error: explicar(e, cfg), ultima_revision: new Date().toISOString() }).eq('owner_id', cfg.owner_id)
+    } finally {
+      if (ctx) await anotarSinCupo(db, { funcion: 'prospecta_clasificar', usuario: cfg.owner_id, uso: ctx.uso })
     }
   }
   return n

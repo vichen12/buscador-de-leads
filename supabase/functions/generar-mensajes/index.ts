@@ -7,7 +7,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
 import { borradoresPlantilla, nombreCorto } from '../_shared/plantillas.js'
-import { cargarContexto, borradores, reescribir, responder, fijos, textoB2C, guionLlamada, briefReunion } from '../_shared/redactar.ts'
+import { cargarContexto, borradores, reescribir, responder, fijos, textoB2C, guionLlamada, briefReunion, type Contexto } from '../_shared/redactar.ts'
+import { anotarChatUso, anotarSinCupo } from '../_shared/uso.ts'
 
 const MAX_POR_LLAMADA = 25
 type Dic = Record<string, any>
@@ -20,6 +21,10 @@ async function contactoPrincipal(supabase: any, prospectoId: string) {
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+  // Lo que quede sin anotar al terminar (reescribir y responder nunca descontaron cupo, o algo falló
+  // después de que Claude contestó) va al registro común: se pagó igual, pero no descuenta cupo.
+  let medido: { ctx: Contexto, usuario: string, funcion: string } | null = null
+  let fallo = false
   try {
     const { supabase, user } = await clienteDelUsuario(req)
     const body = await req.json()
@@ -29,6 +34,8 @@ Deno.serve(async req => {
 
     // El contexto se lee con los permisos de la persona (RLS)
     const ctx = await cargarContexto(supabase, user.id, key, modelo)
+    const modoConocido = ['b2c', 'guion', 'brief', 'reescribir', 'responder'].includes(body.modo) ? body.modo : 'redactar'
+    medido = { ctx, usuario: user.id, funcion: `prospecta_${modoConocido}` }
     const NO_ESCRIBIR = ['no_interesado', 'no_contactar']
 
     // B2C: campaña a clientes propios, propuesta a un aliado o a un creador (no toca prospectos)
@@ -43,7 +50,7 @@ Deno.serve(async req => {
         if (data) datos = Object.fromEntries(Object.entries(data).filter(([k, v]) => v && !['id', 'owner_id', 'created_at', 'updated_at', 'notas'].includes(k)))
       }
       const r = await textoB2C(ctx, { tipo, subtipo: String(body.subtipo ?? ''), canal: body.canal === 'whatsapp' ? 'whatsapp' : 'email', detalle: String(body.detalle ?? '').slice(0, 600), datos })
-      await admin().from('chat_uso').insert({ owner_id: user.id, tokens_in: 0, tokens_out: 0 })
+      await anotarChatUso(admin(), user.id, 'prospecta_b2c', ctx.uso, ctx.modelo)
       return json({ ok: true, ...r })
     }
 
@@ -64,7 +71,7 @@ Deno.serve(async req => {
         ...(rs ?? []).map((r: Dic) => `- ${String(r.recibida_at).slice(0, 10)} nos respondieron: ${String(r.texto ?? '').slice(0, 500)}`),
       ].join('\n')
       const r = body.modo === 'guion' ? await guionLlamada(ctx, p, historial, cs?.[0]) : await briefReunion(ctx, p, historial, cs ?? [])
-      await admin().from('chat_uso').insert({ owner_id: user.id, tokens_in: 0, tokens_out: 0 })
+      await anotarChatUso(admin(), user.id, `prospecta_${body.modo}`, ctx.uso, ctx.modelo)
       return json({ ok: true, [body.modo]: r })
     }
 
@@ -138,11 +145,14 @@ Deno.serve(async req => {
     }
     const lista = prospectos ?? []
     for (let i = 0; i < lista.length; i += 5) await Promise.all(lista.slice(i, i + 5).map(uno)) // de a 5 para no saturar a Claude
-    if (key && (prospectos ?? []).length) await admin().from('chat_uso').insert({ owner_id: user.id, tokens_in: 0, tokens_out: 0 })
+    if (key && (prospectos ?? []).length) await anotarChatUso(admin(), user.id, 'prospecta_redactar', ctx.uso, ctx.modelo)
     const fallidos = Object.values(resultados).filter(r => r.startsWith('error')).length
     return json({ ok: true, ia: !!key, error_ia: errorIA ? `Claude no pudo escribir ${fallidos === 1 ? 'un email' : fallidos + ' emails'}. Probá de nuevo en un momento.` : undefined, resultados })
   } catch (e) {
+    fallo = true
     const msg = e instanceof Error ? e.message : String(e)
     return json({ error: msg }, msg === 'NO_AUTH' ? 401 : 500)
+  } finally {
+    if (medido) await anotarSinCupo(admin(), { funcion: medido.funcion, usuario: medido.usuario, uso: medido.ctx.uso, ok: !fallo })
   }
 })

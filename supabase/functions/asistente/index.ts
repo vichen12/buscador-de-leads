@@ -4,6 +4,7 @@
 // - Los mensajes y el uso los escribe sólo esta función (con service role); el navegador sólo lee.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
+import { anotarChatUso, nuevoUso, sumarUso } from '../_shared/uso.ts'
 
 type Dic = Record<string, any>
 const MAX_PDF_BYTES = 8 * 1024 * 1024
@@ -133,7 +134,9 @@ Deno.serve(async req => {
     { conversacion_id: convId, owner_id: user.id, rol: 'user', contenido: mensaje || '(PDF adjunto)', adjunto: pdf?.nombre ?? null },
     { conversacion_id: convId, owner_id: user.id, rol: 'assistant', contenido: respuesta },
   ])
-  await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: data.usage?.input_tokens ?? 0, tokens_out: data.usage?.output_tokens ?? 0 })
+  const uso = nuevoUso()
+  sumarUso(uso, modelo, data.usage)
+  await anotarChatUso(db, user.id, 'prospecta_asistente', uso, modelo)
   await db.from('chat_conversaciones').update({ updated_at: new Date().toISOString() }).eq('id', convId)
   const { data: cupoNuevo } = await db.rpc('cupo_chat', { p_usuario: user.id })
   return json({ conversacion_id: convId, respuesta, cupo: cupoNuevo })

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Download, Send, MessageCircle, CalendarCheck, Trophy, Building2, FlaskConical, RefreshCw, Sparkles, Lightbulb, TrendingUp, TrendingDown, MapPin, Search, PenLine, ChevronDown, Target } from 'lucide-react'
 import { Columnas, Embudo, BarraPartes } from '../components/Graficos.jsx'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { ESTADOS, MOTIVOS_PERDIDO, hoyLocal } from '../lib/util.js'
 import { Esqueleto, ErrorCarga, Vacio, Contador } from '../components/ui.jsx'
@@ -158,11 +158,11 @@ function Contenido({ d, nombres, equipo, cargando }) {
       <section className="home-seccion">
         <h2 className="home-titulo">Los números</h2>
         <div className="rep-kpis">
-          <Kpi titulo="Empresas contactadas" valor={t.contactados} pie={`${t.enviados} mensajes enviados`} />
-          <Kpi titulo="Respondieron" valor={`${pct(t.respondieron, t.contactados)}%`} pie={`${t.respondieron} de ${t.contactados}`} />
-          <Kpi titulo="Reuniones" valor={t.reuniones} pie={t.contactados ? `${pct(t.reuniones, t.contactados)}% de las contactadas` : ''} />
-          <Kpi titulo="Clientes" valor={t.clientes} pie={t.contactados ? `${pct(t.clientes, t.contactados)}% de las contactadas` : ''} verde />
-          <Kpi titulo="Empresas nuevas" valor={t.nuevas_empresas} pie="sumadas a tu lista" />
+          <Kpi to="/envios" titulo="Empresas contactadas" valor={t.contactados} pie={`${t.enviados} mensajes enviados`} />
+          <Kpi to="/prospectos?estado=respondio" titulo="Respondieron" valor={`${pct(t.respondieron, t.contactados)}%`} pie={`${t.respondieron} de ${t.contactados}`} />
+          <Kpi to="/prospectos?estado=reunion" titulo="Reuniones" valor={t.reuniones} pie={t.contactados ? `${pct(t.reuniones, t.contactados)}% de las contactadas` : ''} />
+          <Kpi to="/prospectos?estado=cliente" titulo="Clientes" valor={t.clientes} pie={t.contactados ? `${pct(t.clientes, t.contactados)}% de las contactadas` : ''} verde />
+          <Kpi to="/prospectos?orden=reciente" titulo="Empresas nuevas" valor={t.nuevas_empresas} pie="sumadas a tu lista" />
         </div>
       </section>
 
@@ -284,12 +284,14 @@ function Tabla({ titulo, ayuda, filas, etiqueta = r => r.clave, sinTotal, extra,
   )
 }
 
-function Kpi({ titulo, valor, pie, verde }) {
+// Con "to", el número lleva a la lista ya filtrada
+function Kpi({ titulo, valor, pie, verde, to }) {
+  const Tag = to ? Link : 'div'
   return (
-    <div className={'home-kpi rep-kpi' + (verde ? ' verde' : '')}>
+    <Tag {...(to ? { to, title: 'Ver la lista' } : {})} className={'home-kpi rep-kpi' + (verde ? ' verde' : '') + (to ? ' kpi-link' : '')}>
       <small>{titulo}</small>
       <div><b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b></div>
       {pie && <span className="rep-kpi-pie">{pie}</span>}
-    </div>
+    </Tag>
   )
 }

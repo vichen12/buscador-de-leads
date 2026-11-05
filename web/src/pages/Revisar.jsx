@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePaginado, Paginador } from '../components/Paginador.jsx'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Inbox, Check, X, Download, Search, Sparkles, Undo2, Loader2, ListChecks, Ban, SkipForward } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
@@ -21,6 +21,7 @@ export default function Revisar() {
   const toast = useToast()
   const { refrescar, setPorRevisar } = useApp()
   const [params, setParams] = useSearchParams()
+  const nav = useNavigate()
   const tab = params.get('tab') || 'por_revisar'
   const busqueda = params.get('busqueda') || ''
   const motivoF = params.get('motivo') || ''
@@ -71,13 +72,18 @@ export default function Revisar() {
 
   const aprobar = ids => conOcupado(ids, async () => {
     const r = await aprobarHallazgos(ids)
+    // La base anota el prospecto en cada hallazgo: con eso la tarjeta y el aviso llevan a su ficha
+    const { data } = await supabase.from('hallazgos').select('id, prospecto_id').in('id', ids)
     await cargar(); refrescar()
-    toast(ids.length === 1 ? 'Sumada a tu lista' : `${r.nuevos} sumadas a tu lista${r.ya_estaban ? ` (${r.ya_estaban} ya estaban)` : ''}`)
+    const ficha = ids.length === 1 ? (data ?? [])[0]?.prospecto_id : null
+    toast(ids.length === 1 ? 'Sumada a tu lista' : `${r.nuevos} sumadas a tu lista${r.ya_estaban ? ` (${r.ya_estaban} ya estaban)` : ''}`, 'ok',
+      { acciones: [ficha && { label: 'Ver ficha', onClick: () => nav(`/prospectos/${ficha}`) }, { label: 'Ver mi lista', onClick: () => nav('/prospectos?orden=reciente') }] })
   })
   const descartar = ids => conOcupado(ids, async () => {
     await descartarHallazgos(ids)
     marcar(ids, { estado: 'descartado' })
-    toast(ids.length === 1 ? 'Marcada como "No sirve": no va a volver a aparecer en las búsquedas' : `${ids.length} marcadas como "No sirve"`)
+    toast(ids.length === 1 ? 'Marcada como "No sirve": no va a volver a aparecer en las búsquedas' : `${ids.length} marcadas como "No sirve"`, 'ok',
+      tab === 'descartado' ? {} : { accion: { label: 'Ver rechazadas', onClick: () => nav('/revisar?tab=descartado') } })
   })
   const saltear = ids => conOcupado(ids, async () => {
     await saltearHallazgos(ids)
@@ -87,7 +93,7 @@ export default function Revisar() {
   const recuperar = ids => conOcupado(ids, async () => {
     await recuperarHallazgos(ids)
     marcar(ids, { estado: 'por_revisar', motivo: '' })
-    toast('Volvió a "Por revisar"')
+    toast('Volvió a "Por revisar"', 'ok', { accion: { label: 'Ver', onClick: () => nav('/revisar') } })
   })
 
   const todasSel = lista.length > 0 && lista.every(h => sel.has(h.id))
@@ -124,6 +130,7 @@ export default function Revisar() {
         </div>
         <div className="acciones">
           <button className="btn" disabled={!lista.length} onClick={() => descargarExcel(`empresas_${tab}_${new Date().toISOString().slice(0, 10)}.xlsx`, lista.map(h => filaEmpresa(h)))}><Download size={16} /> Descargar Excel</button>
+          <Link className="btn" to="/prospectos"><ListChecks size={16} /> Ir a mi lista</Link>
           <Link className="btn ia" to="/buscar"><Sparkles size={16} /> Buscar más</Link>
         </div>
       </header>
@@ -196,8 +203,8 @@ export default function Revisar() {
       ) : (
         <div className="vacio-revisar">
           {tab === 'por_revisar' ? <><Inbox size={30} /><h3>No hay nada por revisar</h3><p className="muted">Cuando busques clientes, lo que encuentre Claude aparece acá para que elijas.</p><Link className="btn ia" to="/buscar"><Sparkles size={16} /> Buscar clientes</Link></>
-            : tab === 'aprobado' ? <><ListChecks size={30} /><h3>Todavía no sumaste empresas</h3><p className="muted">Las que sumes quedan en <Link to="/prospectos">Prospectos</Link>, donde les cambiás el estado y las contactás.</p></>
-              : <><Undo2 size={30} /><h3>No descartaste ninguna</h3><p className="muted">Las que marques como "No sirve" quedan acá y no vuelven a aparecer en las búsquedas.</p></>}
+            : tab === 'aprobado' ? <><ListChecks size={30} /><h3>Todavía no sumaste empresas</h3><p className="muted">Las que sumes quedan en <Link to="/prospectos">Prospectos</Link>, donde les cambiás el estado y las contactás.</p><Link className="btn" to={cuenta.por_revisar ? '/revisar' : '/buscar'}>{cuenta.por_revisar ? <><Inbox size={16} /> Revisar las {cuenta.por_revisar} encontradas</> : <><Sparkles size={16} /> Buscar clientes</>}</Link></>
+              : <><Undo2 size={30} /><h3>No descartaste ninguna</h3><p className="muted">Las que marques como "No sirve" quedan acá y no vuelven a aparecer en las búsquedas.</p><Link className="btn" to="/revisar"><Inbox size={16} /> Ir a Por revisar</Link></>}
         </div>
       )}
     </>

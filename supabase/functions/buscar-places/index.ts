@@ -2,7 +2,9 @@
 // tienen web propia (web vacía, o Instagram/Facebook/Fresha/AgendaPro/directorio...).
 // Devuelve candidatos para revisar; NO los guarda: el usuario elige cuáles importar.
 // Usa la API oficial (no scraping). La key va como secreto: GOOGLE_PLACES_API_KEY.
+import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
+import { anotarPlaces } from '../_shared/uso.ts'
 import { clasificarWeb, instagramDe } from '../_shared/clasificar.js'
 
 const FIELD_MASK = [
@@ -13,8 +15,10 @@ const FIELD_MASK = [
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+  let usuario: string | null = null, consultas = 0, fallidas = 0
   try {
-    await clienteDelUsuario(req) // sólo usuarios logueados
+    const { user } = await clienteDelUsuario(req) // sólo usuarios logueados
+    usuario = user.id
     const key = await claveServicio('google_places')
     if (!key) return json({ error: 'Falta la clave de Google Places (GOOGLE_PLACES_API_KEY): cargala en Super admin → Claves.' }, 400)
 
@@ -33,7 +37,8 @@ Deno.serve(async req => {
         body: JSON.stringify(body),
       })
       llamadas++
-      if (!r.ok) return json({ error: `Google Places ${r.status}: ${(await r.text()).slice(0, 300)}` }, 502)
+      if (!r.ok) { fallidas++; return json({ error: `Google Places ${r.status}: ${(await r.text()).slice(0, 300)}` }, 502) }
+      consultas++
       const data = await r.json()
       for (const p of data.places ?? []) {
         if (p.businessStatus && p.businessStatus !== 'OPERATIONAL') continue
@@ -65,5 +70,10 @@ Deno.serve(async req => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return json({ error: msg }, msg === 'NO_AUTH' ? 401 : 500)
+  } finally {
+    if (consultas || fallidas) {
+      const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+      await anotarPlaces(db, { funcion: 'prospecta_places', usuario, consultas, fallidas })
+    }
   }
 })

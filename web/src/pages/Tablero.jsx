@@ -91,15 +91,15 @@ export default function Tablero() {
         </div>
       ) : <>
         <div className="rep-kpis tablero-kpis">
-          <Kpi icono={Users} color="#52525b" fondo="#f1f1f3" titulo="Prospectos" valor={t.total} />
+          <Kpi icono={Users} color="#52525b" fondo="#f1f1f3" to="/prospectos" titulo="Prospectos" valor={t.total} />
           {lim
-            ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Emails de hoy" grafico={<Sparkline valores={t.envios_7_dias.map(d => d.envios)} color="#fd4a22" ancho={64} alto={24} />} valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
-            : <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />}
+            ? <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" to="/envios" titulo="Emails de hoy" grafico={<Sparkline valores={t.envios_7_dias.map(d => d.envios)} color="#fd4a22" ancho={64} alto={24} />} valor={<>{lim.enviados_hoy}<small> / {lim.limite_hoy}</small></>} pie={lim.calentando ? `Casilla en calentamiento · semana ${lim.etapa} de 3` : `Hoy: ${lim.enviados_hoy} de ${lim.limite_hoy} envíos`} />
+            : <Kpi icono={Send} color="#1d4ed8" fondo="#e8efff" to="/envios" titulo="Envíos de hoy" valor={<>{t.enviados_hoy}<small> / {t.limite_diario}</small></>} />}
           {tasas
-            ? <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Respuesta · 30 días" valor={`${tasas.d30.contactados ? Math.round((tasas.d30.respondieron / tasas.d30.contactados) * 100) : 0}%`} pie={`${tasas.d30.respondieron} de ${tasas.d30.contactados} · últimos 7 días: ${tasas.d7.contactados ? Math.round((tasas.d7.respondieron / tasas.d7.contactados) * 100) + '%' : '—'}`} />
-            : <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" titulo="Tasa de respuesta" valor={`${tasa}%`} pie={`${t.respondieron ?? 0} de ${t.contactados ?? 0} contactados`} />}
-          <Kpi icono={Trophy} color="#15803d" fondo="#e8f6ec" titulo="Clientes" valor={t.clientes ?? 0} />
-          <Kpi icono={CalendarClock} color="#8b2c3c" fondo="#f8ecee" titulo="Seguimientos para hoy" valor={t.seguimientos_vencidos ?? 0} alerta={t.seguimientos_vencidos > 0} />
+            ? <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" to="/respuestas" titulo="Respuesta · 30 días" valor={`${tasas.d30.contactados ? Math.round((tasas.d30.respondieron / tasas.d30.contactados) * 100) : 0}%`} pie={`${tasas.d30.respondieron} de ${tasas.d30.contactados} · últimos 7 días: ${tasas.d7.contactados ? Math.round((tasas.d7.respondieron / tasas.d7.contactados) * 100) + '%' : '—'}`} />
+            : <Kpi icono={MessageCircle} color="#b45309" fondo="#fdf3e2" to="/respuestas" titulo="Tasa de respuesta" valor={`${tasa}%`} pie={`${t.respondieron ?? 0} de ${t.contactados ?? 0} contactados`} />}
+          <Kpi icono={Trophy} color="#15803d" fondo="#e8f6ec" to="/prospectos?estado=cliente" titulo="Clientes" valor={t.clientes ?? 0} />
+          <Kpi icono={CalendarClock} color="#8b2c3c" fondo="#f8ecee" to="/seguimientos" titulo="Seguimientos para hoy" valor={t.seguimientos_vencidos ?? 0} alerta={t.seguimientos_vencidos > 0} />
         </div>
 
         <div className="home-grid tablero-grid">
@@ -247,12 +247,14 @@ function PrimerosPasos() {
   )
 }
 
-function Kpi({ titulo, valor, pie, alerta, grafico }) {
+// Con "to", el número lleva a la lista ya filtrada
+function Kpi({ titulo, valor, pie, alerta, grafico, to }) {
+  const Tag = to ? Link : 'div'
   return (
-    <div className={'home-kpi rep-kpi' + (alerta ? ' alerta' : '')}>
+    <Tag {...(to ? { to, title: 'Ver la lista' } : {})} className={'home-kpi rep-kpi' + (alerta ? ' alerta' : '') + (to ? ' kpi-link' : '')}>
       <small>{titulo}</small>
       <div><b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>{grafico}</div>
       {pie && <span className="rep-kpi-pie">{pie}</span>}
-    </div>
+    </Tag>
   )
 }

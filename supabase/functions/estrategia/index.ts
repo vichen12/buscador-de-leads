@@ -3,6 +3,7 @@
 // Guarda respuestas + estrategia en perfil_comercial (como el usuario, con RLS). La persona después la edita.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
+import { anotarChatUso, nuevoUso, sumarUso } from '../_shared/uso.ts'
 
 type Dic = Record<string, any>
 const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
@@ -129,7 +130,9 @@ Deno.serve(async req => {
   })
   if (!r.ok) { console.error('anthropic', r.status, (await r.text()).slice(0, 300)); return json({ error: `Claude respondió con un error (${r.status}). Probá de nuevo.` }, 502) }
   const data = await r.json()
-  await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: data.usage?.input_tokens ?? 0, tokens_out: data.usage?.output_tokens ?? 0 })
+  const uso = nuevoUso()
+  sumarUso(uso, modelo, data.usage)
+  await anotarChatUso(db, user.id, 'prospecta_estrategia', uso, modelo)
   const texto = (data.content ?? []).filter((c: Dic) => c.type === 'text').map((c: Dic) => c.text ?? '').join('')
   let e: Dic
   const crudo = (texto.match(/```json\s*([\s\S]*?)```/)?.[1] ?? texto.match(/\{[\s\S]*\}/)?.[0] ?? '').replace(/,\s*([}\]])/g, '$1')

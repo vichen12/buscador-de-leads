@@ -383,7 +383,7 @@ tr.apagado td { opacity: .5; }
 .clave-fila form { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .clave-fila form input, .clave-fila form select { flex: 1 1 240px; width: auto; }
 .clave-icono { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; }
-.resumen-admin { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.resumen-admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 20px; }
 
 /* ---------- Login ---------- */
 .login { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 1fr; background: #fff; }
@@ -2395,3 +2395,21 @@ html[data-tema="oscuro"] .adm-miembros { background: #1d1b19; }
 .adm-plan.on .adm-plan-badge { background: var(--acc); }
 .adm-planes { padding-top: 6px; }
 .adm-planes { padding-top: 12px; }
+
+/* Paneles del super admin que se pueden tocar (llevan a su sección) */
+button.kpi.kpi-boton { font: inherit; text-align: left; cursor: pointer; width: 100%; }
+button.kpi.kpi-boton:hover { transform: translateY(-2px); box-shadow: var(--sh-l, 0 10px 24px rgba(0,0,0,.08)); }
+button.kpi.kpi-boton:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+/* Selector de fuente de la búsqueda: Claude · Google Maps · Los dos */
+.fuente-sel { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: #f0ece5; border: 1px solid var(--line); }
+.fuente-sel button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; transition: background .15s, color .15s, box-shadow .15s; }
+.fuente-sel button:hover:not(:disabled) { color: var(--ink); }
+.fuente-sel button.on { background: #fff; color: var(--acc); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.fuente-sel button:disabled { opacity: .45; cursor: not-allowed; }
+.fuente-sel button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+
+/* Números que llevan a la lista filtrada */
+a.kpi-link { text-decoration: none; color: inherit; cursor: pointer; }
+a.kpi-link:hover { transform: translateY(-2px); border-color: var(--line-2); }
+a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }

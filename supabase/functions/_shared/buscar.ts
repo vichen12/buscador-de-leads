@@ -6,6 +6,7 @@
 // equipo ya tienen o descartaron. Usa el perfil comercial (qué vende y a quién), sirve para cualquier negocio.
 // Cada búsqueda descuenta 1 del cupo de IA (diario del usuario y mensual de su empresa). Interpretar no descuenta.
 import { clasificarWeb, instagramDe, normalizarTelefono } from './clasificar.js'
+import { anotarChatUso, anotarPlaces, anotarSinCupo, nuevoUso, sumarTokens } from './uso.ts'
 
 type Dic = Record<string, any>
 // Lo que necesita del entorno se lo pasa la función (así este módulo no importa nada de npm y se puede compartir)
@@ -121,7 +122,7 @@ function partesDeZona(zona: string, maximo: number): { zona: string, code: strin
 const CAMPOS_MAPS = ['places.id', 'places.displayName', 'places.formattedAddress', 'places.nationalPhoneNumber', 'places.internationalPhoneNumber',
   'places.websiteUri', 'places.googleMapsUri', 'places.businessStatus', 'places.rating', 'places.userRatingCount', 'places.primaryTypeDisplayName'].join(',')
 let errorMaps = ''
-async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, code: string): Promise<Dic[]> {
+async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, code: string, conteo: { consultas: number, fallidas: number }): Promise<Dic[]> {
   errorMaps = ''
   const listas = await Promise.all(terminos.map(async t => {
     try {
@@ -130,7 +131,8 @@ async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, 
         headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': clavePlaces, 'X-Goog-FieldMask': CAMPOS_MAPS },
         body: JSON.stringify({ textQuery: `${t} en ${zona}`, languageCode: 'es', pageSize: 20, ...(code ? { regionCode: code } : {}) }),
       })
-      if (!r.ok) { const t = (await r.text()).slice(0, 200); console.error('places', r.status, t); errorMaps = `${r.status} ${t}`; return [] }
+      if (!r.ok) { conteo.fallidas++; const t = (await r.text()).slice(0, 200); console.error('places', r.status, t); errorMaps = `${r.status} ${t}`; return [] }
+      conteo.consultas++
       const d = await r.json()
       return (d.places ?? []).filter((p: Dic) => !p.businessStatus || p.businessStatus === 'OPERATIONAL').map((p: Dic) => ({
         nombre: p.displayName?.text ?? '', tipo: p.primaryTypeDisplayName?.text ?? '', direccion: p.formattedAddress ?? '',
@@ -421,7 +423,14 @@ function mensajeDeError(status: number | undefined, detalle: string) {
     : `Claude respondió con un error (${status ?? '?'}).`
 }
 
+// El plan de Supabase corta la función a los 150 s (error 546) y se pierde todo lo encontrado:
+// la búsqueda web tiene hasta 85 s y la segunda mirada sólo corre hasta los 125 s del pedido.
+const LIMITE_BUSQUEDA_MS = 85_000
+const TOPE_VERIFICAR_MS = 125_000
+const LIMITE_MAPS_MS = 110_000 // Google Maps + la lectura de las fichas por Claude
+
 export async function buscar(req: Request, h: Ayudas) {
+  const inicioPedido = Date.now()
   claveServicio = h.claveServicio; json = h.json
   let usuario
   try { usuario = await h.clienteDelUsuario(req) } catch { return json({ error: 'Iniciá sesión de nuevo' }, 401) }
@@ -453,6 +462,8 @@ export async function buscar(req: Request, h: Ayudas) {
   const tipos = new Set(filtros.map(tipoFiltro))
   const filtrosIA = filtros.filter(f => tipoFiltro(f) === 'ia')
   const guardar = body.guardar !== false
+  // De dónde buscar: 'claude' (web), 'maps' (Google Maps) o 'ambas' (por defecto)
+  const fuente = ['claude', 'maps', 'ambas'].includes(body.fuente) ? String(body.fuente) : 'ambas'
   if ((!rubro && body.modo !== 'preguntar') || !zona) return json({ error: 'Escribí qué buscás y dónde.' }, 400)
 
   const { data: cupo } = await db.rpc('cupo_chat', { p_usuario: user.id })
@@ -466,7 +477,9 @@ export async function buscar(req: Request, h: Ayudas) {
   const modeloRapido = (await claveServicio('modelo_resumen')) || 'claude-haiku-5-5'
 
   // Paso 1: entender qué quiere (y qué NO). Con modo "interpretar" sólo devuelve esto para que la persona lo ajuste.
+  // Modos sin cupo: su gasto va al registro común. Los dos modelos pueden ser distintos: se suman aparte.
   let usoIn = 0, usoOut = 0
+  const uso = nuevoUso()
   const { data: yo } = await db.from('perfiles').select('empresa_id').eq('id', user.id).maybeSingle()
   let equipo = [user.id]
   if (yo?.empresa_id) {
@@ -490,6 +503,8 @@ Hacé de 2 a 3 preguntas cortas para concretar QUÉ TIPO de empresa le conviene 
 La primera pregunta casi siempre es a qué tipo de comprador o industria le quiere vender, con opciones pensadas para su producto. La segunda o tercera, una característica visible o un momento que indique que necesita lo que vende (tamaño, si tiene tal cosa, si está creciendo, qué problema tiene). Cada pregunta con 4 a 6 respuestas posibles, cortas (2 a 6 palabras), concretas y distintas entre sí, de industrias variadas cuando corresponda. NO preguntes por el lugar ni pongas lugares (eso ya lo eligió aparte).
 Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", "..."], "varias": true o false}]}`, 2000)
       usoIn += r.usoIn; usoOut += r.usoOut
+      sumarTokens(uso, modeloRapido, r.usoIn, r.usoOut)
+      await anotarSinCupo(db, { funcion: 'prospecta_preguntar', usuario: user.id, uso })
       const o = extraerObjeto(r.texto)
       const preguntas = (Array.isArray(o?.preguntas) ? o!.preguntas : []).slice(0, 3).map((q: Dic) => ({
         pregunta: String(q.pregunta ?? '').slice(0, 140), varias: !!q.varias,
@@ -503,7 +518,9 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   if (!brief) {
     const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto, pais.nombre, pais.multi)
     brief = it.brief; usoIn += it.usoIn; usoOut += it.usoOut
+    sumarTokens(uso, modeloRapido, it.usoIn, it.usoOut)
   }
+  if (body.modo === 'interpretar') await anotarSinCupo(db, { funcion: 'prospecta_interpretar', usuario: user.id, uso })
   if (body.modo === 'interpretar') return json({ brief, zona, pais: pais.nombre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, ejemplos: apr.ejemplos.slice(0, 5) } }) // no descuenta cupo: es una consulta chiquita
 
   // Lo que ya conoce la cuenta y su equipo (en la lista, en la bandeja o descartado): no se vuelve a traer
@@ -539,26 +556,41 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     return mios.length ? mios : t
   }
   // Google Maps en paralelo: muchas fichas reales por cada término, evaluadas por Claude
+  const conteoPlaces = { consultas: 0, fallidas: 0 }
   const mapsPromesa = (async () => {
+    if (fuente === 'claude') return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'no_pedido' }
     const clavePlaces = await claveServicio('google_places')
     if (!clavePlaces) return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'sin_clave' }
     const u = partes.length === 1 ? { code: partes[0].code, zona: partes[0].zona } : { code: '', zona }
     const terminos = [...new Set([...brief!.buscar, ...brief!.incluir])].slice(0, 8)
-    const fichas = (await desdeMaps(clavePlaces, terminos, u.zona, u.code)).filter(f => !nomConocidos.has(clave(f.nombre)))
+    const fichas = (await desdeMaps(clavePlaces, terminos, u.zona, u.code, conteoPlaces)).filter(f => !nomConocidos.has(clave(f.nombre)))
     const ev = await evaluarFichas(key, modeloRapido, brief!, fichas.slice(0, 120), contexto, apr.texto, filtrosIA)
     return { ...ev, fichas: fichas.length, estado: errorMaps ? 'error: ' + errorMaps.slice(0, 120) : 'ok' }
   })().catch(e => { console.error('maps', e); return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'error: ' + String(e).slice(0, 120) } })
-  const corridas = await Promise.all(tareas.map(({ parte, e }, i) => {
+  const corridas = await Promise.all((fuente === 'maps' ? [] : tareas).map(({ parte, e }, i) => {
     const u = paisDe(parte.zona)
-    return unaBusqueda(key, modelo, prompt({ tipos: tiposDe(i), pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.filter((_, k) => k % lotes === i % lotes).slice(0, 4).join('", "') || brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), 110_000, { code: parte.code, tz: parte.tz })
+    return unaBusqueda(key, modelo, prompt({ tipos: tiposDe(i), pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.filter((_, k) => k % lotes === i % lotes).slice(0, 4).join('", "') || brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), LIMITE_BUSQUEDA_MS, { code: parte.code, tz: parte.tz })
   }))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
-  const deMaps = await mapsPromesa
+  for (const c of corridas) { sumarTokens(uso, modelo, c.usoIn, c.usoOut); uso.busquedasWeb += c.busquedas }
+  // Maps también tiene tope: si Claude no terminó de leer las fichas antes del corte, se sigue sin ellas
+  const deMaps = await Promise.race([mapsPromesa, new Promise<Awaited<typeof mapsPromesa>>(listo => setTimeout(
+    () => listo({ items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'error: tardó demasiado en leer las fichas' }),
+    Math.max(1000, inicioPedido + LIMITE_MAPS_MS - Date.now())))])
   usoIn += deMaps.usoIn; usoOut += deMaps.usoOut
+  sumarTokens(uso, modeloRapido, deMaps.usoIn, deMaps.usoOut)
+  await anotarPlaces(db, { funcion: 'prospecta_buscar', usuario: user.id, ...conteoPlaces })
+  // Eligió sólo Google Maps y no hay clave: error claro (lo que gastó interpretar va al registro, sin cupo)
+  if (fuente === 'maps' && deMaps.estado === 'sin_clave') {
+    await anotarSinCupo(db, { funcion: 'prospecta_interpretar', usuario: user.id, uso })
+    return json({ error: 'Falta la clave de Google Places: cargala en Super admin → Claves y servicios, o buscá con Claude.', codigo: 'SIN_CLAVE_MAPS' }, 400)
+  }
   const crudos = [...deMaps.items, ...corridas.flatMap(c => extraerLista(c.salida))]
   console.log('busqueda', JSON.stringify({ zona, maps: deMaps.estado, fichas: deMaps.fichas, sirven: deMaps.items.length, web: corridas.map(c => extraerLista(c.salida).length), largo: corridas.map(c => c.salida.length) }))
+  // Una sola fila por búsqueda: es una unidad de cupo (sin esta marca, sin resultados se anotaba dos veces)
+  let anotada = false
   if (!crudos.length) {
-    if (usoIn) await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: usoIn, tokens_out: usoOut })
+    if (usoIn) { await anotarChatUso(db, user.id, 'prospecta_buscar', uso); anotada = true }
     const falla = corridas.find(c => c.error)
     if (falla) return json({ error: mensajeDeError(falla.status, falla.error) }, 502)
   }
@@ -613,8 +645,17 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
 
   // Paso 3: segunda mirada contra lo que se pidió
   const web = candidatos.filter(c => !c.evaluado)
-  const ver = await verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona)
+  // Si no llega antes del corte, se muestran sin la segunda mirada y se avisa
+  let sinVerificar = false
+  const ver = !web.length ? await verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona) : await Promise.race([
+    verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona),
+    new Promise<Awaited<ReturnType<typeof verificar>>>(listo => setTimeout(() => {
+      sinVerificar = true
+      listo({ quedan: new Set(web.map((_, i) => i)), parecidas: new Set<number>(), noCumplen: 0, usoIn: 0, usoOut: 0 })
+    }, Math.max(1000, inicioPedido + TOPE_VERIFICAR_MS - Date.now()))),
+  ])
   usoIn += ver.usoIn; usoOut += ver.usoOut
+  sumarTokens(uso, modeloRapido, ver.usoIn, ver.usoOut)
   const noEncajan = web.length - ver.quedan.size - ver.noCumplen + Math.max(0, deMaps.fichas - deMaps.items.length)
   descartados += ver.noCumplen
   const quedanWeb = new Set(web.filter((_, i) => ver.quedan.has(i)))
@@ -630,7 +671,8 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
       return cuenta[c.segmento] <= tope
     })({}))
     .slice(0, cantidad + 5)
-  if (usoIn) await db.from('chat_uso').insert({ owner_id: user.id, tokens_in: usoIn, tokens_out: usoOut })
+  if (usoIn && !anotada) await anotarChatUso(db, user.id, 'prospecta_buscar', uso)
+  await anotarSinCupo(db, { funcion: 'prospecta_buscar', usuario: user.id, uso }) // lo que llegó después de anotar, o una búsqueda sin tokens de entrada
 
   // Guardar en la bandeja "Por revisar"
   let busquedaId: string | null = null
@@ -651,6 +693,6 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     resultados: salida, busqueda_id: busquedaId, brief, descartados, no_encajan: noEncajan, ya_conocidos: yaConocidos, ya_descartados: yaDescartados, cupo: cupoNuevo,
     diagnostico: { maps: deMaps.estado, maps_fichas: deMaps.fichas, maps_sirven: deMaps.items.length, web: corridas.map(c => extraerLista(c.salida).length), web_errores: corridas.filter(c => c.error).map(c => String(c.error).slice(0, 80)) },
     busquedas: corridas.reduce((a, c) => a + c.busquedas, 0), enfoques: lotes, modelo, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, parecidas: parecida.size },
-    aviso: corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : '',
+    aviso: corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : sinVerificar ? 'No llegamos a la segunda revisión: mirá estas empresas con más cuidado.' : '',
   })
 }

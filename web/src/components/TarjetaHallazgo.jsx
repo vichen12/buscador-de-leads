@@ -51,7 +51,9 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
         </>}
         {h.estado === 'aprobado' && <>
           <span className="chip ok"><Check size={12} /> En tu lista</span>
-          {h.prospecto_id && <Link className="btn fantasma chico" to={`/prospectos/${h.prospecto_id}`}>Ver ficha <ArrowRight size={13} /></Link>}
+          {/* Las viejas pueden no tener el prospecto anotado: se la busca por nombre en la lista */}
+          <Link className="btn fantasma chico" to={h.prospecto_id ? `/prospectos/${h.prospecto_id}` : `/prospectos?q=${encodeURIComponent(h.nombre)}`}
+            aria-label={h.prospecto_id ? `Ver la ficha de ${h.nombre}` : `Buscar ${h.nombre} en mi lista`}>{h.prospecto_id ? 'Ver ficha' : 'Buscar en mi lista'} <ArrowRight size={13} /></Link>
         </>}
         {h.estado === 'descartado' && <>
           <span className="chip duplicado">Rechazada{h.motivo ? ` · ${h.motivo}` : ''}</span>

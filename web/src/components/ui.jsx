@@ -8,11 +8,13 @@ export const useToast = () => useContext(ToastCtx)
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
-  // avisar(texto, tipo, { deshacer }) — con "deshacer" el aviso dura más y trae el botón para volver atrás
+  // avisar(texto, tipo, { deshacer, acciones }) — con "deshacer" el aviso dura más y trae el botón para volver atrás;
+  // "acciones" ([{ label, onClick }]) agrega botones para ir a donde sigue el trabajo (ej.: «Ver mi lista»)
   const avisar = useCallback((texto, tipo = 'ok', opciones = {}) => {
     const id = Math.random()
-    setToasts(t => [...t, { id, texto, tipo, deshacer: opciones.deshacer }])
-    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), opciones.deshacer ? 7000 : tipo === 'error' ? 7000 : 4000)
+    const acciones = (opciones.acciones ?? (opciones.accion ? [opciones.accion] : [])).filter(Boolean)
+    setToasts(t => [...t, { id, texto, tipo, deshacer: opciones.deshacer, acciones }])
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), opciones.deshacer || acciones.length ? 7000 : tipo === 'error' ? 7000 : 4000)
   }, [])
   return (
     <ToastCtx.Provider value={avisar}>
@@ -23,6 +25,7 @@ export function ToastProvider({ children }) {
             {t.tipo === 'error' ? <AlertCircle size={18} /> : t.tipo === 'info' ? <Info size={18} /> : <CheckCircle2 size={18} />}
             <span>{t.texto}</span>
             {t.deshacer && <button type="button" className="toast-deshacer" onClick={() => { t.deshacer(); setToasts(x => x.filter(y => y.id !== t.id)) }}>Deshacer</button>}
+            {t.acciones?.map(a => <button key={a.label} type="button" className="toast-deshacer" onClick={() => { a.onClick(); setToasts(x => x.filter(y => y.id !== t.id)) }}>{a.label}</button>)}
           </div>
         ))}
       </div>

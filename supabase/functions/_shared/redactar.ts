@@ -3,10 +3,14 @@
 // Regla de oro: cada dato puntual de la empresa sale de la ficha guardada; si no hay datos, se escribe en base
 // al rubro, sin inventar hechos.
 import { situacionHoy } from './plantillas.js'
+import { nuevoUso, sumarUso, type UsoIA } from './uso.ts'
 
 type Dic = Record<string, any>
 export type Contexto = {
-  key: string, modelo: string, perfil: Dic, comercial: Dic | null, config: Dic, firmaImagen: boolean,
+  key: string, modelo: string,
+  /** Lo que gastó cada llamada a Claude con este contexto; quien lo crea decide dónde anotarlo. */
+  uso: UsoIA,
+  perfil: Dic, comercial: Dic | null, config: Dic, firmaImagen: boolean,
   adjuntos: { id: string, nombre: string, descripcion: string, siempre?: boolean }[],
 }
 export const TOKENS = 16000 // el modelo puede pensar antes de responder: con poco margen se queda sin espacio y no escribe nada
@@ -19,7 +23,7 @@ export async function cargarContexto(db: any, owner: string, key: string, modelo
     db.from('archivos').select('id, tipo, nombre, descripcion, siempre').eq('owner_id', owner),
   ])
   return {
-    key, modelo: modelo || 'claude-haiku-5-5', perfil: perfil ?? {},
+    key, modelo: modelo || 'claude-haiku-5-5', uso: nuevoUso(), perfil: perfil ?? {},
     comercial: (com?.respuestas as Dic)?.que_vende || (com?.estrategia as Dic)?.resumen ? com : null,
     config: (perfil?.config_email ?? {}) as Dic,
     firmaImagen: (archivos ?? []).some((a: Dic) => a.tipo === 'firma'),
@@ -109,6 +113,7 @@ export async function claude(c: Contexto, prompt: string, maxTokens = TOKENS): P
   })
   if (!r.ok) throw new Error(`IA ${r.status}: ${(await r.text()).slice(0, 200)}`)
   const data = await r.json()
+  sumarUso(c.uso, c.modelo, data.usage) // antes de validar: una respuesta inservible también se paga
   const texto = data.content?.map((x: { text?: string }) => x.text ?? '').join('') ?? ''
   if (!texto.includes('{')) console.error('IA sin JSON', data.stop_reason, texto.slice(0, 300))
   return texto

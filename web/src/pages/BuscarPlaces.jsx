@@ -19,6 +19,12 @@ const FILTROS_DEFECTO = [
   { id: 'con_email', titulo: 'Con email', descripcion: 'Que tenga un email de contacto.', activo: false },
   { id: 'con_instagram', titulo: 'Con Instagram', descripcion: 'Que tenga Instagram.', activo: false },
 ]
+// De dónde sale la búsqueda: Claude (web), Google Maps (fichas reales evaluadas por Claude) o los dos
+const FUENTES = [
+  { id: 'claude', nombre: 'Claude', ayuda: 'Busca en la web, redes y directorios' },
+  { id: 'maps', nombre: 'Google Maps', ayuda: 'Fichas reales de Maps, evaluadas por Claude' },
+  { id: 'ambas', nombre: 'Los dos', ayuda: 'Más resultados: Maps y la web juntos' },
+]
 const PASOS = ['Buscando en Google Maps…', 'Mirando directorios y redes…', 'Recorriendo la zona…', 'Revisando que encajen con lo que pediste…']
 
 /** Lista de chips que se pueden sacar y agregar */
@@ -60,6 +66,10 @@ export default function BuscarPlaces() {
   const filtros = est?.filtros?.length ? est.filtros : FILTROS_DEFECTO
 
   const [rubro, setRubro] = useState('')
+  const [fuente, setFuente] = useState('ambas')
+  // Sin clave de Google Places, Maps no se puede elegir: se busca con Claude
+  const sinMaps = servicios.places === false
+  const fuenteUsada = sinMaps ? 'claude' : fuente
   // Guía con preguntas: si el pedido es muy general, Claude pregunta lo justo para concretarlo
   const [guia, setGuia] = useState(null) // { base, preguntas, paso, respuestas: [[...]], otra, briefGeneral }
   const [preguntando, setPreguntando] = useState(false)
@@ -143,9 +153,18 @@ export default function BuscarPlaces() {
     const timer = setInterval(() => setSeg(Math.round((Date.now() - t0) / 1000)), 500)
     try {
       const { _aprendizaje, ...briefLimpio } = brief
-      const r = await llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, brief: briefLimpio, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido })
+      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, brief: briefLimpio, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f })
+      let r
+      try { r = await pedirA(fuenteUsada) } catch (err) {
+        // Maps sin clave (se quitó recién): se avisa y se busca con Claude, sin perder el pedido
+        if (fuenteUsada === 'claude' || !/google places/i.test(err.message)) throw err
+        toast('Google Maps no está conectado: busco sólo con Claude.', 'info')
+        setFuente('claude')
+        r = await pedirA('claude')
+      }
       setRes(r); setBrief(null)
-      toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info')
+      toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info',
+        r.resultados.length ? { accion: { label: 'Ver en Por revisar', onClick: () => nav('/revisar') } } : {})
       refrescar(); cargarHistorial()
       setTimeout(() => resultadosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (err) { setError(mensajeError(err)) }
@@ -163,7 +182,10 @@ export default function BuscarPlaces() {
     const r = await aprobarHallazgos(ids)
     const { data } = await supabase.from('hallazgos').select('id, estado, prospecto_id').in('id', ids)
     for (const h of data ?? []) actualizar([h.id], h)
-    toast(ids.length === 1 ? 'Sumada a tu lista' : `${r.nuevos} sumadas a tu lista`); refrescar()
+    const ficha = ids.length === 1 ? (data ?? [])[0]?.prospecto_id : null
+    toast(ids.length === 1 ? 'Sumada a tu lista' : `${r.nuevos} sumadas a tu lista`, 'ok',
+      { acciones: [ficha && { label: 'Ver ficha', onClick: () => nav(`/prospectos/${ficha}`) }, { label: 'Ver mi lista', onClick: () => nav('/prospectos?orden=reciente') }] })
+    refrescar()
   })
   const descartar = ids => conOcupado(ids, async () => {
     await descartarHallazgos(ids); actualizar(ids, { estado: 'descartado' }); refrescar()
@@ -195,7 +217,8 @@ export default function BuscarPlaces() {
           <Link className="btn primario" to="/negocio">Completar <ArrowRight size={15} /></Link>
         </div>
       )}
-      {servicios.ia === false && <Aviso>Falta la clave de Claude. {perfil?.es_admin ? <Link to="/admin">Cargala en Super admin</Link> : 'Pedile al administrador que la cargue.'}</Aviso>}
+      {servicios.ia === false && <Aviso>Falta la clave de Claude. {perfil?.es_admin ? <Link to="/admin?tab=claves">Cargala acá</Link> : 'Pedile al administrador que la cargue.'}</Aviso>}
+      {servicios.ia !== false && sinMaps && <Aviso tipo="info">Google Maps no está conectado: la búsqueda va sólo con Claude. {perfil?.es_admin ? <Link to="/admin?tab=claves">Conectar Google Maps</Link> : 'Para sumar las fichas de Maps, pedile al administrador que lo conecte.'}</Aviso>}
 
       <section className="busqueda-hero">
       <form className="barra-busqueda" onSubmit={entender}>
@@ -224,6 +247,14 @@ export default function BuscarPlaces() {
       </form>
 
       <div className="bb-pie">
+        <div className="fuente-sel" role="radiogroup" aria-label="Dónde buscar">
+          {FUENTES.map(f => {
+            const bloqueada = f.id !== 'claude' && sinMaps
+            const on = fuenteUsada === f.id
+            return <button key={f.id} type="button" role="radio" aria-checked={on} className={on ? 'on' : ''} disabled={bloqueada || cargando}
+              title={bloqueada ? 'Falta conectar Google Maps (clave de Google Places)' : f.ayuda} onClick={() => setFuente(f.id)}>{f.id === 'maps' ? <MapPin size={13} /> : f.id === 'claude' ? <Sparkles size={13} /> : null}{f.nombre}</button>
+          })}
+        </div>
         <button type="button" className={'filtros-pill' + (verFiltros ? ' abierto' : '') + (filtrosActivos.length ? ' con' : '')} onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros}>
           <SlidersHorizontal size={14} /> Filtros{filtrosActivos.length ? <span className="filtros-num">{filtrosActivos.length}</span> : ''} <ChevronDown size={13} style={{ transform: verFiltros ? 'rotate(180deg)' : '' }} />
         </button>
@@ -321,7 +352,7 @@ export default function BuscarPlaces() {
         <section className="tarjeta buscando-panel">
           <div className="pensando"><i /><i /><i /></div>
           <div style={{ flex: 1 }}>
-            <b>{PASOS[Math.min(PASOS.length - 1, Math.floor((seg / estimado) * PASOS.length))]}</b>
+            {(() => { const pasos = fuenteUsada === 'claude' ? PASOS.slice(1) : fuenteUsada === 'maps' ? [PASOS[0], 'Leyendo cada ficha…', PASOS[3]] : PASOS; return <b>{pasos[Math.min(pasos.length - 1, Math.floor((seg / estimado) * pasos.length))]}</b> })()}
             <div className="barra-progreso"><span style={{ width: Math.min(95, (seg / estimado) * 100) + '%' }} /></div>
             <small className="muted">{seg} s · suele tardar {cantidad <= 10 ? 'menos de un minuto' : cantidad <= 20 ? 'alrededor de un minuto' : 'un par de minutos'}</small>
           </div>
@@ -342,10 +373,11 @@ export default function BuscarPlaces() {
                   res.descartados > 0 && `${res.descartados} que no cumplían los filtros`].filter(Boolean).join(', ')}.</>}
                 {res.diagnostico && res.resultados.length < Math.min(5, cantidad) && (
                   <><br /><span className="diagnostico">
-                    {res.diagnostico.maps === 'sin_clave' ? 'Google Maps no está conectado (falta la clave de Google Places en Super admin → Claves): sólo se buscó en la web, que trae pocas.'
+                    {res.diagnostico.maps === 'no_pedido' ? 'Buscaste sólo con Claude: sumá Google Maps para traer más fichas.'
+                      : res.diagnostico.maps === 'sin_clave' ? 'Google Maps no está conectado (falta la clave de Google Places en Super admin → Claves): sólo se buscó en la web, que trae pocas.'
                       : String(res.diagnostico.maps).startsWith('error') ? `Google Maps dio un error: ${String(res.diagnostico.maps).slice(7)}`
                       : `Google Maps trajo ${res.diagnostico.maps_fichas} fichas y ${res.diagnostico.maps_sirven} encajaban.`}
-                    {' '}Búsqueda web: {res.diagnostico.web.reduce((a, b) => a + b, 0)} empresas{res.diagnostico.web_errores?.length ? ` (con errores: ${res.diagnostico.web_errores.join('; ')})` : ''}.
+                    {' '}{res.diagnostico.web.length ? <>Búsqueda web: {res.diagnostico.web.reduce((a, b) => a + b, 0)} empresas</> : 'Sin búsqueda web (elegiste sólo Google Maps)'}{res.diagnostico.web_errores?.length ? ` (con errores: ${res.diagnostico.web_errores.join('; ')})` : ''}.
                   </span></>
                 )}
                 {res.aprendizaje?.parecidas > 0 && <><br /><Sparkles size={12} style={{ verticalAlign: -1 }} /> {res.aprendizaje.parecidas} se parecen a las que ya te sirven: están primeras.</>}
@@ -357,6 +389,7 @@ export default function BuscarPlaces() {
               {pendientes.length > 1 && <button className="btn primario" disabled={ocupados.size > 0} onClick={() => aprobar(pendientes.map(h => h.id))}><Check size={15} /> Sumar las {pendientes.length}</button>}
             </div>
           </div>
+          {res.aviso && <Aviso>{res.aviso}</Aviso>}
           {res.resultados.length > 0 && <p className="ayuda-revisar"><Inbox size={15} /> <span>Quedaron guardadas en <Link to={`/revisar?busqueda=${res.busqueda_id ?? ''}`}>Por revisar</Link>. Sumá a tu lista las que vas a contactar y marcá las que no sirven: esas no vuelven a aparecer.</span></p>}
           <div className="lista-hallazgos">
             {res.resultados.map(h => (

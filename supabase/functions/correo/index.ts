@@ -7,7 +7,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
 import { PROVEEDORES, Imap, smtpSesion, enviarMail, guardarEnEnviados, archivosDe, saludDominio, explicar, revisarCasilla, enviarUno, enviarACliente, ErrorEnvio } from '../_shared/correo.ts'
-import { cargarContexto, clasificarRespuesta } from '../_shared/redactar.ts'
+import { cargarContexto, clasificarRespuesta, type Contexto } from '../_shared/redactar.ts'
+import { anotarSinCupo } from '../_shared/uso.ts'
 import { correrTrabajador, correrColaDe, esCron } from './trabajador.ts'
 
 type Dic = Record<string, any>
@@ -133,15 +134,19 @@ Deno.serve(async req => {
 
   if (modo === 'revisar') {
     if (!cfg.leer_respuestas || !cfg.imap_host) return json({ ok: true, revisados: 0, respondieron: [], aviso: 'La lectura de respuestas está desactivada.' })
+    let ctx: Contexto | null = null
     try {
       const key = await claveServicio('anthropic')
-      const ctx = key ? await cargarContexto(db, user.id, key, (await claveServicio('modelo_resumen')) || 'claude-haiku-5-5') : null
-      const clasificar = ctx ? (m: Dic, p: Dic) => clasificarRespuesta(ctx, m.texto, m.asunto, p) : undefined
+      ctx = key ? await cargarContexto(db, user.id, key, (await claveServicio('modelo_resumen')) || 'claude-haiku-5-5') : null
+      const c = ctx
+      const clasificar = c ? (m: Dic, p: Dic) => clasificarRespuesta(c, m.texto, m.asunto, p) : undefined
       return json({ ok: true, ...(await revisarCasilla(db, user.id, cfg, clave, clasificar)) })
     } catch (e) {
       const msg = explicar(e, cfg)
       await db.from('conexiones_correo').update({ ultimo_error: msg, ultima_revision: new Date().toISOString() }).eq('owner_id', user.id)
       return json({ error: msg }, 502)
+    } finally {
+      if (ctx) await anotarSinCupo(db, { funcion: 'prospecta_clasificar', usuario: user.id, uso: ctx.uso })
     }
   }
 

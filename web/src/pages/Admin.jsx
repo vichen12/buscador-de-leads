@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Bot, Crown, Building2, Users, Ticket, KeyRound, Plus, Copy, Pencil, Sparkles, MapPin, Cpu, Trash2, Loader2, CheckCircle2, Eye, EyeOff, UserPlus, RotateCcw, BarChart3, CreditCard, LifeBuoy, ChevronDown, Check } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, fechaHora, mensajeError } from '../lib/util.js'
@@ -33,7 +34,10 @@ const MODELOS = [
 
 export default function Admin() {
   const toast = useToast()
-  const [tab, setTab] = useState('empresas')
+  const [params, setParams] = useSearchParams()
+  const TABS_VALIDAS = ['metricas', 'empresas', 'claves', 'planes', 'soporte']
+  const tab = TABS_VALIDAS.includes(params.get('tab')) ? params.get('tab') : 'empresas'
+  const setTab = k => setParams(p => { const n = new URLSearchParams(p); n.set('tab', k); return n }, { replace: true })
   const [datos, setDatos] = useState(null)
   const [alta, setAlta] = useState(null)
   const [credenciales, setCredenciales] = useState(null)
@@ -56,10 +60,11 @@ export default function Admin() {
   if (!datos) return <Esqueleto />
   const { empresas, usuarios, claves, planes } = datos
   const claveIA = claves.find(c => c.nombre === 'anthropic')
+  const claveMaps = claves.find(c => c.nombre === 'google_places')
   const tabs = [
     ['metricas', 'Uso', BarChart3, null],
     ['empresas', 'Empresas y usuarios', Building2, empresas.length],
-    ['claves', 'Claves y servicios', KeyRound, claveIA?.configurada ? null : '!'],
+    ['claves', 'Claves y servicios', KeyRound, claveIA?.configurada && claveMaps?.configurada ? null : '!'],
     ['planes', 'Planes', CreditCard, null],
     ['soporte', 'Sugerencias y errores', LifeBuoy, null],
   ]
@@ -78,7 +83,8 @@ export default function Admin() {
         <Mini titulo="Empresas activas" valor={empresas.filter(e => e.activa).length} pie={`de ${empresas.length}`} icono={Building2} color="#fd4a22" fondo="#fff0ea" />
         <Mini titulo="Usuarios" valor={usuarios.length} pie={`${usuarios.filter(u => !u.activo).length} suspendidos`} icono={Users} color="#1d4ed8" fondo="#ebf1ff" />
         <Mini titulo="Prospectos" valor={total('prospectos')} pie={`${total('clientes')} clientes`} icono={Ticket} color="#b45309" fondo="#fdf4e4" />
-        <Mini titulo="Claude" valor={claveIA?.configurada ? 'Activo' : 'Sin clave'} pie={claveIA?.configurada ? `termina en …${claveIA.final}` : 'cargala en Claves'} icono={Sparkles} color={claveIA?.configurada ? '#15803d' : '#6f695f'} fondo={claveIA?.configurada ? '#e9f7ee' : '#f0ece5'} />
+        <Mini titulo="Claude" valor={claveIA?.configurada ? 'Activo' : 'Sin clave'} pie={claveIA?.configurada ? `termina en …${claveIA.final}` : 'cargala en Claves'} icono={Sparkles} color={claveIA?.configurada ? '#15803d' : '#6f695f'} fondo={claveIA?.configurada ? '#e9f7ee' : '#f0ece5'} onClick={() => setTab('claves')} />
+        <Mini titulo="Google Maps" valor={claveMaps?.configurada ? 'Conectado' : 'Conectar'} pie={claveMaps?.configurada ? `termina en …${claveMaps.final}` : 'tocá para pegar la clave'} icono={MapPin} color={claveMaps?.configurada ? '#15803d' : '#1a73e8'} fondo={claveMaps?.configurada ? '#e9f7ee' : '#e8f0fe'} onClick={() => setTab('claves')} />
       </div>
 
       <div className="subtabs" role="tablist">
@@ -102,13 +108,14 @@ export default function Admin() {
   )
 }
 
-function Mini({ titulo, valor, pie, icono: Icono, color, fondo }) {
+function Mini({ titulo, valor, pie, icono: Icono, color, fondo, onClick }) {
+  const Tag = onClick ? 'button' : 'div'
   return (
-    <div className="kpi">
+    <Tag className={'kpi' + (onClick ? ' kpi-boton' : '')} {...(onClick ? { type: 'button', onClick } : {})}>
       <div className="kpi-top"><span>{titulo}</span><span className="kpi-icono" style={{ color, background: fondo }}><Icono size={16} /></span></div>
       <b style={typeof valor === 'string' ? { fontSize: '1.5rem' } : undefined}>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>
       <small>{pie}</small>
-    </div>
+    </Tag>
   )
 }
 
@@ -479,6 +486,8 @@ function LimiteGeneral({ actual, guardando, onGuardar }) {
 const SERVICIOS = [
   { nombre: 'anthropic', titulo: 'Claude (Anthropic)', icono: Sparkles, color: '#fd4a22', fondo: '#fff0ea', placeholder: 'sk-ant-api03-…',
     ayuda: <>Busca negocios, escribe los mensajes y responde en el Asistente. Creala en <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a> → API Keys.</> },
+  { nombre: 'google_places', titulo: 'Google Maps (Places API)', icono: MapPin, color: '#1a73e8', fondo: '#e8f0fe', placeholder: 'AIza…',
+    ayuda: <>Trae fichas reales de Google Maps para la búsqueda. Creala en <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud → Credenciales</a> con <b>Places API (New)</b> habilitada y restringida a esa API.</> },
 ]
 
 function Claves({ claves, recargar }) {
@@ -513,7 +522,7 @@ function Claves({ claves, recargar }) {
         const e = estado(s.nombre)
         const Icono = s.icono
         const v = valores[s.nombre] ?? ''
-        const sospechosa = s.nombre === 'anthropic' && v && !v.trim().startsWith('sk-ant-')
+        const sospechosa = v && (s.nombre === 'anthropic' ? !v.trim().startsWith('sk-ant-') : s.nombre === 'google_places' ? !v.trim().startsWith('AIza') : false)
         return (
           <div className="clave-fila" key={s.nombre} data-clave={s.nombre}>
             <span className="clave-icono" style={{ color: s.color, background: s.fondo }}><Icono size={20} /></span>
@@ -535,7 +544,7 @@ function Claves({ claves, recargar }) {
                 <button className="btn primario" disabled={!v.trim() || guardando === s.nombre}>{guardando === s.nombre ? <Loader2 size={15} className="spin" /> : <KeyRound size={15} />} Guardar</button>
                 {e.configurada && <button type="button" className="btn peligro" onClick={() => quitar(s)}><Trash2 size={15} /> Quitar</button>}
               </form>
-              {sospechosa && <small style={{ color: 'var(--warn)', display: 'block', marginTop: 6 }}>Las claves de Claude suelen empezar con “sk-ant-”. Revisá que la hayas copiado entera.</small>}
+              {sospechosa && <small style={{ color: 'var(--warn)', display: 'block', marginTop: 6 }}>{s.nombre === 'anthropic' ? 'Las claves de Claude suelen empezar con “sk-ant-”.' : 'Las claves de Google suelen empezar con “AIza”.'} Revisá que la hayas copiado entera.</small>}
             </div>
           </div>
         )
