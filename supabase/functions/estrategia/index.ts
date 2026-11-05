@@ -98,6 +98,8 @@ Respondé SOLO con JSON válido, sin texto antes ni después:
  "filtros": [{"id": "id_corto", "titulo": "título corto", "descripcion": "qué tiene que cumplir, en una frase", "activo": true}],
  "criterios": ["señal concreta de que es buen prospecto"],
  "descartar": ["a quién descartar"],
+ "presentacion": "cómo se presenta la empresa en un primer mail, en primera persona del plural y en 2 o 3 oraciones: qué hace en concreto (nombrando sus productos o servicios reales), para qué tipo de empresas, y una prueba real si aparece en lo que contó o en su web (clientes, años, países). Sin frases genéricas como 'soluciones innovadoras'",
+ "propuesta": ["3 a 5 beneficios concretos que le da a sus clientes, cada uno en una frase corta y verificable (qué cambia en la operación del cliente)"],
  "angulo": "cómo conviene entrarle en el primer mensaje: qué valor ofrecer, en dos frases",
  "tono": "tono recomendado para los mensajes"
 }
@@ -155,6 +157,8 @@ Deno.serve(async req => {
     }).filter((f: Dic) => f.titulo).slice(0, 10),
     criterios: (Array.isArray(e.criterios) ? e.criterios : []).map((c: unknown) => txt(c, 200)).filter(Boolean).slice(0, 10),
     descartar: (Array.isArray(e.descartar) ? e.descartar : []).map((c: unknown) => txt(c, 200)).filter(Boolean).slice(0, 10),
+    presentacion: txt(e.presentacion, 600),
+    propuesta: (Array.isArray(e.propuesta) ? e.propuesta : []).map((x: unknown) => txt(x, 200)).filter(Boolean).slice(0, 6),
     angulo: txt(e.angulo, 500),
     tono: txt(e.tono, 200),
   }

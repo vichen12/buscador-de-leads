@@ -204,6 +204,15 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
         <ListaEditable icono={Ban} titulo="A quién descartar" items={e.descartar} onCambiar={v => set('descartar', v)} placeholder="Agregar a quién descartar" />
       </div>
 
+      <div className="grid-estrategia">
+        <section className="tarjeta">
+          <div className="tarjeta-titulo"><h3><MessageSquareText size={16} /> Cómo te presentás</h3></div>
+          <p className="muted chico" style={{ marginTop: 0 }}>Claude lo usa al principio de cada mail para que sepan quién sos. Nombrá tus productos o servicios reales y para quién son.</p>
+          <textarea rows={4} value={e.presentacion ?? ''} placeholder="Ej.: Somos STOKA: automatizamos depósitos con racks dinámicos, transelevadores y robots de picking para distribuidoras y operadores logísticos." onChange={ev => set('presentacion', ev.target.value)} style={{ width: '100%' }} />
+        </section>
+        <ListaEditable icono={ThumbsUp} titulo="Beneficios concretos que das" items={e.propuesta ?? []} onCambiar={v => set('propuesta', v)} placeholder="Ej.: Preparan el doble de pedidos con la misma gente" />
+      </div>
+
       <section className="tarjeta">
         <div className="tarjeta-titulo"><h3><MessageSquareText size={16} /> Cómo escribirles</h3></div>
         <label>Por dónde entrarle<textarea rows={3} value={e.angulo} onChange={ev => set('angulo', ev.target.value)} /></label>

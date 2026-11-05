@@ -39,12 +39,35 @@ function textoAdjuntos(c: Contexto) {
 ${opcionales.map(a => `[${a.n}] ${a.nombre}${a.descripcion ? ` — ${a.descripcion}` : ''}`).join('\n')}` : ''}`
 }
 export function reglasEmail(c: Contexto) {
-  const largo = c.config.largo === 'corto' ? '50 a 90 palabras' : c.config.largo === 'largo' ? '150 a 230 palabras' : '80 a 140 palabras'
-  return `- Email: asunto corto (máximo 6 palabras, sin mayúsculas sostenidas) y cuerpo de ${largo} con saludo y firma.${c.config.estructura ? `\n- Estructura que pidió la persona para el email (seguila en ese orden): ${String(c.config.estructura).slice(0, 1200)}` : ''}`
+  const largo = c.config.largo === 'corto' ? '70 a 110 palabras' : c.config.largo === 'largo' ? '170 a 240 palabras' : '110 a 170 palabras'
+  const estructura = c.config.estructura
+    ? `- Estructura que pidió la persona para el email (seguila en ese orden): ${String(c.config.estructura).slice(0, 1200)}`
+    : `- Estructura del email (en este orden, en párrafos cortos):
+  1. Saludo.
+  2. PRESENTACIÓN: quién escribe y de qué empresa, y qué hace la empresa en concreto (nombrá los productos o servicios reales y para qué tipo de empresa son). Una o dos oraciones. Nunca la saltees: quien lo lee no nos conoce.
+  3. POR QUÉ A ELLOS: un dato concreto de la ficha de esta empresa (qué hacen, una novedad, su operación) y qué necesidad probable eso genera.
+  4. CÓMO LOS AYUDAMOS: uno o dos beneficios concretos para ESA operación (qué cambia en su día a día), con un caso o cliente parecido sólo si figura en lo que sabemos de nuestra empresa.
+  5. Un paso siguiente concreto y liviano (ej. una llamada de 15 minutos esta semana, o mandarles una propuesta / un caso) y la firma.`
+  return `- Email: asunto corto y específico para ESTA empresa (máximo 7 palabras, sin mayúsculas sostenidas, nada de "Propuesta" o "Oportunidad" a secas) y cuerpo de ${largo} con saludo y firma.
+${estructura}
+- PROHIBIDO lo genérico: frases que servirían para cualquier empresa ("soluciones innovadoras", "optimizar sus procesos", "potenciar su negocio", "llevar al siguiente nivel", "nos especializamos en brindar", "me encantaría charlar" sin decir de qué). Cada oración tiene que decir algo concreto: un producto, un dato de ellos o un beneficio puntual.`
 }
+/** Lo que sabemos de NUESTRA empresa, para que se presente bien (no un resumen de 300 caracteres) */
 const oferta = (c: Contexto) => {
   const e = (c.comercial?.estrategia ?? {}) as Dic, r = (c.comercial?.respuestas ?? {}) as Dic
-  return String(e.resumen || r.que_vende || 'una página web').replace(/\s+/g, ' ').slice(0, 300)
+  const t = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
+  const queVende = t(r.que_vende, 2500)
+  const partes = [
+    e.presentacion && `Cómo nos presentamos: ${t(e.presentacion, 600)}`,
+    // Si "qué vende" es corto, es la descripción; si es un documento largo, va como guía (ver tono) y acá alcanza el resumen
+    queVende && queVende.length <= 400 ? `Qué vendemos: ${queVende}` : e.resumen && `Qué vendemos (resumen): ${t(e.resumen, 500)}`,
+    Array.isArray(e.propuesta) && e.propuesta.length && `Beneficios concretos que ofrecemos: ${e.propuesta.map((x: unknown) => t(x, 200)).join('; ')}`,
+    (r.cliente_ideal || e.cliente_ideal) && `A quién le vendemos: ${t(r.cliente_ideal || e.cliente_ideal, 300)}`,
+    r.diferencial && `Por qué nos eligen: ${t(r.diferencial, 400)}`,
+    r.ejemplos && `Clientes o casos nuestros (podés nombrarlos como referencia si son del mismo tipo de empresa): ${t(r.ejemplos, 400)}`,
+    r.web && `Nuestra web: ${t(r.web, 150)}`,
+  ].filter(Boolean)
+  return partes.length ? partes.map(x => `  - ${x}`).join('\n') : '  - una página web'
 }
 const guia = (c: Contexto) => {
   const t = String(((c.comercial?.respuestas ?? {}) as Dic).que_vende ?? '')
@@ -82,7 +105,8 @@ ${g}
 - Entrá por el VALOR para ESE negocio: algo genuino de lo que hacen y cómo lo que ofrecemos les sirve a ellos.${e.angulo ? `\n- Ángulo de entrada recomendado: ${e.angulo}` : ''}
 - NUNCA por el miedo, la culpa o la urgencia falsa. No critiques su negocio. No prometas resultados.
 - Un solo paso siguiente al final, liviano y sin compromiso.
-- Frases cortas y bien escritas, sin repetir ideas. Hablá de ELLOS (su rubro, su problema probable) antes que de nosotros.${reglaDatos}${reglaIdioma}${c.config.tono ? `\n- Tono que pidió la persona (manda sobre lo anterior): ${String(c.config.tono).slice(0, 400)}` : ''}`
+- Frases claras y bien escritas, sin repetir ideas. Presentate en una o dos oraciones con lo que hacemos en concreto y después hablá de ELLOS (su operación, su necesidad probable) y de qué ganan.
+- Que se note que conocés lo que vendemos: usá los nombres reales de productos o servicios y los beneficios de "Quiénes somos". Nunca describas lo nuestro con palabras vagas.${reglaDatos}${reglaIdioma}${c.config.tono ? `\n- Tono que pidió la persona (manda sobre lo anterior): ${String(c.config.tono).slice(0, 400)}` : ''}`
 }
 
 export function ficha(c: Contexto, p: Dic, contacto?: Dic | null) {
@@ -93,13 +117,17 @@ export function ficha(c: Contexto, p: Dic, contacto?: Dic | null) {
 - Zona: ${p.zona || p.direccion || 's/d'}
 ${p.direccion ? `- Dirección: ${p.direccion}\n` : ''}- Instagram: ${p.instagram || 'no informado'}
 ${c.comercial ? `- Web o presencia online: ${p.web_actual || p.que_tiene_hoy || 's/d'}` : `- Qué tiene hoy en lugar de web: ${p.que_tiene_hoy || 'no tiene web'} (${situacionHoy(String(p.que_tiene_hoy || ''))})`}
+${p.descripcion ? `- Qué es la empresa: ${p.descripcion}` : ''}
 ${p.encaje ? `- Por qué es buen prospecto (de la búsqueda): ${p.encaje}` : ''}
+${(p.razones?.a_favor ?? []).length ? `- Lo que vimos de ellos: ${p.razones.a_favor.slice(0, 4).join('; ')}` : ''}
 ${p.senales ? `- Novedades recientes: ${p.senales}` : ''}
 - Reseñas en Google: ${p.resenas ?? 's/d'} (puntaje ${p.rating ?? 's/d'})
 - Notas del vendedor: ${p.notas || '—'}
 ${contacto?.nombre ? `- A quién le escribimos: ${contacto.nombre}${contacto.cargo ? ` (${contacto.cargo})` : ''}. Saludalo por su nombre.` : '- No tenemos el nombre de una persona: usá un saludo general para la empresa.'}
 
-Quien escribe: ${perfil.nombre || '[tu nombre]'}, de ${(c.comercial?.respuestas as Dic)?.empresa || perfil.estudio || '[tu empresa]'}${c.comercial ? `. Qué ofrecemos: ${oferta(c)}${(c.comercial.respuestas as Dic)?.diferencial ? `. Diferencial: ${(c.comercial.respuestas as Dic).diferencial}` : ''}` : ' (estudio de diseño web)'}.
+Quien escribe: ${perfil.nombre || '[tu nombre]'}${perfil.cargo ? ` (${perfil.cargo})` : ''}, de ${(c.comercial?.respuestas as Dic)?.empresa || perfil.estudio || '[tu empresa]'}${c.comercial ? `.
+Quiénes somos (lo que tenés que contar al presentarte; usá sólo esto, sin inventar clientes ni cifras):
+${oferta(c)}` : ' (estudio de diseño web)'}.
 Firma de email (cerrá el email con esta firma, tal cual): ${perfil.firma || perfil.nombre || ''}${c.firmaImagen ? `\nDebajo de la firma el email lleva sola una imagen (logo): no la menciones.` : ''}${textoAdjuntos(c)}
 ${perfil.portfolio_url ? `Portfolio (mencionalo sólo si suma): ${perfil.portfolio_url}` : ''}
 ${perfil.instrucciones_ia ? `Indicaciones del usuario para todos sus mensajes: ${perfil.instrucciones_ia}` : ''}`
@@ -146,7 +174,7 @@ export async function borradores(c: Contexto, p: Dic, contacto?: Dic | null) {
 ${ficha(c, p, contacto)}
 
 ${tono(c, p)}
-- WhatsApp: 3 a 5 oraciones, máximo 600 caracteres, sin emojis o como mucho uno.
+- WhatsApp: 3 a 5 oraciones, máximo 650 caracteres, sin emojis o como mucho uno. Primero presentate (nombre, empresa y qué hacen en concreto, en una oración), después el porqué a ellos y una pregunta liviana.
 ${reglasEmail(c)}
 - Seguimiento (para quien no respondió en unos días): 1 a 3 oraciones, amable, ofrece algo concreto y deja la puerta abierta a decir que no.
 
@@ -203,7 +231,7 @@ Lo que ya le mandamos (no repitas lo mismo, usá otro ángulo):
 ${o.historial || '(nada todavía: es el primer contacto)'}
 
 ${tono(c, p)}
-${esEmail ? `${o.numero === 0 ? reglasEmail(c) : '- Email de seguimiento: va en el mismo hilo que el anterior, 40 a 90 palabras, con saludo y la firma. Sin reproches por no haber respondido.'}` : `- ${LIMITES_CANAL[paso.tipo] ?? LIMITES_CANAL.whatsapp}`}
+${esEmail ? `${o.numero === 0 ? reglasEmail(c) : '- Email de seguimiento: va en el mismo hilo que el anterior, 50 a 100 palabras, con saludo y la firma. Sin reproches por no haber respondido. Aportá algo concreto y nuevo (otro beneficio, un caso parecido de los nuestros o una idea puntual para su operación); nada de "quería saber si viste mi mail" a secas.'}` : `- ${LIMITES_CANAL[paso.tipo] ?? LIMITES_CANAL.whatsapp}${o.numero === 0 && paso.tipo !== 'linkedin_visita' ? ' Es el primer contacto: presentate (nombre, empresa y qué hacen en concreto) en la primera oración.' : ''}`}
 
 Respondé SOLO con JSON válido: {${esEmail ? '"asunto": "...", ' : ''}"cuerpo": "..."}`
   const r = extraerJSON(await claude(c, prompt))
