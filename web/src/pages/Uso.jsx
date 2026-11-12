@@ -1,95 +1,105 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, Mail, MessageCircle, Flame, Check } from 'lucide-react'
+import { Sparkles, Mail, MessageCircle, Flame, ArrowRight, Check, Zap } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { useApp } from '../App.jsx'
 import { leerIA, COSTOS_IA, GRATIS_IA } from '../lib/uso.js'
 
-function Medidor({ icono: Icono, titulo, periodo, usadas, limite, sinTope, renueva, children }) {
-  const quedan = sinTope ? null : Math.max(0, limite - usadas)
+const n = v => Number(v ?? 0).toLocaleString('es-AR')
+
+/** Un límite, con el mismo formato que los números del Tablero */
+function Limite({ icono: Icono, titulo, quedan, usadas, limite, sinTope, renueva, alerta, nota, accion }) {
   const pct = sinTope ? 0 : Math.min(100, (usadas / Math.max(1, limite)) * 100)
   return (
-    <section className="tarjeta uso-medidor">
-      <div className="uso-cab"><span className="uso-icono"><Icono size={18} /></span><div><h3>{titulo}</h3><small className="muted">{periodo}</small></div></div>
-      <div className="uso-numero">
-        {sinTope ? <b>{usadas.toLocaleString('es-AR')}</b> : <><b>{quedan.toLocaleString('es-AR')}</b><span> te quedan</span></>}
+    <section className={'home-card uso-limite' + (alerta ? ' alerta' : '')}>
+      <header>
+        <div><h3 className="uso-titulo"><Icono size={16} /> {titulo}</h3><small>{sinTope ? 'Sin tope' : `Se renueva ${renueva}`}</small></div>
+        {accion}
+      </header>
+      <div className="uso-cifra">
+        <b>{sinTope ? n(usadas) : n(quedan)}</b>
+        <span>{sinTope ? 'usadas' : quedan === 1 ? 'queda' : 'quedan'}</span>
       </div>
-      <div className={'cupo-barra' + (pct >= 80 ? ' alerta' : '')}><span style={{ width: pct + '%' }} /></div>
-      <p className="muted chico uso-detalle">
-        {sinTope ? 'Tu plan no tiene tope.' : <>Usaste <b>{usadas.toLocaleString('es-AR')}</b> de <b>{limite.toLocaleString('es-AR')}</b> · se renueva <b>{renueva}</b></>}
-      </p>
-      {children}
+      {!sinTope && (
+        <div>
+          <div className={'cupo-barra' + (pct >= 80 ? ' alerta' : '')}><span style={{ width: pct + '%' }} /></div>
+          <span className="rep-kpi-pie">{n(usadas)} de {n(limite)} usadas</span>
+        </div>
+      )}
+      {nota && <p className="muted chico uso-nota">{nota}</p>}
     </section>
   )
 }
 
-/** Uso y límites: los tres límites que hay, cuánto queda de cada uno, cuándo se renuevan y qué gasta cada cosa. */
+/** Uso y límites: cuánto queda de cada límite, cuándo se renueva y qué gasta cada cosa */
 export default function Uso() {
   const { tablero, perfil, acceso } = useApp()
   const [cupo, setCupo] = useState(null)
   useEffect(() => { supabase.rpc('mi_cupo_chat').then(({ data }) => setCupo(data ?? null)) }, [])
   const ia = leerIA(cupo)
   const lim = tablero?.email
-  const wspHoy = lim ? 0 : tablero?.enviados_hoy ?? 0
-  const esAdminEmpresa = perfil?.rol === 'admin' || perfil?.es_admin
+  const wspLimite = perfil?.limite_diario ?? 15
+  const wspUsados = lim ? 0 : tablero?.enviados_hoy ?? 0
+  const esAdmin = perfil?.rol === 'admin' || perfil?.es_admin
 
   return (
-    <>
-      <header className="cabecera">
+    <div className="home">
+      <header className="home-cab">
         <div>
+          <p className="home-fecha">Tu cuenta</p>
           <h1>Uso y límites</h1>
-          <p>Hay tres límites y cada uno cuida algo distinto. Acá ves cuánto te queda de cada uno, cuándo se renueva y qué gasta cada cosa.</p>
+          <p className="home-sub">Tres límites, cada uno cuida algo distinto. Acá ves cuánto te queda y cuándo se renueva.</p>
         </div>
       </header>
 
-      <div className="uso-grilla">
+      <div className="home-grid uso-grid">
         {ia && (
-          <Medidor icono={Sparkles} titulo="IA del plan" periodo={ia.porMes ? `Consultas de IA de toda ${acceso?.empresa || 'tu empresa'}, por mes` : 'Tus consultas de IA, por día'}
-            usadas={ia.usadas} limite={ia.limite} sinTope={ia.sinTope} renueva={ia.renueva}>
-            <p className="chico uso-nota">
-              {ia.agotada
-                ? <>Se terminaron. Hasta que se renueven no se puede buscar ni pedirle textos a Claude; lo demás (tu lista, enviar mails ya escritos, seguimientos) sigue andando. {ia.porMes && (esAdminEmpresa ? 'Para tener más, pedí que te amplíen el plan.' : 'Para tener más, hablá con el admin de tu empresa.')}</>
-                : ia.porMes ? 'Las comparte todo el equipo: lo que usa uno se le descuenta a todos.' : 'Son tuyas y vuelven a cero cada día.'}
-            </p>
-          </Medidor>
+          <Limite icono={Sparkles} titulo="IA del plan" quedan={ia.quedan} usadas={ia.usadas} limite={ia.limite} sinTope={ia.sinTope}
+            renueva={ia.renueva} alerta={ia.pct >= 80}
+            nota={ia.agotada
+              ? `Se terminaron: hasta que se renueven no se puede buscar ni pedirle textos a Claude. Tu lista, los mails ya escritos y los seguimientos siguen andando.${ia.porMes ? (esAdmin ? ' Para tener más, pedí que te amplíen el plan.' : ' Para tener más, hablá con el admin de tu empresa.') : ''}`
+              : ia.porMes ? `Consultas a Claude de toda ${acceso?.empresa || 'tu empresa'}: lo que usa uno se le descuenta a todo el equipo.` : 'Tus consultas a Claude de hoy.'} />
         )}
 
         {lim ? (
-          <Medidor icono={Mail} titulo="Emails de tu casilla" periodo="Mails que salen desde tu cuenta de email, por día"
-            usadas={lim.enviados_hoy ?? 0} limite={lim.limite_hoy ?? 0} renueva="mañana">
-            <p className="chico uso-nota">
-              {lim.calentando
-                ? <><Flame size={12} style={{ verticalAlign: -1 }} /> Tu casilla está en calentamiento (semana {lim.etapa} de 3): arranca con pocos por día y sube sola. Es para que tus mails no caigan en spam. Después de eso vas a poder mandar hasta {lim.elegido} por día.</>
-                : <>Es para que tus mails no caigan en spam. Lo que no entra hoy sale solo mañana. Lo cambiás en <Link to="/email">Email</Link>.</>}
-            </p>
-          </Medidor>
+          <Limite icono={Mail} titulo="Emails de tu casilla" quedan={Math.max(0, (lim.limite_hoy ?? 0) - (lim.enviados_hoy ?? 0))}
+            usadas={lim.enviados_hoy ?? 0} limite={lim.limite_hoy ?? 0} renueva="mañana"
+            nota={lim.calentando
+              ? <><Flame size={12} style={{ verticalAlign: -1 }} /> Casilla en calentamiento, semana {lim.etapa} de 3: sube sola hasta {lim.elegido} por día. Así tus mails no caen en spam.</>
+              : 'Para que tus mails no caigan en spam. Lo que no entra hoy sale solo mañana.'}
+            accion={<Link to="/email" className="chico">Cambiar <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link>} />
         ) : (
-          <section className="tarjeta uso-medidor">
-            <div className="uso-cab"><span className="uso-icono"><Mail size={18} /></span><div><h3>Emails de tu casilla</h3><small className="muted">Mails que salen desde tu cuenta de email, por día</small></div></div>
-            <p className="muted chico uso-nota">Todavía no conectaste tu email. <Link to="/email">Conectalo</Link> para mandar mails desde Prospecta.</p>
+          <section className="home-card uso-limite">
+            <header><div><h3 className="uso-titulo"><Mail size={16} /> Emails de tu casilla</h3><small>Por día</small></div></header>
+            <p className="muted">Todavía no conectaste tu email.</p>
+            <Link className="btn primario uso-boton" to="/email">Conectar mi email <ArrowRight size={15} /></Link>
           </section>
         )}
 
-        <Medidor icono={MessageCircle} titulo="WhatsApp e Instagram" periodo="Mensajes que mandás vos a mano, por día"
-          usadas={wspHoy} limite={perfil?.limite_diario ?? 15} renueva="mañana">
-          <p className="chico uso-nota">Prospecta escribe el mensaje y vos lo mandás desde tu teléfono. El tope es para cuidar tu número: lo elegís en <Link to="/cuenta">Mi cuenta</Link> («Ritmo de contacto»).</p>
-        </Medidor>
+        <Limite icono={MessageCircle} titulo="WhatsApp e Instagram" quedan={Math.max(0, wspLimite - wspUsados)} usadas={wspUsados} limite={wspLimite}
+          renueva="mañana" nota="Mensajes que mandás vos desde tu teléfono. El tope cuida tu número."
+          accion={<Link to="/cuenta" className="chico">Cambiar <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link>} />
       </div>
 
-      <section className="tarjeta">
-        <h3 style={{ marginTop: 0 }}>Qué gasta la IA del plan</h3>
-        <p className="muted chico" style={{ marginTop: 0 }}>Una «consulta de IA» es un pedido a Claude. No importa cuánto texto escriba: cada pedido cuenta uno.</p>
-        <div className="scroll-x">
-          <table className="tabla">
-            <thead><tr><th>Qué hacés</th><th>Cuánto usa</th><th /></tr></thead>
-            <tbody>
-              {COSTOS_IA.map(([que, cuanto, nota]) => <tr key={que}><td>{que}</td><td className="nowrap"><b>{cuanto}</b></td><td className="muted chico">{nota}</td></tr>)}
-            </tbody>
-          </table>
-        </div>
-        <h4 style={{ marginBottom: 6 }}>No gastan nada</h4>
-        <ul className="uso-gratis">{GRATIS_IA.map(g => <li key={g}><Check size={13} /> {g}</li>)}</ul>
-      </section>
-    </>
+      <div className="home-grid uso-grid-costos">
+        <section className="home-card">
+          <header><div><h3 className="uso-titulo"><Zap size={16} /> Qué gasta la IA del plan</h3><small>Cada pedido a Claude cuenta uno, escriba lo que escriba</small></div></header>
+          <div className="accion-lista">
+            {COSTOS_IA.map(([que, cuanto, nota]) => (
+              <div key={que} className="accion-item uso-costo">
+                <div><b className="fuerte">{que}</b>{nota && <div className="muted chico">{nota}</div>}</div>
+                <span className="espacio" /><span className="chip ia">{cuanto}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="home-card">
+          <header><div><h3 className="uso-titulo"><Check size={16} /> No gastan nada</h3><small>Usalas todo lo que quieras</small></div></header>
+          <div className="accion-lista">
+            {GRATIS_IA.map(g => <div key={g} className="accion-item uso-costo"><b className="fuerte">{g}</b><span className="espacio" /><span className="chip ok">gratis</span></div>)}
+          </div>
+        </section>
+      </div>
+    </div>
   )
 }
