@@ -81,13 +81,7 @@ export default function Prospecto() {
       llamarFuncion('verificar-email', { ids: [p.id] }).then(cargar).catch(() => {})
     }
   }, [p?.id, p?.email, p?.email_verificado_at])
-  // Si todavía no hay borradores, Claude los escribe solo al abrir la ficha (con tu negocio, tu firma y tus archivos)
-  const autoGenerado = useRef(new Set())
-  useEffect(() => {
-    if (!p || p.id !== id || Object.keys(msgs).length || !servicios.ia || NO_CONTACTAR.includes(p.estado) || p.owner_id !== session.user.id || autoGenerado.current.has(id)) return
-    autoGenerado.current.add(id)
-    generar()
-  }, [p, msgs, servicios.ia])
+  // Los borradores se escriben cuando los pedís con el botón: abrir una ficha para mirarla no gasta IA.
 
   if (!p) return <Cargando />
   const ajena = p.owner_id !== session.user.id // la trabaja otra persona del equipo

@@ -9,6 +9,7 @@ import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabas
 import { borradoresPlantilla, nombreCorto } from '../_shared/plantillas.js'
 import { cargarContexto, borradores, reescribir, responder, fijos, textoB2C, guionLlamada, briefReunion, type Contexto } from '../_shared/redactar.ts'
 import { anotarChatUso, anotarSinCupo } from '../_shared/uso.ts'
+import { conFirma } from '../_shared/correo.ts'
 
 const MAX_POR_LLAMADA = 25
 type Dic = Record<string, any>
@@ -97,7 +98,7 @@ Deno.serve(async req => {
       const historial = (hs ?? []).map((h: Dic) => `- ${h.created_at.slice(0, 10)} ${h.tipo}: ${String(h.detalle ?? '').slice(0, 300)}`).join('\n')
       const b = await responder(ctx, p, r, historial)
       const { data: m, error } = await supabase.from('mensajes').upsert({
-        prospecto_id: p.id, owner_id: user.id, tipo: 'respuesta', asunto: b.asunto, cuerpo: b.cuerpo, generado_por: 'ia', editado: false,
+        prospecto_id: p.id, owner_id: user.id, tipo: 'respuesta', asunto: b.asunto, cuerpo: conFirma(b.cuerpo, ctx.perfil?.firma ?? ''), generado_por: 'ia', editado: false,
         enviado_at: null, en_respuesta_a: r.message_id, adjuntos: [],
       }, { onConflict: 'prospecto_id,tipo' }).select().single()
       if (error) return json({ error: error.message }, 500)
@@ -119,15 +120,17 @@ Deno.serve(async req => {
     let errorIA = ''
     const uno = async (p: Dic) => {
       if (NO_ESCRIBIR.includes(p.estado)) { resultados[p.id] = 'omitido: no contactar'; return }
-      const { data: existentes } = await supabase.from('mensajes').select('tipo, editado').eq('prospecto_id', p.id)
+      const { data: existentes } = await supabase.from('mensajes').select('tipo, editado, enviado_at').eq('prospecto_id', p.id)
       const editados = new Set((existentes ?? []).filter((m: Dic) => m.editado).map((m: Dic) => m.tipo))
+      // Lo que ya se envió no se reescribe nunca (ni con «forzar»): es el registro de lo que salió
+      const enviados = new Set((existentes ?? []).filter((m: Dic) => m.enviado_at).map((m: Dic) => m.tipo))
       let b: Dic, origen = 'plantilla'
       if (key) {
         try { b = await borradores(ctx, p, await contactoPrincipal(supabase, p.id)); origen = 'ia' }
         catch (e) {
+          // Mejor sin borrador que uno genérico que no habla de lo que vendés
           errorIA = e instanceof Error ? e.message : String(e); console.error(e)
-          if (ctx.comercial) { resultados[p.id] = 'error: ' + errorIA; return } // mejor sin borrador que uno malo
-          b = borradoresPlantilla(p, ctx.perfil)
+          resultados[p.id] = 'error: ' + errorIA; return
         }
       } else {
         if (ctx.comercial) { resultados[p.id] = 'error: falta la clave de Claude'; return }
@@ -136,16 +139,18 @@ Deno.serve(async req => {
       if (!b.email.adjuntos?.length) b.email.adjuntos = fijos(ctx).map(a => a.id)
       const filas = [
         { tipo: 'whatsapp', asunto: '', cuerpo: b.whatsapp, adjuntos: [] as string[], personalizado: [] },
-        { tipo: 'email', asunto: b.email.asunto, cuerpo: b.email.cuerpo, adjuntos: b.email.adjuntos ?? [], personalizado: b.personalizado ?? [] },
-        { tipo: 'seguimiento', asunto: `Re: ${b.email.asunto || nombreCorto(p.nombre)}`, cuerpo: b.seguimiento, adjuntos: [] as string[], personalizado: [] },
-      ].filter(f => solo_email ? f.tipo === 'email' && !editados.has('email') : (forzar || !editados.has(f.tipo)))
+        { tipo: 'email', asunto: b.email.asunto, cuerpo: conFirma(b.email.cuerpo, ctx.perfil?.firma ?? ''), adjuntos: b.email.adjuntos ?? [], personalizado: b.personalizado ?? [] },
+        { tipo: 'seguimiento', asunto: `Re: ${b.email.asunto || nombreCorto(p.nombre)}`, cuerpo: conFirma(b.seguimiento, ctx.perfil?.firma ?? ''), adjuntos: [] as string[], personalizado: [] },
+      ].filter(f => !enviados.has(f.tipo) && (solo_email ? f.tipo === 'email' && !editados.has('email') : (forzar || !editados.has(f.tipo))))
         .map(f => ({ ...f, prospecto_id: p.id, owner_id: user.id, generado_por: origen, editado: false }))
+      if (!filas.length) { resultados[p.id] = 'omitido: ya enviado o editado'; return }
       const { error: e2 } = await supabase.from('mensajes').upsert(filas, { onConflict: 'prospecto_id,tipo' })
       resultados[p.id] = e2 ? 'error: ' + e2.message : `${origen} (${filas.length})`
     }
     const lista = prospectos ?? []
     for (let i = 0; i < lista.length; i += 5) await Promise.all(lista.slice(i, i + 5).map(uno)) // de a 5 para no saturar a Claude
-    if (key && (prospectos ?? []).length) await anotarChatUso(admin(), user.id, 'prospecta_redactar', ctx.uso, ctx.modelo)
+    // Se descuenta sólo si Claude escribió al menos un mensaje (no por omitidos ni por fallos)
+    if (key && Object.values(resultados).some(r => r.startsWith('ia'))) await anotarChatUso(admin(), user.id, 'prospecta_redactar', ctx.uso, ctx.modelo)
     const fallidos = Object.values(resultados).filter(r => r.startsWith('error')).length
     return json({ ok: true, ia: !!key, error_ia: errorIA ? `Claude no pudo escribir ${fallidos === 1 ? 'un email' : fallidos + ' emails'}. Probá de nuevo en un momento.` : undefined, resultados })
   } catch (e) {

@@ -3,9 +3,17 @@
   "short_name": "Prospecta",
   "description": "Conseguí clientes para tu negocio con Claude: buscá, escribí y seguí cada contacto.",
   "lang": "es-AR",
-  "start_url": "/",
+  "id": "/",
+  "start_url": "/buscar",
   "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    { "name": "Buscar", "url": "/buscar" },
+    { "name": "Por revisar", "url": "/revisar" },
+    { "name": "Tu lista", "url": "/prospectos" }
+  ],
   "background_color": "#ffffff",
   "theme_color": "#fd4a22",
   "icons": [

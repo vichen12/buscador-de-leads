@@ -160,6 +160,23 @@ export async function guardarEnEnviados(cfg: Dic, clave: string, msg: string) {
   } finally { im.cerrar() }
 }
 
+/**
+ * La firma la pone el sistema, siempre: antes se le pedía a Claude que la escribiera al final, y un
+ * borrador editado, una respuesta o una plantilla podían salir sin ella. Si el texto ya termina con
+ * la firma (entera o un pedazo: sólo el nombre), se reemplaza por la firma completa; no se duplica.
+ */
+export function conFirma(cuerpo: string, firma: string) {
+  const f = String(firma ?? '').trim()
+  if (!f) return cuerpo
+  const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s,.;:!-]+/g, ' ').trim()
+  const lineasFirma = new Set(f.split('\n').map(norm).filter(Boolean))
+  const lineas = String(cuerpo ?? '').replace(/\s+$/, '').split('\n')
+  while (lineas.length && (!norm(lineas[lineas.length - 1]) || lineasFirma.has(norm(lineas[lineas.length - 1])))) lineas.pop()
+  return `${lineas.join('\n')}\n\n${f}`
+}
+/** Un borrador con partes sin completar («[tu nombre]», «[COMPLETAR…]») no puede salir. */
+export const SIN_COMPLETAR = /\[(tu |su |COMPLETAR|nombre\]|empresa\])/i
+
 /** Firma con imagen y adjuntos elegidos, leídos del storage (sólo los del propio usuario) */
 export async function archivosDe(db: any, owner: string, ids: string[]) {
   const { data } = await db.from('archivos').select('*').eq('owner_id', owner)
@@ -250,7 +267,7 @@ export function sinCita(t: string) {
   const corte = t.search(/\n\s*(El .{2,160} escribió:|On .{2,160} wrote:|-{2,}\s*(Mensaje original|Original Message)|De:\s.+\n|From:\s.+\n|Enviado desde mi|Sent from my)/i)
   return (corte > 0 ? t.slice(0, corte) : t).split('\n').filter(l => !l.trim().startsWith('>')).join('\n').trim()
 }
-export const PIDE_BAJA = /\b(dar(me|nos)? de baja|no (me|nos) (escriban|escribas|escriba|contacten|contactes|env[ií]en|manden|mandes)( m[aá]s)?|no (quiero|queremos|deseo|deseamos) recibir|sacame|s[aá]quenme|elimin(en|ar)(me)? de (su|la|tu) lista|remove me|unsubscribe|stop emailing|do not contact)\b/i
+export const PIDE_BAJA = /\b(dar(me|nos)? de baja|no (me|nos) (escriban|escribas|escriba|contacten|contactes|env[ií]en|manden|mandes) m[aá]s|no (quiero|queremos|deseo|deseamos) recibir|sacame|s[aá]quenme|elimin(en|ar)(me)? de (su|la|tu) lista|remove me|unsubscribe|stop emailing|do not contact)\b/i
 export const ES_REBOTE_DE = /mailer-daemon|postmaster|mail delivery|maildelivery/i
 export const ES_REBOTE_ASUNTO = /undeliver|delivery status notification|delivery failure|failure notice|returned mail|mail delivery failed|no se pudo entregar|no entregado|devuelto|rebot|message not delivered|address not found/i
 
@@ -439,10 +456,11 @@ export async function enviarUno(db: any, owner: string, o: { prospecto_id: strin
   const [{ data: cfg }, { data: p }, { data: perfil }] = await Promise.all([
     db.from('conexiones_correo').select('*').eq('owner_id', owner).maybeSingle(),
     db.from('prospectos').select('*').eq('id', o.prospecto_id).eq('owner_id', owner).maybeSingle(),
-    db.from('perfiles').select('nombre').eq('id', owner).maybeSingle(),
+    db.from('perfiles').select('nombre, firma').eq('id', owner).maybeSingle(),
   ])
   if (!cfg) throw new ErrorEnvio('Todavía no conectaste tu email. Hacelo en Email.', 'SIN_CORREO')
   if (!p) throw new ErrorEnvio('No encontré la empresa.', 'NO_ENCONTRADO')
+  if (SIN_COMPLETAR.test(`${o.asunto} ${o.cuerpo}`)) throw new ErrorEnvio('El mensaje tiene partes sin completar (por ejemplo «[tu nombre]»). Editalo antes de enviarlo.', 'SIN_COMPLETAR')
   const para = String(p.email ?? '').trim()
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)) throw new ErrorEnvio('La empresa no tiene un email válido.', 'SIN_EMAIL')
   if (['no_interesado', 'no_contactar'].includes(p.estado)) throw new ErrorEnvio('Esta empresa pidió no ser contactada.', 'OPT_OUT')
@@ -471,7 +489,7 @@ export async function enviarUno(db: any, owner: string, o: { prospecto_id: strin
   const messageId = `<${crypto.randomUUID()}@${String(cfg.email).split('@')[1]}>`
   const remitente = { ...cfg, nombre_remitente: cfg.nombre_remitente || perfil?.nombre || '' }
   let copia = ''
-  try { copia = await enviarMail(remitente, clave, para, o.asunto || 'Hola', o.cuerpo, { ...extra, baja: eTok ? '' : `${base}/baja/${token}`, messageId, enRespuestaA: o.hilo || '' }) }
+  try { copia = await enviarMail(remitente, clave, para, o.asunto || 'Hola', conFirma(o.cuerpo, perfil?.firma ?? ''), { ...extra, baja: eTok ? '' : `${base}/baja/${token}`, messageId, enRespuestaA: o.hilo || '' }) }
   catch (e) {
     const msg = explicar(e, cfg)
     // Errores 4xx de SMTP o de conexión son temporales: se reintenta más tarde. 5xx y credenciales, no.
@@ -498,7 +516,7 @@ export async function enviarACliente(db: any, owner: string, o: { cliente_id: st
   const [{ data: cfg }, { data: cl }, { data: perfil }] = await Promise.all([
     db.from('conexiones_correo').select('*').eq('owner_id', owner).maybeSingle(),
     db.from('clientes').select('*').eq('id', o.cliente_id).eq('owner_id', owner).maybeSingle(),
-    db.from('perfiles').select('nombre').eq('id', owner).maybeSingle(),
+    db.from('perfiles').select('nombre, firma').eq('id', owner).maybeSingle(),
   ])
   if (!cfg) throw new ErrorEnvio('Todavía no conectaste tu email. Hacelo en Email.', 'SIN_CORREO')
   if (!cl) throw new ErrorEnvio('No encontré el cliente.', 'NO_ENCONTRADO')
@@ -529,7 +547,7 @@ export async function enviarACliente(db: any, owner: string, o: { cliente_id: st
   const messageId = `<${crypto.randomUUID()}@${String(cfg.email).split('@')[1]}>`
   const remitente = { ...cfg, nombre_remitente: cfg.nombre_remitente || perfil?.nombre || '' }
   let copia = ''
-  try { copia = await enviarMail(remitente, clave, para, poner(o.asunto || 'Hola'), poner(o.cuerpo), { firma: extra.firma, baja: eTok ? '' : `${base}/baja/${token}`, messageId }) }
+  try { copia = await enviarMail(remitente, clave, para, poner(o.asunto || 'Hola'), conFirma(poner(o.cuerpo), perfil?.firma ?? ''), { firma: extra.firma, baja: eTok ? '' : `${base}/baja/${token}`, messageId }) }
   catch (e) {
     const temporal = /SMTP 4\d\d|No pude conectar|no responde|cerró/i.test((e as Error).message ?? '')
     throw new ErrorEnvio('No se pudo enviar: ' + explicar(e, cfg), 'SMTP', temporal)

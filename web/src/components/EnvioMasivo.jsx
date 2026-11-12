@@ -69,8 +69,22 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
         setProgreso(`Claude está escribiendo ${Math.min(i + 4, aEscribir.length)} de ${aEscribir.length} emails personalizados…`)
         await llamarFuncion('generar-mensajes', { prospecto_ids: aEscribir.slice(i, i + 4), solo_email: true })
       }
-      const { data: ms } = await supabase.from('mensajes').select('*').in('prospecto_id', ids).eq('tipo', 'email')
-      const porId = Object.fromEntries((ms ?? []).filter(m => m.cuerpo?.trim()).map(m => [m.prospecto_id, m]))
+      // A las que ya les salió el primer mail les toca el de seguimiento (antes quedaban como «Ya enviado» y no se podía mandar nada)
+      const sinSeguimiento = async () => {
+        const { data } = await supabase.from('mensajes').select('prospecto_id').in('prospecto_id', [...yaEnviados]).eq('tipo', 'seguimiento')
+        const con = new Set((data ?? []).map(m => m.prospecto_id))
+        return [...yaEnviados].filter(id => !con.has(id))
+      }
+      const faltan = yaEnviados.size ? await sinSeguimiento() : []
+      for (let i = 0; i < faltan.length; i += 4) {
+        setProgreso(`Claude está escribiendo ${Math.min(i + 4, faltan.length)} de ${faltan.length} seguimientos…`)
+        await llamarFuncion('generar-mensajes', { prospecto_ids: faltan.slice(i, i + 4) })
+      }
+      const { data: ms } = await supabase.from('mensajes').select('*').in('prospecto_id', ids).in('tipo', ['email', 'seguimiento'])
+      const conTexto = (ms ?? []).filter(m => m.cuerpo?.trim())
+      const porId = {}
+      for (const m of conTexto.filter(m => m.tipo === 'email')) porId[m.prospecto_id] = m
+      for (const m of conTexto.filter(m => m.tipo === 'seguimiento')) if (porId[m.prospecto_id]?.enviado_at && !m.enviado_at) porId[m.prospecto_id] = m
       setSinBorrador(lista.filter(p => !porId[p.id]))
       setItems(lista.filter(p => porId[p.id]).map((p, i) => {
         const m = porId[p.id]
@@ -121,10 +135,11 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
       if (!vivo) return
       if (l) setLote(l)
       for (const c of cola ?? []) cambiar(c.prospecto_id, { estado: c.estado === 'enviado' ? 'ok' : c.estado === 'fallido' || c.estado === 'cancelado' ? 'error' : c.estado, error: c.estado === 'enviado' ? '' : c.error, proximo: c.proximo_at })
-      if (l?.estado === 'terminado' || l?.estado === 'cancelado') { setFase('listo'); refrescar(); onListo?.() }
+      // Terminó: se deja de consultar (antes seguía recargando toda la app cada 4 segundos)
+      if (l?.estado === 'terminado' || l?.estado === 'cancelado') { clearInterval(t); setFase('listo'); refrescar(); onListo?.(); return }
       if (l?.estado === 'pausado') setFase('pausado'); else if (l?.estado === 'activo') setFase('enviando')
     }
-    leer(); const t = setInterval(leer, 4000)
+    const t = setInterval(leer, 4000); leer()
     return () => { vivo = false; clearInterval(t) }
   }, [lote?.id])
   async function controlar(accion) {

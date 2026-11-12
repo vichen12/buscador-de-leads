@@ -5,7 +5,7 @@
 //  3. Casillas: lee las respuestas cada 10 minutos y las clasifica con Claude.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { claveServicio } from '../_shared/supabase.ts'
-import { enviarUno, revisarCasilla, ErrorEnvio, explicar } from '../_shared/correo.ts'
+import { enviarUno, revisarCasilla, ErrorEnvio, explicar, SIN_COMPLETAR } from '../_shared/correo.ts'
 import { cargarContexto, pasoSecuencia, aplicarPlantilla, clasificarRespuesta, type Contexto } from '../_shared/redactar.ts'
 import { resumenSemanal } from '../_shared/resumen.ts'
 import { anotarChatUso, anotarSinCupo } from '../_shared/uso.ts'
@@ -119,7 +119,9 @@ async function procesarSecuencias(db: any, fin: number) {
       } else if (ins.paso === 0 && paso.tipo === 'email') {
         // Primer mail: si ya hay un borrador de email sin enviar, se usa ese (puede estar revisado por la persona)
         const { data: m } = await db.from('mensajes').select('*').eq('prospecto_id', p.id).eq('tipo', 'email').maybeSingle()
-        if (m?.cuerpo && !m.enviado_at) { asunto = m.asunto || 'Hola'; cuerpo = m.cuerpo }
+        // Sólo un borrador de verdad: escrito por Claude o revisado por la persona, y sin partes sin completar.
+        // Una plantilla genérica nunca sale sola.
+        if (m?.cuerpo && !m.enviado_at && (m.generado_por === 'ia' || m.editado) && !SIN_COMPLETAR.test(m.cuerpo)) { asunto = m.asunto || 'Hola'; cuerpo = m.cuerpo }
       }
       if (!cuerpo) {
         if (!key) throw new Error('Falta la clave de Claude para escribir este paso')

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import './styles.css'
+import './lib/instalar.js' // registra la app instalable (PWA)
 // Tema guardado (claro / oscuro / según el sistema)
 try { const t = localStorage.getItem('prospecta-tema') || 'claro'; if (t === 'oscuro' || (t === 'sistema' && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.tema = 'oscuro' } catch { /* nada */ }
 import { supabase } from './lib/supabase.js'

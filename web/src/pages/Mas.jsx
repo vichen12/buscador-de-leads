@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Sun, Flame, Ban, Workflow, BookOpen, MapPin, Target, Upload, Bot,
-  Store, Package, Mail, UsersRound, Plug, Gauge, UserCircle, Crown, LifeBuoy, ChevronRight,
+  Store, Package, Mail, UsersRound, Plug, Gauge, UserCircle, Crown, LifeBuoy, ChevronRight, Smartphone, Download,
 } from 'lucide-react'
 import { useApp } from '../App.jsx'
+import { useInstalar } from '../lib/instalar.js'
 
 /**
  * Todo lo que no está en el menú principal (que quedó en 7 cosas): herramientas que se usan de vez en
@@ -11,6 +12,7 @@ import { useApp } from '../App.jsx'
  */
 export default function Mas() {
   const { perfil } = useApp()
+  const app = useInstalar()
   const esAdminEquipo = perfil?.rol === 'admin' || perfil?.es_admin
   const grupos = [
     ['Herramientas', 'Para cuando las necesites', [
@@ -45,6 +47,16 @@ export default function Mas() {
           <p className="home-sub">Herramientas que usás de vez en cuando y la configuración de tu cuenta.</p>
         </div>
       </header>
+      {!app.instalada && (app.puede || app.iphone) && (
+        <section className="home-card instalar-app">
+          <Smartphone size={22} aria-hidden="true" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3>Instalá Prospecta como app</h3>
+            <small>{app.puede ? 'Queda en tu pantalla de inicio y abre sin el navegador.' : 'En iPhone: tocá Compartir y después «Agregar a inicio».'}</small>
+          </div>
+          {app.puede && <button className="btn primario" onClick={app.instalar}><Download size={15} /> Instalar</button>}
+        </section>
+      )}
       <div className="home-grid">
         {grupos.map(([titulo, sub, items]) => (
           <section key={titulo} className="home-card">
