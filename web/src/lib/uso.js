@@ -33,9 +33,9 @@ export function leerIA(cupo, hoy = new Date()) {
 }
 
 /** «Usa 1 consulta de IA · te quedan 315 (se renuevan el 1 de diciembre)». */
-export function textoCosto(ia, consultas = 1) {
+export function textoCosto(ia, consultas = 1, aprox = false) {
   if (!ia) return ''
-  const usa = `Usa ${consultas} crédito${consultas === 1 ? '' : 's'}`
+  const usa = `Usa ${aprox ? 'unos ' : ''}${consultas} crédito${consultas === 1 ? '' : 's'}`
   if (ia.sinTope) return usa
   if (ia.agotada) return ia.porMes ? `Tu empresa ya usó todas las consultas de IA del mes (se renuevan ${ia.renueva})` : 'No te quedan consultas de IA hoy (se renuevan mañana)'
   return `${usa} · ${ia.porMes ? 'a tu empresa le quedan' : 'te quedan'} ${ia.quedan.toLocaleString('es-AR')} (se renuevan ${ia.renueva})`
@@ -43,7 +43,7 @@ export function textoCosto(ia, consultas = 1) {
 
 /** Qué gasta cada cosa. Lo muestran «Uso y límites» y la Ayuda: tiene que ser una sola lista. */
 export const COSTOS_IA = [
-  ['Una búsqueda de empresas', '1, 3 o 5 créditos', 'Según con qué busques: Rápida 1, Mejor 3, Máxima 5. Da igual si pedís 10 o 40 empresas.'],
+  ['Una búsqueda de empresas', 'unos 5, 15 o 30 créditos', 'Según con qué busques (Rápida, Mejor o Máxima) y cuánto trabajo le lleve. Se descuenta el costo real; si no encuentra nada, como mucho 1.'],
   ['Un mensaje al Asistente', '1 consulta', ''],
   ['Armar o rehacer «Mi negocio»', '1 consulta', ''],
   ['Guion de llamada o brief de reunión', '1 consulta', ''],

@@ -7,13 +7,17 @@ import { buscar } from '../../../supabase/functions/_shared/buscar.ts';
 type Dic = Record<string, any>;
 
 /** Base de mentira: cualquier consulta encadenada devuelve vacío; anota inserts por tabla. */
-function baseFalsa(datos: Record<string, Dic[]> = {}, opciones: { fallaGuardar?: boolean } = {}) {
+function baseFalsa(datos: Record<string, Dic[]> = {}, opciones: { fallaGuardar?: boolean; reserva?: number[] | 'sin_cupo' } = {}) {
   const inserts: Record<string, Dic[]> = {};
+  const borrados: number[] = [];
   const consulta = (tabla: string) => {
     let filas: Dic[] | null = null;
     const q: Dic = {};
     for (const m of ['select', 'in', 'eq', 'order', 'limit', 'update', 'neq', 'not', 'or', 'contains'])
       q[m] = () => q;
+    let borrando = false;
+    q.delete = () => { borrando = true; return q; };
+    q.in = (_c: string, vals: number[]) => { if (borrando && tabla === 'chat_uso') borrados.push(...vals); return q; };
     q.insert = (f: Dic | Dic[]) => {
       (inserts[tabla] ??= []).push(...(Array.isArray(f) ? f : [f]));
       filas = Array.isArray(f) ? f : [f];
@@ -31,8 +35,12 @@ function baseFalsa(datos: Record<string, Dic[]> = {}, opciones: { fallaGuardar?:
     q.then = (ok: (v: unknown) => void) => ok({ data: filas ?? datos[tabla] ?? [], error: null });
     return q;
   };
-  const db = { from: consulta, rpc: async () => ({ data: { usados: 0, limite: 100 }, error: null }) };
-  return { db, inserts };
+  const db = { from: consulta, rpc: async (nombre: string) => {
+    if (nombre === 'reservar_creditos' && opciones.reserva)
+      return { data: opciones.reserva === 'sin_cupo' ? { ok: false, cupo: { mensaje: 'Sin créditos' } } : { ok: true, ids: opciones.reserva }, error: null };
+    return { data: { usados: 0, limite: 100 }, error: null };
+  } };
+  return { db, inserts, borrados };
 }
 
 type Respuestas = { sitio?: string; web?: Dic[]; hangVerificar?: boolean; hangFichas?: boolean; alColgar?: () => void };
@@ -73,8 +81,8 @@ function redFalsa(r: Respuestas = {}) {
 }
 
 const brief = { interpretacion: 'distribuidoras con depósito', buscar: ['distribuidora'], incluir: ['distribuidoras'], excluir: [] };
-async function correr(body: Dic, { places = 'AIza-falsa', datos = {}, fallaGuardar = false }: { places?: string; datos?: Record<string, Dic[]>; fallaGuardar?: boolean } = {}) {
-  const { db, inserts } = baseFalsa(datos, { fallaGuardar });
+async function correr(body: Dic, { places = 'AIza-falsa', datos = {}, fallaGuardar = false, reserva }: { places?: string; datos?: Record<string, Dic[]>; fallaGuardar?: boolean; reserva?: number[] | 'sin_cupo' } = {}) {
+  const { db, inserts, borrados } = baseFalsa(datos, { fallaGuardar, reserva });
   const usuario = { supabase: db, user: { id: 'u1' } };
   const claves: Dic = { anthropic: 'sk-ant-falsa', google_places: places };
   const res = await buscar(new Request('http://x', { method: 'POST', body: JSON.stringify({ rubro: 'distribuidoras', zona: 'Mendoza, Argentina', cantidad: 10, brief, ...body }) }), {
@@ -83,7 +91,7 @@ async function correr(body: Dic, { places = 'AIza-falsa', datos = {}, fallaGuard
     json: (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s }),
     admin: () => db,
   });
-  return { status: res.status, data: (await res.json()) as Dic, inserts };
+  return { status: res.status, data: (await res.json()) as Dic, inserts, borrados };
 }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -255,24 +263,51 @@ describe('si no se puede guardar en Por revisar', () => {
   });
 });
 
-describe('con qué se busca (créditos)', () => {
-  it('rápida: 1 crédito', async () => {
-    redFalsa();
-    const { data, inserts } = await correr({ fuente: 'claude' });
-    expect(data.creditos).toBe(1);
-    expect(inserts.chat_uso).toHaveLength(1);
+describe('créditos: se cobra el costo real con el doble de margen', () => {
+  it('la cuenta: una búsqueda que cuesta 25 centavos se cobra como 50', async () => {
+    const { costoUsd, creditosPorCosto, PRECIOS } = await import('../../../supabase/functions/_shared/buscar.ts');
+    // 100.000 tokens de entrada y 10.000 de salida del modelo económico + 8 búsquedas web + 2 consultas a Maps
+    const uso = { por: { 'claude-haiku-5-5': { in: 100_000, out: 10_000 } }, busquedasWeb: 8 };
+    const costo = costoUsd(uso, 2);
+    expect(costo).toBeCloseTo(0.1 + 0.05 + 0.08 + 0.07, 5); // 0,30 dólares
+    expect(creditosPorCosto(costo)).toBe(6); // 0,30 × 2 = 0,60 → 6 créditos de 10 centavos
+    expect(creditosPorCosto(0.25)).toBe(5);
+    expect(creditosPorCosto(0)).toBe(1); // nunca gratis
+    expect(creditosPorCosto(1000)).toBe(PRECIOS.tope_creditos); // con tope, por si algo se dispara
+    // el mismo trabajo con el modelo más potente cuesta más créditos
+    expect(costoUsd({ por: { 'claude-opus-5-5': { in: 100_000, out: 10_000 } }, busquedasWeb: 8 }, 2)).toBeGreaterThan(costo);
+    // los precios se pueden corregir desde la configuración
+    expect(creditosPorCosto(0.25, { valor_credito: 0.05, margen: 3 })).toBe(15);
   });
-  it('máxima: busca con el modelo más potente y descuenta 5 créditos', async () => {
+  it('lo cobrado coincide con las filas anotadas, y el modelo sale de la calidad elegida', async () => {
     const red = redFalsa();
     const { data, inserts } = await correr({ fuente: 'claude', calidad: 'maxima' });
     expect(red.modelosWeb.length).toBeGreaterThan(0);
     expect(red.modelosWeb.every((m: string) => m === 'claude-opus-5-5')).toBe(true);
-    expect(data.creditos).toBe(5);
-    expect(inserts.chat_uso).toHaveLength(5);
+    expect(data.creditos).toBeGreaterThanOrEqual(1);
+    expect(inserts.chat_uso).toHaveLength(data.creditos);
+    expect(data.costo_usd).toBeGreaterThan(0);
   });
   it('una calidad inventada cae en rápida', async () => {
     redFalsa();
     const { data } = await correr({ fuente: 'claude', calidad: 'gratis-total' });
     expect(data.calidad).toBe('rapida');
+  });
+});
+
+describe('reserva de créditos (no se puede pasar del plan con búsquedas a la vez)', () => {
+  it('reserva el estimado y al terminar devuelve lo que sobró', async () => {
+    redFalsa();
+    const { data, borrados, inserts } = await correr({ fuente: 'claude' }, { reserva: [11, 12, 13, 14, 15] });
+    expect(data.creditos).toBeGreaterThanOrEqual(1);
+    expect(borrados).toHaveLength(5 - data.creditos); // las filas reservadas de más se borran
+    expect(inserts.chat_uso ?? []).toHaveLength(0);    // no se anota nada aparte: se usa la reserva
+  });
+  it('si no alcanzan los créditos, no busca', async () => {
+    const red = redFalsa();
+    const { status, data } = await correr({ fuente: 'claude' }, { reserva: 'sin_cupo' });
+    expect(status).toBe(429);
+    expect(data.codigo).toBe('LIMITE_CHAT');
+    expect(red.web).toBe(0);
   });
 });

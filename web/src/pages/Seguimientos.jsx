@@ -8,6 +8,9 @@ import { TareaItem } from '../components/Tareas.jsx'
 import { useApp } from '../App.jsx'
 
 /** Lo que hay que hacer hoy: tareas (llamar, WhatsApp, LinkedIn, las que dejan las secuencias) y seguimientos vencidos */
+// Un seguimiento agendado vale en cualquier etapa activa, no sólo en «Contactado»
+const ESTADOS_SEGUIMIENTO = ['contactado', 'respondio', 'reunion', 'propuesta']
+
 export default function Seguimientos() {
   const toast = useToast()
   const { session } = useApp()
@@ -24,12 +27,14 @@ export default function Seguimientos() {
   const cargar = useCallback(async () => {
     setError('')
     const hoy = hoyLocal()
-    let q = supabase.from('tareas').select('*, prospectos(id, nombre, rubro, telefono, linkedin)').order('vence').limit(200)
+    const base = () => supabase.from('tareas').select('*, prospectos(id, nombre, rubro, telefono, linkedin)')
+    // Hechas: las últimas primero (antes mostraba las más viejas)
+    let q = ver === 'hechas' ? base().limit(200) : base().order('vence').limit(200)
     q = ver === 'hechas' ? q.not('hecha_at', 'is', null).order('hecha_at', { ascending: false }) : ver === 'proximas' ? q.is('hecha_at', null).gt('vence', hoy) : q.is('hecha_at', null).lte('vence', hoy)
     const [t, s, pr] = await Promise.all([
       q,
-      supabase.from('prospectos').select('id, nombre, rubro, telefono, ultimo_contacto, proximo_seguimiento').eq('owner_id', yo).eq('estado', 'contactado').lte('proximo_seguimiento', hoy).order('proximo_seguimiento'),
-      supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', yo).eq('estado', 'contactado').gt('proximo_seguimiento', hoy).order('proximo_seguimiento').limit(30),
+      supabase.from('prospectos').select('id, nombre, rubro, telefono, ultimo_contacto, proximo_seguimiento').eq('owner_id', yo).in('estado', ESTADOS_SEGUIMIENTO).lte('proximo_seguimiento', hoy).order('proximo_seguimiento'),
+      supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', yo).in('estado', ESTADOS_SEGUIMIENTO).gt('proximo_seguimiento', hoy).order('proximo_seguimiento').limit(30),
     ])
     if (t.error || s.error) { setError(mensajeError(t.error || s.error)); setTareas([]); setLista([]); return }
     setTareas(t.data ?? []); setLista(s.data ?? []); setProximos(pr.data ?? [])

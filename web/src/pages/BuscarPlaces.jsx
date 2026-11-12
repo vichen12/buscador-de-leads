@@ -35,9 +35,9 @@ const MODOS = [
 ]
 // Con qué se busca: más potente entiende mejor pedidos difíciles, y usa más créditos
 const CALIDADES = [
-  { id: 'rapida', nombre: 'Rápida', creditos: 1, ayuda: 'La de siempre: rápida y económica. Alcanza para la mayoría de las búsquedas.' },
-  { id: 'mejor', nombre: 'Mejor', creditos: 3, ayuda: 'Un modelo más capaz: entiende mejor pedidos difíciles y revisa con más criterio.' },
-  { id: 'maxima', nombre: 'Máxima', creditos: 5, ayuda: 'El modelo más potente. Para búsquedas muy específicas o difíciles.' },
+  { id: 'rapida', nombre: 'Rápida', creditos: 5, ayuda: 'La de siempre: rápida y económica. Alcanza para la mayoría de las búsquedas.' },
+  { id: 'mejor', nombre: 'Mejor', creditos: 15, ayuda: 'Un modelo más capaz: entiende mejor pedidos difíciles y revisa con más criterio.' },
+  { id: 'maxima', nombre: 'Máxima', creditos: 30, ayuda: 'El modelo más potente. Para búsquedas muy específicas o difíciles.' },
 ]
 const CLAVE_CALIDAD = 'prospecta-calidad-busqueda'
 const calidadGuardada = () => { try { const c = localStorage.getItem(CLAVE_CALIDAD); return CALIDADES.some(x => x.id === c) ? c : 'rapida' } catch { return 'rapida' } }
@@ -137,7 +137,7 @@ export default function BuscarPlaces() {
         r = await pedirA('claude')
       }
       setRes(r); setSinLibre(libre && r.libre !== true)
-      toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info',
+      toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar${r.creditos ? ` · usó ${r.creditos} crédito${r.creditos === 1 ? '' : 's'}` : ''}` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info',
         r.resultados.length ? { accion: { label: 'Ver en Por revisar', onClick: () => nav(`/revisar?busqueda=${r.busqueda_id ?? ''}`) } } : {})
       refrescar(); cargarHistorial()
       setTimeout(() => resultadosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
@@ -244,11 +244,11 @@ export default function BuscarPlaces() {
       <div className="bb-pie">
         <div className="fuente-sel" role="radiogroup" aria-label="Con qué buscar">
           {CALIDADES.map(c => <button key={c.id} type="button" role="radio" aria-checked={calidad === c.id} className={calidad === c.id ? 'on' : ''} disabled={cargando} title={c.ayuda} onClick={() => elegirCalidad(c.id)}>
-            {c.nombre} <span className="calidad-creditos">{c.creditos}</span></button>)}
+            {c.nombre} <span className="calidad-creditos">≈{c.creditos}</span></button>)}
         </div>
         <span className="muted chico">{CALIDADES.find(c => c.id === calidad)?.ayuda}</span>
         <span className="espacio" />
-        {ia && <Link to="/uso" className={'chico bb-costo ' + (ia.agotada ? 'texto-alerta' : 'muted')} title="Ver uso y límites">{textoCosto(ia, creditos)}</Link>}
+        {ia && <Link to="/uso" className={'chico bb-costo ' + (ia.agotada ? 'texto-alerta' : 'muted')} title="Se descuenta lo que la búsqueda cuesta de verdad; esto es un estimado">{textoCosto(ia, creditos, true)}</Link>}
       </div>
       </section>
       {verFiltros && (

@@ -2519,3 +2519,5 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .btn.primario:hover:not(:disabled), .btn.ia:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sh-md); }
 /* Panel «buscando»: entra suave */
 .buscando-panel, .resultados-busqueda { animation: subir .3s var(--ease) both; }
+
+.tarjeta.lote-en-curso { display: flex; align-items: center; gap: 12px; border-color: var(--acc); background: var(--acc-soft); animation: subir .3s var(--ease) both; }

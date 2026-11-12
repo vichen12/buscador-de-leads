@@ -6,7 +6,7 @@
 // equipo ya tienen o descartaron. Usa el perfil comercial (qué vende y a quién), sirve para cualquier negocio.
 // Cada búsqueda descuenta 1 del cupo de IA (diario del usuario y mensual de su empresa). Interpretar no descuenta.
 import { clasificarWeb, instagramDe, normalizarTelefono } from './clasificar.js'
-import { anotarChatUso, anotarPlaces, anotarSinCupo, nuevoUso, sumarTokens } from './uso.ts'
+import { anotarPlaces, anotarSinCupo, filaChatUso, nuevoUso, sumarTokens } from './uso.ts'
 
 type Dic = Record<string, any>
 // Lo que necesita del entorno se lo pasa la función (así este módulo no importa nada de npm y se puede compartir)
@@ -484,10 +484,39 @@ function mensajeDeError(status: number | undefined, detalle: string) {
 
 // Con qué modelo se busca en la web y cuántos créditos cuesta. «rapida» usa el modelo configurado por el
 // administrador (por defecto, el más económico). Los créditos siguen el costo relativo de cada modelo.
+// `creditos` es lo que se reserva antes de buscar (un estimado); al terminar se cobra el costo real.
 const CALIDADES: Record<string, { modelo: string, creditos: number }> = {
-  rapida: { modelo: '', creditos: 1 },
-  mejor: { modelo: 'claude-sonnet-5-5', creditos: 3 },
-  maxima: { modelo: 'claude-opus-5-5', creditos: 5 },
+  rapida: { modelo: '', creditos: 5 },
+  mejor: { modelo: 'claude-sonnet-5-5', creditos: 15 },
+  maxima: { modelo: 'claude-opus-5-5', creditos: 30 },
+}
+
+// Cuánto cuesta una búsqueda de verdad y cuántos créditos se cobran por eso.
+// Regla del negocio: lo que se cobra es, como mínimo, el DOBLE de lo que cuesta. Un crédito se vende a
+// VALOR_CREDITO dólares, así que una búsqueda que cuesta C dólares descuenta ceil(C × MARGEN / VALOR_CREDITO).
+// Los precios se pueden corregir sin tocar código: config_claves → nombre «precios_ia», valor JSON con
+// las mismas claves que PRECIOS (dólares por millón de tokens; por búsqueda web; por consulta a Maps).
+export const PRECIOS: Dic = {
+  modelos: { haiku: { in: 1, out: 5 }, sonnet: { in: 3, out: 15 }, opus: { in: 5, out: 25 } },
+  busqueda_web: 0.01, places: 0.035, valor_credito: 0.10, margen: 2, tope_creditos: 80,
+}
+export function costoUsd(uso: { por: Record<string, { in: number, out: number }>, busquedasWeb: number }, consultasPlaces: number, precios: Dic = PRECIOS) {
+  const pm = { ...PRECIOS.modelos, ...(precios.modelos ?? {}) }
+  let total = 0
+  for (const [modelo, t] of Object.entries(uso.por)) {
+    const fam = /opus/.test(modelo) ? 'opus' : /sonnet/.test(modelo) ? 'sonnet' : 'haiku'
+    const pr = pm[modelo] ?? pm[fam]
+    total += (t.in * pr.in + t.out * pr.out) / 1e6
+  }
+  total += uso.busquedasWeb * Number(precios.busqueda_web ?? PRECIOS.busqueda_web)
+  total += consultasPlaces * Number(precios.places ?? PRECIOS.places)
+  return total
+}
+export function creditosPorCosto(costo: number, precios: Dic = PRECIOS) {
+  const valor = Number(precios.valor_credito ?? PRECIOS.valor_credito) || PRECIOS.valor_credito
+  const margen = Math.max(1, Number(precios.margen ?? PRECIOS.margen) || PRECIOS.margen)
+  const tope = Number(precios.tope_creditos ?? PRECIOS.tope_creditos) || PRECIOS.tope_creditos
+  return Math.min(tope, Math.max(1, Math.ceil((costo * margen) / valor - 1e-9)))
 }
 
 // El plan de Supabase corta la función a los 150 s (error 546) y se pierde todo lo encontrado:
@@ -541,7 +570,7 @@ export async function buscar(req: Request, h: Ayudas) {
   const calidad = CALIDADES[String(body.calidad)] ? String(body.calidad) : 'rapida'
   const creditos = body.modo === 'interpretar' || body.modo === 'preguntar' ? 0 : CALIDADES[calidad].creditos
   if (cupo && !cupo.sin_tope && creditos > 1 && cupo.usados < cupo.limite && cupo.usados + creditos > cupo.limite)
-    return json({ error: `Esta búsqueda usa ${creditos} créditos y te quedan ${cupo.limite - cupo.usados}. Elegí una búsqueda más liviana o ampliá el plan.`, codigo: 'LIMITE_CHAT', cupo }, 429)
+    return json({ error: `Esta búsqueda usa unos ${creditos} créditos y te quedan ${cupo.limite - cupo.usados}. Elegí una búsqueda más liviana o ampliá el plan.`, codigo: 'LIMITE_CHAT', cupo }, 429)
   if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de IA de hoy. Mañana se renueva.`, codigo: 'LIMITE_CHAT', cupo }, 429)
   const key = await claveServicio('anthropic')
   if (!key) return json({ error: 'Falta la clave de Claude: la carga el super admin en Super admin → Claves.', codigo: 'SIN_CLAVE' }, 503)
@@ -601,9 +630,55 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   if (body.modo === 'interpretar') await anotarSinCupo(db, { funcion: 'prospecta_interpretar', usuario: user.id, uso })
   if (body.modo === 'interpretar') return json({ brief, zona, pais: pais.nombre, libre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, ejemplos: apr.ejemplos.slice(0, 5) } }) // no descuenta cupo: es una consulta chiquita
 
+  let precios: Dic = PRECIOS
+  try {
+    const { data: pc } = await db.from('config_claves').select('valor').eq('nombre', 'precios_ia').maybeSingle()
+    if (pc?.valor) precios = { ...PRECIOS, ...JSON.parse(pc.valor) }
+  } catch { /* precios por defecto */ }
+  // Reserva: los créditos estimados se apartan ANTES de buscar, dentro de una transacción con candado.
+  // Así varias búsquedas a la vez no pueden pasarse del plan. Al terminar se ajusta al costo real.
+  // (Si la base todavía no tiene la función, se sigue como antes: se anota al final.)
+  let reserva: number[] | null = null
+  if (creditos > 0) {
+    const { data: rsv, error: eRsv } = await db.rpc('reservar_creditos', { p_usuario: user.id, p_creditos: creditos, p_funcion: 'prospecta_buscar_reserva' })
+    if (!eRsv && rsv?.ok === false) return json({ error: rsv.cupo?.mensaje || `Esta búsqueda usa unos ${creditos} créditos y no te alcanzan. Elegí una búsqueda más liviana o ampliá el plan.`, codigo: 'LIMITE_CHAT', cupo: rsv.cupo }, 429)
+    if (!eRsv && Array.isArray(rsv?.ids)) reserva = rsv.ids
+  }
+  /** Deja cobrados `n` créditos por esta búsqueda (0 = devuelve todo), con el uso real en la primera fila. */
+  let cobrados = 0
+  const cobrar = async (n: number) => {
+    cobrados = n
+    const fila = filaChatUso(user.id, 'prospecta_buscar', uso)
+    uso.por = {}; uso.busquedasWeb = 0
+    try {
+      if (reserva) {
+        const quedan = reserva.slice(0, n), sobran = reserva.slice(n)
+        if (sobran.length) await db.from('chat_uso').delete().in('id', sobran)
+        if (quedan.length) { const { owner_id: _o, ...datos } = fila; await db.from('chat_uso').update(datos).eq('id', quedan[0]) }
+        if (quedan.length > 1) await db.from('chat_uso').update({ funcion: 'prospecta_buscar_calidad' }).in('id', quedan.slice(1))
+        if (n > reserva.length) await db.from('chat_uso').insert(Array.from({ length: n - reserva.length }, () => ({ owner_id: user.id, funcion: 'prospecta_buscar_calidad', tokens_in: 0, tokens_out: 0 })))
+        reserva = quedan
+      } else if (n > 0) {
+        const { error } = await db.from('chat_uso').insert(fila)
+        if (error) await db.from('chat_uso').insert({ owner_id: fila.owner_id, tokens_in: fila.tokens_in, tokens_out: fila.tokens_out })
+        if (n > 1) {
+          const extra = Array.from({ length: n - 1 }, () => ({ owner_id: user.id, funcion: 'prospecta_buscar_calidad', tokens_in: 0, tokens_out: 0 }))
+          const { error: e2 } = await db.from('chat_uso').insert(extra)
+          if (e2) await db.from('chat_uso').insert(extra.map(({ funcion: _f, ...r }) => r))
+        }
+      }
+    } catch (e) { console.error('cobrar', e) }
+  }
   // Lo que ya conoce la cuenta y su equipo (en la lista, en la bandeja o descartado): no se vuelve a traer
+  let porMundo = false // la base ya separa los hallazgos por mundo (columna `libre`)
   const [{ data: hs }, { data: ps }] = await Promise.all([
-    db.from('hallazgos').select('nombre, telefono_norm, zona, estado, web').in('owner_id', equipo).order('created_at', { ascending: false }).limit(5000),
+    // Lo ya visto se compara dentro del mismo mundo: lo descartado en una búsqueda libre no tapa a esa
+    // empresa en las búsquedas de mi negocio, y al revés. (Lo que ya está en la lista no se vuelve a traer nunca.)
+    (async () => {
+      const con = await db.from('hallazgos').select('nombre, telefono_norm, zona, estado, web, libre').in('owner_id', equipo).eq('libre', libre).order('created_at', { ascending: false }).limit(5000)
+      if (!con.error) { porMundo = true; return con }
+      return db.from('hallazgos').select('nombre, telefono_norm, zona, estado, web').in('owner_id', equipo).order('created_at', { ascending: false }).limit(5000)
+    })(),
     db.from('prospectos').select('nombre, telefono_norm, zona, dominio_norm').in('owner_id', equipo).order('created_at', { ascending: false }).limit(5000),
   ])
   const conocidos = [...(hs ?? []), ...(ps ?? [])] as Dic[]
@@ -665,7 +740,8 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   await anotarPlaces(db, { funcion: 'prospecta_buscar', usuario: user.id, ...conteoPlaces })
   // Eligió sólo Google Maps y no hay clave: error claro (lo que gastó interpretar va al registro, sin cupo)
   if (fuente === 'maps' && deMaps.estado === 'sin_clave') {
-    await anotarSinCupo(db, { funcion: 'prospecta_interpretar', usuario: user.id, uso })
+    await anotarSinCupo(db, { funcion: 'prospecta_interpretar', usuario: user.id, uso: { por: { ...uso.por }, busquedasWeb: uso.busquedasWeb } })
+    await cobrar(0)
     return json({ error: 'Falta la clave de Google Places: cargala en Super admin → Claves y servicios, o buscá con Claude.', codigo: 'SIN_CLAVE_MAPS' }, 400)
   }
   const crudos = [...deMaps.items, ...corridas.flatMap(c => extraerLista(c.salida))]
@@ -673,7 +749,8 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   // Una sola fila por búsqueda: es una unidad de cupo (sin esta marca, sin resultados se anotaba dos veces)
   let anotada = false
   if (!crudos.length) {
-    if (usoIn) { await anotarChatUso(db, user.id, 'prospecta_buscar', uso); anotada = true }
+    // No encontró nada: como mucho 1 crédito (si Claude llegó a trabajar); el resto de la reserva se devuelve
+    await cobrar(usoIn ? 1 : 0); anotada = true
     const falla = corridas.find(c => c.error)
     if (falla) return json({ error: mensajeDeError(falla.status, falla.error) }, 502)
   }
@@ -757,15 +834,9 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
       return cuenta[c.segmento] <= tope
     })({}))
     .slice(0, cantidad + 5)
-  if (usoIn && !anotada) {
-    await anotarChatUso(db, user.id, 'prospecta_buscar', uso)
-    // Los créditos de más de una búsqueda potente: una fila por crédito (el cupo cuenta filas). Sólo si hubo resultados.
-    if (creditos > 1 && resultados.length) {
-      const extra = Array.from({ length: creditos - 1 }, () => ({ owner_id: user.id, funcion: 'prospecta_buscar_calidad', tokens_in: 0, tokens_out: 0 }))
-      const { error } = await db.from('chat_uso').insert(extra)
-      if (error) await db.from('chat_uso').insert(extra.map(({ funcion: _f, ...r }) => r))
-    }
-  }
+  // Se cobra lo que costó de verdad (con el margen): Claude + búsquedas web + consultas a Google Maps
+  const costo = costoUsd(uso, conteoPlaces.consultas, precios)
+  if (!anotada) await cobrar(resultados.length ? creditosPorCosto(costo, precios) : usoIn ? 1 : 0)
   await anotarSinCupo(db, { funcion: 'prospecta_buscar', usuario: user.id, uso }) // lo que llegó después de anotar, o una búsqueda sin tokens de entrada
 
   // Guardar en la bandeja "Por revisar"
@@ -777,7 +848,11 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     busquedaId = b?.id ?? null
     const filas = resultados.map(({ es_prospecto, no_cumple, segmento, evaluado, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
       google_maps_url: r.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([r.nombre, r.direccion, zona].filter(Boolean).join(' '))}` }))
-    const { data: ins, error } = await supabase.from('hallazgos').upsert(filas, { onConflict: 'owner_id,clave_nombre', ignoreDuplicates: true }).select('*')
+    // Con la base nueva el «ya existe» es por mundo (dueño + libre + nombre); con la vieja, por dueño + nombre
+    let { data: ins, error } = porMundo
+      ? await supabase.from('hallazgos').upsert(filas.map(f => ({ ...f, libre })), { onConflict: 'owner_id,libre,clave_nombre', ignoreDuplicates: true }).select('*')
+      : { data: null, error: { message: 'sin columna libre' } as Dic }
+    if (error) ({ data: ins, error } = await supabase.from('hallazgos').upsert(filas, { onConflict: 'owner_id,clave_nombre', ignoreDuplicates: true }).select('*'))
     if (error) { console.error('hallazgos', error); avisoGuardado = 'Encontramos estas empresas pero no se pudieron guardar en «Por revisar». Bajalas a Excel o anotalas antes de salir, y avisale al administrador.' }
     else salida = (ins ?? []) as Dic[]
     if (busquedaId) await db.from('busquedas').update({ guardados: salida.length, ya_estaban: yaConocidos }).eq('id', busquedaId)
@@ -787,7 +862,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   return json({
     resultados: salida, busqueda_id: busquedaId, brief, descartados, no_encajan: noEncajan, ya_conocidos: yaConocidos, ya_descartados: yaDescartados, cupo: cupoNuevo,
     diagnostico: { maps: deMaps.estado, maps_fichas: deMaps.fichas, maps_sirven: deMaps.items.length, web: corridas.map(c => extraerLista(c.salida).length), web_errores: corridas.filter(c => c.error).map(c => String(c.error).slice(0, 80)) },
-    calidad, creditos: resultados.length ? creditos : Math.min(1, creditos),
+    calidad, creditos: cobrados, costo_usd: Math.round(costo * 1000) / 1000,
     busquedas: corridas.reduce((a, c) => a + c.busquedas, 0), enfoques: lotes, modelo, libre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, parecidas: parecida.size },
     aviso: avisoGuardado || (corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : sinVerificar ? 'No llegamos a la segunda revisión: mirá estas empresas con más cuidado.' : ''),
   })

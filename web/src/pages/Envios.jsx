@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Send, Search, Mail, Sparkles, Flame, ArrowRight, Wand2, Paperclip, PenLine } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, mensajeError } from '../lib/util.js'
 import { Avatar, EstadoBadge, Esqueleto, useToast } from '../components/ui.jsx'
 import EnvioMasivo from '../components/EnvioMasivo.jsx'
@@ -23,6 +23,20 @@ export default function Envios() {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(new Set())
   const [envio, setEnvio] = useState(null)
+  // Envíos que siguen saliendo (o quedaron en pausa): antes sólo se veían dentro de la ventana de envío
+  const [lotes, setLotes] = useState([])
+  const cargarLotes = async () => {
+    const { data: ls } = await supabase.from('lotes_envio').select('*').in('estado', ['activo', 'pausado']).order('created_at', { ascending: false }).limit(10)
+    if (!ls?.length) { setLotes([]); return }
+    const { data: cola } = await supabase.from('envios_cola').select('lote_id, estado').in('lote_id', ls.map(l => l.id))
+    setLotes(ls.map(l => { const c = (cola ?? []).filter(x => x.lote_id === l.id); return { ...l, total: c.length, enviados: c.filter(x => x.estado === 'enviado').length, fallidos: c.filter(x => x.estado === 'fallido').length } }))
+  }
+  useEffect(() => { cargarLotes(); const t = setInterval(cargarLotes, 15000); return () => clearInterval(t) }, [])
+  const controlarLote = async (id, accion) => {
+    try { await llamarFuncion('correo', { modo: 'lote', lote_id: id, accion }); await cargarLotes() } catch (e) { toast(mensajeError(e), 'error') }
+  }
+  // Cambió un filtro: la selección se limpia (así no se manda a empresas que ya no se ven)
+  useEffect(() => { setSel(new Set()) }, [grupo, calif, q])
 
   async function cargar() {
     const { data, error } = await supabase.from('prospectos').select('id, nombre, rubro, zona, email, estado, calificacion, ultimo_contacto, puntaje, email_estado, email_motivo, email_verificado_at').eq('owner_id', session.user.id).not('estado', 'in', '(no_interesado,no_contactar,perdido,cliente)').order('calificacion', { ascending: false, nullsFirst: false }).order('puntaje', { ascending: false, nullsFirst: false })
@@ -52,6 +66,21 @@ export default function Envios() {
           <p>Elegí a qué empresas escribirles. Claude escribe un email distinto para cada una, con tu tono, tu estructura, tu firma y tus archivos. Los revisás y salen todos juntos desde tu casilla.</p>
         </div>
       </header>
+
+      {lotes.map(l => (
+        <section key={l.id} className="tarjeta lote-en-curso">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>{l.estado === 'pausado' ? 'Envío en pausa' : 'Envío en curso'}</b>
+            <span className="muted"> · {l.enviados} de {l.total} enviados{l.fallidos ? ` · ${l.fallidos} con error` : ''}</span>
+            {l.estado === 'pausado' && l.motivo_pausa && <div className="muted chico">{l.motivo_pausa}</div>}
+            <div className="cupo-barra" style={{ marginTop: 8 }}><span style={{ width: (l.total ? (l.enviados / l.total) * 100 : 0) + '%' }} /></div>
+          </div>
+          {l.estado === 'activo'
+            ? <button className="btn chico" onClick={() => controlarLote(l.id, 'pausar')}>Pausar</button>
+            : <button className="btn chico primario" onClick={() => controlarLote(l.id, 'reanudar')}>Seguir</button>}
+          <button className="btn chico fantasma" onClick={() => controlarLote(l.id, 'cancelar')}>Cancelar</button>
+        </section>
+      ))}
 
       {!correo ? (
         <section className="tarjeta envios-sin-correo">
