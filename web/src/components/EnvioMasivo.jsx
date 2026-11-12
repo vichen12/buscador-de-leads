@@ -136,7 +136,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
   const fallaron = items.filter(x => x.estado === 'error').length
 
   return (
-    <div className="modal-fondo" onMouseDown={e => e.target === e.currentTarget && fase !== 'enviando' && onCerrar()}>
+    <div className="modal-fondo" onMouseDown={e => e.target === e.currentTarget && (fase !== 'enviando' || lote) && onCerrar()}>
       <div className="envio-masivo" role="dialog" aria-modal="true">
         <header>
           <div>
@@ -145,7 +145,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
               : fase === 'listo' ? `Listo: ${ok} enviados${fallaron ? `, ${fallaron} con problemas` : ''}. Están en tu carpeta Enviados y quedan registrados con el seguimiento agendado.`
                 : `Salen desde ${correo?.email}. Revisalos y tocá enviar: cada uno es distinto.`}</p>
           </div>
-          <button className="btn fantasma chico" onClick={onCerrar} disabled={fase === 'enviando'} aria-label="Cerrar"><X size={17} /></button>
+          <button className="btn fantasma chico" onClick={onCerrar} disabled={fase === 'enviando' && !lote} aria-label="Cerrar" title={fase === 'enviando' ? 'Podés cerrar: el envío sigue solo' : 'Cerrar'}><X size={17} /></button>
         </header>
 
         <div className="envio-cuerpo">

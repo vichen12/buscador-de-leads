@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { renuevaMes } from '../lib/uso.js'
 import { Link } from 'react-router-dom'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -157,7 +158,7 @@ export default function Asistente() {
           <div className="cupo" style={{ marginTop: 'auto' }}>
             <div className="cupo-top"><span>{cupo.periodo === 'mes' ? 'IA de tu empresa este mes' : 'Consultas de hoy'}</span><b>{cupo.sin_tope ? `${cupo.usados} · sin tope` : `${cupo.usados} / ${cupo.limite}`}</b></div>
             <div className="cupo-barra"><span style={{ width: Math.min(100, cupo.usados / Math.max(1, cupo.limite) * 100) + '%' }} /></div>
-            <small>Se renueva todos los días.</small>
+            <small>{cupo.sin_tope ? 'Tu plan no tiene tope.' : cupo.periodo === 'mes' ? `Cada mensaje usa 1 consulta. Se renuevan ${renuevaMes()}.` : 'Cada mensaje usa 1 consulta. Se renuevan mañana.'} <Link to="/uso">Ver límites</Link></small>
           </div>
         )}
       </aside>

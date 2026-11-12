@@ -4,7 +4,8 @@ const Facebook = props => <svg viewBox="0 0 24 24" width="14" height="14" fill="
 const LinkedIn = props => <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" {...props}><path d="M4.5 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM3 9h3v12H3zM9 9h2.9v1.7h.1c.4-.8 1.4-1.9 3.2-1.9 3.4 0 4 2.2 4 5.1V21h-3v-6.2c0-1.5 0-3.3-2-3.3s-2.3 1.6-2.3 3.2V21H9z" /></svg>
 
 const host = u => { try { return new URL(u.includes('://') ? u : 'https://' + u).hostname.replace(/^www\./, '') } catch { return u } }
-const href = u => (u.includes('://') ? u : 'https://' + u)
+/** Solo http(s): lo que venga con otro esquema (javascript:, data:…) se trata como un dominio. */
+export const href = u => { const t = String(u ?? '').trim(); return /^https?:\/\//i.test(t) ? t : 'https://' + t.replace(/^[a-z][\w+.-]*:\/*/i, '') }
 
 /** Botoncitos con los links de una empresa: web, Google Maps, redes y de dónde salió */
 export default function Enlaces({ e, conTexto = false, fuente = true }) {

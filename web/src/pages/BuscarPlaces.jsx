@@ -13,6 +13,7 @@ import { Aviso, useToast } from '../components/ui.jsx'
 import Autocompletar from '../components/Autocompletar.jsx'
 import SelectorZona from '../components/SelectorZona.jsx'
 import { useApp } from '../App.jsx'
+import { leerIA, textoCosto } from '../lib/uso.js'
 
 const FILTROS_DEFECTO = [
   { id: 'con_telefono', titulo: 'Con teléfono o WhatsApp', descripcion: 'Que tenga un número para escribirle.', activo: true },
@@ -25,6 +26,14 @@ const FUENTES = [
   { id: 'maps', nombre: 'Google Maps', ayuda: 'Fichas reales de Maps, evaluadas por Claude' },
   { id: 'ambas', nombre: 'Los dos', ayuda: 'Más resultados: Maps y la web juntos' },
 ]
+// Para qué es la búsqueda: atada a «Mi negocio» (Claude piensa a quién le podés vender) o libre
+// (cualquier rubro, tal cual lo escribís, sin usar tu negocio ni lo que aprendió de tu lista)
+const MODOS = [
+  { id: 'negocio', nombre: 'Para mi negocio', ayuda: 'Claude piensa qué empresas te pueden comprar, según lo que vendés' },
+  { id: 'libre', nombre: 'Búsqueda libre', ayuda: 'Cualquier rubro, tal cual lo escribís' },
+]
+const CLAVE_MODO = 'prospecta-modo-busqueda'
+const modoGuardado = () => { try { return localStorage.getItem(CLAVE_MODO) === 'libre' ? 'libre' : 'negocio' } catch { return 'negocio' } }
 const PASOS = ['Buscando en Google Maps…', 'Mirando directorios y redes…', 'Recorriendo la zona…', 'Revisando que encajen con lo que pediste…']
 
 /** Lista de chips que se pueden sacar y agregar */
@@ -45,12 +54,22 @@ export default function BuscarPlaces() {
   const nav = useNavigate()
   const { servicios, refrescar, perfil, comercial } = useApp()
   const [brief, setBrief] = useState(null)
+  const [modo, setModo] = useState(modoGuardado)
+  const libre = modo === 'libre'
+  const [sinLibre, setSinLibre] = useState(false) // el servidor todavía no conoce la búsqueda libre
+  function elegirModo(m) {
+    setModo(m); setBrief(null); setGuia(null); setRes(null); setError('')
+    try { localStorage.setItem(CLAVE_MODO, m) } catch { /* sin almacenamiento */ }
+  }
   const [cupo, setCupo] = useState(null)
-  useEffect(() => { if (brief) supabase.rpc('mi_cupo_chat').then(({ data }) => setCupo(data ?? null)) }, [brief])
+  useEffect(() => { supabase.rpc('mi_cupo_chat').then(({ data }) => setCupo(data ?? null)) }, [brief])
   const quedan = cupo ? Math.max(0, cupo.limite - cupo.usados) : null
+  const ia = leerIA(cupo)
   const [entendiendo, setEntendiendo] = useState(false)
   const [ocupados, setOcupados] = useState(new Set())
-  const est = comercial?.estrategia?.rubros?.length ? comercial.estrategia : null
+  const estNegocio = comercial?.estrategia?.rubros?.length ? comercial.estrategia : null
+  // En la búsqueda libre no se usa la estrategia: ni sus rubros ni sus filtros
+  const est = libre ? null : estNegocio
   const sugRubros = useMemo(() => est ? est.rubros.map(r => r.nombre) : ['barbería', 'centro de estética', 'veterinaria', 'gimnasio', 'estudio contable', 'inmobiliaria', 'restaurante', 'taller mecánico'], [est])
   const zonaTocada = useRef(false)
   // Dónde: UN país a la vez y un lugar concreto (provincia, ciudad o zona). Si es muy amplio, la búsqueda se dispersa.
@@ -77,7 +96,7 @@ export default function BuscarPlaces() {
     if (!zona.trim()) { setError(`Elegí una provincia, ciudad o zona de ${nombrePais(paisBusq)}.`); return }
     setPreguntando(true); setError(''); setBrief(null); setRes(null)
     try {
-      const r = await llamarFuncion('buscar-negocios', { modo: 'preguntar', rubro: base, zona: zonaConPais(zonaNormal(zona), paisBusq) })
+      const r = await llamarFuncion('buscar-negocios', { modo: 'preguntar', rubro: base, zona: zonaConPais(zonaNormal(zona), paisBusq), libre })
       if (r.preguntas?.length) setGuia({ base, preguntas: r.preguntas, paso: 0, respuestas: r.preguntas.map(() => []), otra: '', briefGeneral })
       else if (briefGeneral) setBrief(briefGeneral)
     } catch (err) { setError(mensajeError(err)); if (briefGeneral) setBrief(briefGeneral) }
@@ -116,7 +135,7 @@ export default function BuscarPlaces() {
   const resultadosRef = useRef(null)
   const rubroRef = useRef(null)
 
-  useEffect(() => { setActivos(new Set(filtros.filter(f => f.activo).map(f => f.id))) }, [comercial])
+  useEffect(() => { setActivos(new Set(filtros.filter(f => f.activo).map(f => f.id))) }, [comercial, modo])
   // La zona por defecto sigue a la configuración de la cuenta hasta que la persona elige otra
   useEffect(() => { if ((!zonaTocada.current || !zona) && sugZonas[0]) setZona(sugZonas[0]) }, [sugZonas])
   const cargarHistorial = () => supabase.from('busquedas').select('*').order('created_at', { ascending: false }).limit(6).then(({ data }) => setHistorial(data ?? []))
@@ -138,9 +157,10 @@ export default function BuscarPlaces() {
     setZona(z)
     setEntendiendo(true); setError(''); setRes(null); setBrief(null); setGuia(null)
     try {
-      const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: que, zona: zonaConPais(z, paisBusq) })
-      const b = { ...r.brief, _aprendizaje: r.aprendizaje }
-      if (r.brief?.especifica === false && !sinGuia) { setEntendiendo(false); await pedirPreguntas(que, b); return }
+      const r = await llamarFuncion('buscar-negocios', { modo: 'interpretar', rubro: que, zona: zonaConPais(z, paisBusq), libre })
+      setSinLibre(libre && r.libre !== true)
+      const b = { ...r.brief, _aprendizaje: libre ? null : r.aprendizaje }
+      if (r.brief?.especifica === false && !sinGuia && !libre) { setEntendiendo(false); await pedirPreguntas(que, b); return }
       setBrief(b)
     } catch (err) { setError(mensajeError(err)) }
     setEntendiendo(false)
@@ -153,7 +173,7 @@ export default function BuscarPlaces() {
     const timer = setInterval(() => setSeg(Math.round((Date.now() - t0) / 1000)), 500)
     try {
       const { _aprendizaje, ...briefLimpio } = brief
-      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, brief: briefLimpio, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f })
+      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, brief: briefLimpio, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f, libre })
       let r
       try { r = await pedirA(fuenteUsada) } catch (err) {
         // Maps sin clave (se quitó recién): se avisa y se busca con Claude, sin perder el pedido
@@ -206,11 +226,23 @@ export default function BuscarPlaces() {
       <header className="cabecera">
         <div>
           <h1>Buscar clientes</h1>
-          <p>Describí con tus palabras qué empresas querés y dónde. Claude busca en Google, redes y directorios y te trae sólo las que encajan.</p>
+          <p>{libre
+            ? 'Escribí cualquier rubro y dónde. Claude busca en Google, redes y directorios exactamente eso, tenga o no que ver con tu negocio.'
+            : 'Describí con tus palabras qué empresas querés y dónde. Claude busca en Google, redes y directorios y te trae sólo las que encajan con lo que vendés.'}</p>
         </div>
       </header>
 
-      {comercial === null && (
+      <div className="modo-busqueda">
+        <div className="fuente-sel" role="radiogroup" aria-label="Tipo de búsqueda">
+          {MODOS.map(m => <button key={m.id} type="button" role="radio" aria-checked={modo === m.id} className={modo === m.id ? 'on' : ''} disabled={cargando || entendiendo} title={m.ayuda} onClick={() => elegirModo(m.id)}>
+            {m.id === 'libre' ? <Search size={13} /> : <Store size={13} />}{m.nombre}</button>)}
+        </div>
+        <span className="muted chico">{libre
+          ? 'Busca lo que escribas, tal cual: no usa «Mi negocio» ni lo que aprendió de tu lista. Sirve para otro rubro, proveedores, competidores o un relevamiento.'
+          : 'Claude interpreta el pedido pensando a quién le podés vender, y aprende de las empresas que sumás y descartás.'}</span>
+      </div>
+
+      {comercial === null && !libre && (
         <div className="aviso-negocio">
           <Store size={22} />
           <div style={{ flex: 1 }}><b>Contanos qué vendés y la búsqueda se arma sola</b><p>Una sola pregunta y Claude te sugiere qué rubros y zonas buscar.</p></div>
@@ -224,7 +256,7 @@ export default function BuscarPlaces() {
       <form className="barra-busqueda" onSubmit={entender}>
         <label className="bb-campo">
           <span><Search size={14} /> Qué buscás</span>
-          <Autocompletar ref={rubroRef} opciones={todosRubros} value={rubro} onChange={v => { setRubro(v); setBrief(null) }} placeholder="Ej.: distribuidoras con depósito propio" disabled={cargando} />
+          <Autocompletar ref={rubroRef} opciones={todosRubros} value={rubro} onChange={v => { setRubro(v); setBrief(null) }} placeholder={libre ? 'Ej.: restaurantes, estudios contables, ferreterías' : 'Ej.: distribuidoras con depósito propio'} disabled={cargando} />
           {rubro && !cargando && <button type="button" className="bb-limpiar" onClick={() => setRubro('')} aria-label="Borrar"><X size={13} /></button>}
         </label>
         <label className="bb-campo">
@@ -261,6 +293,7 @@ export default function BuscarPlaces() {
         {!verFiltros && filtrosActivos.map(f => <button key={f.id} type="button" className="filtro-activo" title={`${f.descripcion || f.titulo} · tocá para sacarlo`} onClick={() => { alternar(f.id); setBrief(null) }} disabled={cargando}><Check size={12} /> {f.titulo}<X size={12} className="filtro-quitar" /></button>)}
         <span className="espacio" />
         <span className="muted chico bb-tiempo">{cantidad <= 10 ? 'Tarda menos de 1 minuto' : cantidad <= 20 ? 'Tarda ≈ 1 minuto' : 'Tarda un par de minutos'} · no repite las que ya tenés</span>
+        {ia && <Link to="/uso" className={'chico bb-costo ' + (ia.agotada ? 'texto-alerta' : 'muted')} title="Ver uso y límites">{textoCosto(ia)}</Link>}
       </div>
       </section>
       {verFiltros && (
@@ -279,7 +312,7 @@ export default function BuscarPlaces() {
         </section>
       )}
 
-      {!cargando && !res && !brief && !entendiendo && !guia && !preguntando && (
+      {!libre && !cargando && !res && !brief && !entendiendo && !guia && !preguntando && (
         <button type="button" className="guia-invitacion" onClick={() => pedirPreguntas(rubro.trim())} disabled={servicios.ia === false}>
           <Wand2 size={18} /><span><b>¿No sabés bien qué buscar? Te ayudo con unas preguntas</b><small>Mientras más concreta la búsqueda, mejores empresas trae. Te pregunto según lo que vendés.</small></span><ArrowRight size={16} />
         </button>
@@ -306,18 +339,19 @@ export default function BuscarPlaces() {
       })()}
 
       {entendiendo && (
-        <section className="tarjeta entendiendo"><div className="pensando"><i /><i /><i /></div><span>Claude está entendiendo qué empresas te sirven…</span></section>
+        <section className="tarjeta entendiendo"><div className="pensando"><i /><i /><i /></div><span>{libre ? 'Claude está armando la búsqueda…' : 'Claude está entendiendo qué empresas te sirven…'}</span></section>
       )}
       {brief && !cargando && (
         <section className="tarjeta brief">
           <div className="brief-cab">
             <span className="brief-icono"><Wand2 size={18} /></span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <small>Así lo entendí · revisalo antes de buscar</small>
+              <small>{libre ? 'Búsqueda libre · ' : ''}Así lo entendí · revisalo antes de buscar</small>
               <textarea className="brief-texto" rows={Math.max(1, Math.ceil(brief.interpretacion.length / 90))} value={brief.interpretacion} onChange={e => setBrief({ ...brief, interpretacion: e.target.value })} aria-label="Qué vamos a buscar" />
             </div>
             <Pencil size={14} className="muted" />
           </div>
+          {sinLibre && <Aviso tipo="info">La búsqueda libre todavía no está activada en el servidor: por ahora esta búsqueda se interpreta según tu negocio. Avisale al administrador para que la active.</Aviso>}
           {brief.opciones?.length > 0 && (
             <div className={'brief-opciones' + (brief.especifica === false ? ' general' : '')}>
               <b>{brief.especifica === false ? 'Es bastante general. Algo más concreto:' : '¿Más específico? Probá con:'}</b>
@@ -341,7 +375,7 @@ export default function BuscarPlaces() {
             <span className="muted chico"><MapPin size={12} style={{ verticalAlign: -2 }} /> {zonaConPais(zona, paisBusq)} · hasta {cantidad} empresas · no trae las que ya tenés ni las que descartaste</span>
             <span className="espacio" />
             <button className="btn fantasma" onClick={() => { setBrief(null); rubroRef.current?.focus() }}>Cambiar el pedido</button>
-            {quedan !== null && !cupo.sin_tope && <span className={'chico ' + (quedan <= Math.ceil(cupo.limite * 0.2) ? 'texto-alerta' : 'muted')} title={cupo.periodo === 'mes' ? 'Las consultas de IA son de toda tu empresa, por mes' : 'Cada búsqueda usa una consulta de IA de tu cupo diario'}>{quedan === 0 ? (cupo.periodo === 'mes' ? 'Tu empresa usó todas las consultas de IA del mes' : 'No te quedan consultas de IA hoy') : `Usa 1 consulta de IA · ${cupo.periodo === 'mes' ? `a tu empresa le quedan ${quedan.toLocaleString('es-AR')} este mes` : `te quedan ${quedan} hoy`}`}</span>}
+            {ia && !ia.sinTope && <span className={'chico ' + (quedan <= Math.ceil(cupo.limite * 0.2) ? 'texto-alerta' : 'muted')} title={ia.porMes ? 'Las consultas de IA son de toda tu empresa, por mes' : 'Cada búsqueda usa una consulta de IA de tu cupo diario'}>{textoCosto(ia)}</span>}
             <button className="btn ia" onClick={buscar} disabled={!brief.interpretacion.trim() || quedan === 0}><Search size={16} /> Buscar así</button>
           </div>
         </section>
@@ -364,7 +398,7 @@ export default function BuscarPlaces() {
         <section ref={resultadosRef} className="resultados-busqueda">
           <div className="resultado-cab">
             <div>
-              <h2>{res.resultados.length ? `${res.resultados.length} empresas nuevas` : 'No encontró empresas nuevas'}</h2>
+              <h2>{res.resultados.length ? `${res.resultados.length} empresas nuevas` : 'No encontró empresas nuevas'}{res.libre ? <span className="etiqueta-libre">Búsqueda libre</span> : null}</h2>
               <p className="muted">
                 {res.brief?.interpretacion && <>{res.brief.interpretacion} · </>}{zonaConPais(zona, paisBusq)}
                 {(res.ya_conocidos > 0 || res.no_encajan > 0 || res.descartados > 0) && <><br />No te mostramos {[
@@ -393,7 +427,7 @@ export default function BuscarPlaces() {
           {res.resultados.length > 0 && <p className="ayuda-revisar"><Inbox size={15} /> <span>Quedaron guardadas en <Link to={`/revisar?busqueda=${res.busqueda_id ?? ''}`}>Por revisar</Link>. Sumá a tu lista las que vas a contactar y marcá las que no sirven: esas no vuelven a aparecer.</span></p>}
           <div className="lista-hallazgos">
             {res.resultados.map(h => (
-              <TarjetaHallazgo key={h.id ?? h.nombre} h={h} ocupado={ocupados.has(h.id)}
+              <TarjetaHallazgo key={h.id ?? h.nombre} h={res.libre ? { ...h, libre: true } : h} ocupado={ocupados.has(h.id)}
                 onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onSaltear={h.id ? () => saltear([h.id]) : null} onMotivo={m => motivoHallazgo(h.id, m).then(() => actualizar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} />
             ))}
           </div>

@@ -480,7 +480,8 @@ export async function enviarUno(db: any, owner: string, o: { prospecto_id: strin
   }
   let enEnviados = true
   try { await guardarEnEnviados(cfg, clave, copia) } catch (e) { enEnviados = false; console.error('copia en Enviados', e) }
-  if (o.mensaje_id) await db.from('mensajes').update({ message_id: messageId, asunto: o.asunto, cuerpo: o.cuerpo }).eq('id', o.mensaje_id)
+  // El id viene del navegador o de la cola y esto corre con service_role: solo se toca un mensaje propio
+  if (o.mensaje_id) await db.from('mensajes').update({ message_id: messageId, asunto: o.asunto, cuerpo: o.cuerpo }).eq('id', o.mensaje_id).eq('owner_id', owner)
   const { error } = await db.from('interacciones').insert({
     owner_id: owner, prospecto_id: p.id, mensaje_id: o.mensaje_id ?? null, tipo: 'enviado', canal: 'email',
     detalle: `Email "${(o.asunto || 'Hola').slice(0, 120)}" enviado desde ${cfg.email} a ${para}${extra.adjuntos.length ? ` con ${extra.adjuntos.map(a => a.nombre).join(', ')}` : ''}`,
@@ -512,6 +513,9 @@ export async function enviarACliente(db: any, owner: string, o: { cliente_id: st
   if (bloqueo) throw new ErrorEnvio(`No se puede enviar: ${bloqueo}.`, 'SUPRIMIDO')
   if (lim && lim.enviados_hoy >= lim.limite_hoy) throw new ErrorEnvio(`LIMITE_EMAIL: ya enviaste ${lim.enviados_hoy} de ${lim.limite_hoy} emails hoy`, 'LIMITE_EMAIL', true)
   if (!clave) throw new ErrorEnvio('Falta la contraseña del email: volvé a conectarlo.', 'SIN_CORREO')
+  // La campaña también viene del navegador y esto corre con service_role: tiene que ser propia
+  const { data: campana } = await db.from('campanas').select('id').eq('id', o.campana_id).eq('owner_id', owner).maybeSingle()
+  if (!campana) throw new ErrorEnvio('No encontré la campaña.', 'NO_ENCONTRADO')
   const { data: ya } = await db.from('campana_envios').select('id').eq('campana_id', o.campana_id).eq('cliente_id', cl.id).maybeSingle()
   if (ya) throw new ErrorEnvio('A este cliente ya le salió esta campaña.', 'YA_ENVIADO')
 

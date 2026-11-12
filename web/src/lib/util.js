@@ -25,10 +25,10 @@ export const ESTADO_EMAIL = {
 /** Traduce los errores de las reglas de la base a mensajes para la persona */
 export function mensajeError(e) {
   const m = e?.message || String(e)
-  if (m.includes('LIMITE_DIARIO')) return 'Llegaste al límite de envíos de hoy. Es a propósito: de a pocos se cuida el número y la reputación. Seguí mañana o subí el límite en Ajustes.'
+  if (m.includes('LIMITE_DIARIO')) return 'Llegaste a tu límite de mensajes por WhatsApp e Instagram de hoy. Es a propósito: de a pocos se cuida el número. Seguí mañana o subilo en Mi cuenta → Ritmo de contacto.'
   if (m.includes('OPT_OUT')) return 'Este negocio pidió no ser contactado ("No interesado" o "No contactar"): no se le puede escribir más.'
   if (m.includes('SUPRIMIDO')) return m.replace(/^.*SUPRIMIDO:\s*/, 'No se puede enviar: ') + (m.includes('No contactar') ? '' : '. Está en tu lista de "No contactar".')
-  if (m.includes('LIMITE_EMAIL')) return 'Llegaste al límite de emails de hoy para tu casilla. Es para cuidar que tus mails no caigan en spam. Seguí mañana.'
+  if (m.includes('LIMITE_EMAIL')) return 'Llegaste al límite de emails de hoy de tu casilla. Es para que tus mails no caigan en spam: lo que falta sale mañana. Lo ves en Uso y límites.'
   if (m.includes('MOTIVO_PERDIDO')) return 'Para marcar como Perdido elegí un motivo.'
   if (m.includes('EMAIL_INVALIDO')) return m.replace(/^.*EMAIL_INVALIDO:\s*/, '')
   if (m.includes('TEXTO_REPETIDO')) return 'Ese texto es idéntico a uno que ya enviaste a otro negocio. Personalizalo un poco antes de enviarlo.'

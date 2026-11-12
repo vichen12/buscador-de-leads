@@ -11,6 +11,13 @@ const PREGUNTAS = [
     ['¿Qué es "Tu día"?', 'Es la lista de lo que conviene hacer hoy, en orden: primero contestar a interesados, después visitas, tareas, propuestas sin respuesta, seguimientos y emails nuevos.'],
     ['¿Qué diferencia hay entre Empresas (B2B) y Consumidores (B2C)?', 'B2B es para venderle a empresas: buscás, contactás y seguís un pipeline. B2C es para vender a personas: trabajás con tus propios clientes (que te dieron permiso), aliados y creadores. Son dos espacios separados; si tenés los dos, los cambiás arriba del menú.'],
   ]],
+  ['Uso y límites', [
+    ['¿Qué límites hay?', 'Tres, y cada uno cuida algo distinto: la IA del plan (consultas a Claude de toda tu empresa, por mes), los emails de tu casilla (por día, para no caer en spam) y los mensajes por WhatsApp e Instagram que mandás a mano (por día, para cuidar tu número). En "Uso y límites" ves cuánto te queda de cada uno.'],
+    ['¿Qué es una "consulta de IA"?', 'Un pedido a Claude: una búsqueda, un mensaje al Asistente, un borrador. No importa cuánto escriba: cada pedido cuenta uno. Una búsqueda usa 1, pidas 10 o 40 empresas. En "Uso y límites" está la lista completa de qué gasta cada cosa.'],
+    ['¿Cuándo se renueva la IA?', 'El día 1 de cada mes vuelve a cero. Es de toda la empresa: lo que usa una persona se le descuenta a todo el equipo.'],
+    ['¿Qué pasa si se termina la IA?', 'No se puede buscar ni pedirle textos a Claude hasta que se renueve. Tu lista, los mails que ya están escritos, los seguimientos y las respuestas siguen andando. Para tener más, el admin de tu empresa puede pedir que amplíen el plan.'],
+    ['¿Puedo buscar algo que no tenga que ver con mi negocio?', 'Sí. En "Buscar clientes" elegí "Búsqueda libre": Claude busca exactamente lo que escribís, sin usar "Mi negocio" ni lo que aprendió de tu lista. Sirve para otro rubro, proveedores, competidores o un relevamiento.'],
+  ]],
   ['Emails y envíos', [
     ['¿Los mails salen desde mi casilla?', 'Sí. Salen desde tu propia cuenta, quedan en tu carpeta Enviados y las respuestas te llegan a vos. Prospecta también las lee y las clasifica.'],
     ['¿Por qué tengo un límite por día?', 'Para cuidar tu casilla. Una casilla nueva arranca con 20 por día y sube de a poco durante 3 semanas. Si mandás de golpe, los proveedores te marcan como spam.'],
@@ -25,6 +32,7 @@ const PREGUNTAS = [
 ]
 
 const NOVEDADES = [
+  ['12/11/2026', 'Búsqueda libre (cualquier rubro, aunque no tenga que ver con tu negocio) y la pantalla "Uso y límites": cuánto te queda de IA, de emails y de WhatsApp, cuándo se renueva y qué gasta cada cosa.'],
   ['30/10/2026', 'Tu día, metas y ranking, catálogo y propuestas, visitas con ruta, comentarios con @menciones, formulario para tu web, guion de llamada y brief de reunión.'],
   ['30/10/2026', 'Modo Consumidores (B2C): Mis clientes con permiso, campañas, aliados y creadores.'],
   ['30/10/2026', 'Seguridad: verificación en dos pasos, recuperar contraseña por mail, descargar y borrar tu cuenta.'],

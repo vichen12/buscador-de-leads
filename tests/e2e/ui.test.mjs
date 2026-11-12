@@ -6,9 +6,9 @@ const require = createRequire(import.meta.url)
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright')
 
 const APP = process.env.APP_URL || 'http://localhost:4173'
-import { prepararCuenta } from './cuentas.mjs'
-const EMAIL = process.env.TEST_UI || 'prospecta.ui.1793330981106@example.com'
-const CLAVES = ['Prueba-Interfaz-2026!', 'Prueba-Interfaz-2027!']
+import { prepararCuenta, deEntorno, clavesDeEntorno } from './cuentas.mjs'
+const EMAIL = deEntorno('TEST_UI')
+const CLAVES = clavesDeEntorno('TEST_UI_PASS') // dos, separadas por coma
 const PASS = await prepararCuenta(EMAIL, CLAVES, { nombre: 'Vincenzo UI' })
 const PASS2 = CLAVES.find(c => c !== PASS) // la prueba cambia la contraseña a la otra
 const CSV = new URL('../../datos/prospectos_mendoza.csv', import.meta.url).pathname

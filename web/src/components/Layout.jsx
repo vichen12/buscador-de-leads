@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { leerIA } from '../lib/uso.js'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, PanelLeftClose, PanelLeftOpen,
@@ -228,11 +229,12 @@ function TarjetaHoy({ compacta }) {
   const limite = lim ? lim.limite_hoy : perfil?.limite_diario ?? 15
   const enviados = lim ? lim.enviados_hoy : tablero?.enviados_hoy ?? 0
   const pct = Math.min(100, (enviados / Math.max(1, limite)) * 100)
-  const iaMes = ia?.empresa_limite ? Math.min(100, (ia.empresa_usados / ia.empresa_limite) * 100) : null
+  const uso = leerIA(ia)
+  const iaMes = uso && !uso.sinTope ? uso.pct : null
   return (
     <div className={'cupo' + (compacta ? ' compacta' : '')}>
       <div className="cupo-fila">
-        <div className="cupo-top"><span>{lim ? 'Emails de hoy' : 'Envíos de hoy'}</span><b>{tablero ? `${enviados} / ${limite}` : '…'}</b></div>
+        <div className="cupo-top"><span>{lim ? 'Emails de hoy' : 'WhatsApp de hoy'}</span><b>{tablero ? `${enviados} / ${limite}` : '…'}</b></div>
         <div className="cupo-barra"><span style={{ width: pct + '%' }} /></div>
         {lim?.calentando
           ? <small className="cupo-nota"><Flame size={11} /> Casilla en calentamiento · semana {lim.etapa} de 3</small>
@@ -240,11 +242,12 @@ function TarjetaHoy({ compacta }) {
       </div>
       {iaMes !== null && (
         <div className="cupo-fila">
-          <div className="cupo-top"><span>IA del mes</span><b>{Math.round(iaMes)}%</b></div>
+          <div className="cupo-top"><span>{uso.porMes ? 'IA del plan' : 'IA de hoy'}</span><b>{uso.usadas.toLocaleString('es-AR')} / {uso.limite.toLocaleString('es-AR')}</b></div>
           <div className={'cupo-barra' + (iaMes >= 80 ? ' alerta' : '')}><span style={{ width: iaMes + '%' }} /></div>
-          {iaMes >= 80 && <small className="cupo-nota alerta">{iaMes >= 100 ? 'Se terminó la IA del plan este mes.' : 'Usaste más del 80 % del plan.'}</small>}
+          <small className={'cupo-nota' + (iaMes >= 80 ? ' alerta' : '')}>{uso.agotada ? `Se terminó: se renueva ${uso.renueva}` : `Quedan ${uso.quedan.toLocaleString('es-AR')} · se renueva ${uso.renueva}`}</small>
         </div>
       )}
+      <Link to="/uso" className="cupo-link">Uso y límites</Link>
       {servicios.ia !== null && (
         <span className={'ia-pill ' + (servicios.ia ? 'on' : 'off')}><Sparkles size={12} /> {servicios.ia ? 'Claude conectado' : 'Claude sin clave'}</span>
       )}

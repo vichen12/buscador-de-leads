@@ -10,6 +10,15 @@ const env = Object.fromEntries(fs.readFileSync(new URL('../../web/.env.productio
 export const SUPABASE_URL = process.env.SUPABASE_URL || env.VITE_SUPABASE_URL
 export const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY
 
+/** Las cuentas de prueba NO van en el repo (es público): se pasan por variables de entorno. */
+export function deEntorno(nombre) {
+  const v = process.env[nombre]
+  if (!v) throw new Error(`Falta la variable de entorno ${nombre}: las cuentas y contraseñas de prueba ya no están escritas en el repo.`)
+  return v
+}
+/** Varias contraseñas posibles, separadas por coma (la prueba de interfaz alterna entre dos). */
+export const clavesDeEntorno = nombre => deEntorno(nombre).split(',').map(x => x.trim()).filter(Boolean)
+
 /** Entra con la primera contraseña que funcione, borra los datos de la cuenta y devuelve la contraseña vigente */
 export async function prepararCuenta(email, contrasenas, perfil = {}) {
   const c = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } })

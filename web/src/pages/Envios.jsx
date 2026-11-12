@@ -31,7 +31,9 @@ export default function Envios() {
   }
   useEffect(() => { cargar() }, [])
 
-  const cupo = Math.max(0, (perfil?.limite_diario ?? 15) - (tablero?.enviados_hoy ?? 0))
+  // El tope de los mails es el de la casilla (no el de WhatsApp, que es otro límite)
+  const limEmail = tablero?.email
+  const cupo = limEmail ? Math.max(0, (limEmail.limite_hoy ?? 0) - (limEmail.enviados_hoy ?? 0)) : Math.max(0, (perfil?.limite_diario ?? 15) - (tablero?.enviados_hoy ?? 0))
   const filtradas = useMemo(() => {
     const t = q.toLowerCase().trim()
     return (lista ?? []).filter(p => (grupo === 'todas' || p.estado === grupo) && (!calif || (p.calificacion ?? 0) >= calif) &&
@@ -64,7 +66,7 @@ export default function Envios() {
           <Link to="/email"><PenLine size={14} /> Firma</Link>
           <Link to="/email"><Paperclip size={14} /> Archivos</Link>
           <span className="espacio" />
-          <span className="muted">Hoy te quedan <b>{cupo}</b> envíos</span>
+          <span className="muted" title="Es el límite de tu casilla de email. Lo que no entra hoy sale solo mañana.">Hoy te quedan <b>{cupo}</b> emails de tu casilla · <Link to="/uso">ver límites</Link></span>
         </div>
       )}
 
@@ -109,7 +111,7 @@ export default function Envios() {
         <div className="barra-envio">
           <div>
             <b>{sel.size} {sel.size === 1 ? 'empresa' : 'empresas'}</b>
-            <small className={sel.size > cupo ? 'no-txt' : 'muted'}>{sel.size > cupo ? `Hoy podés mandar ${cupo}: vas a poder elegir cuáles` : 'Cada una recibe un email escrito para ella'}</small>
+            <small className={sel.size > cupo ? 'no-txt' : 'muted'}>{sel.size > cupo ? `Hoy tu casilla puede mandar ${cupo}: vas a poder elegir cuáles` : 'Cada una recibe un email escrito para ella'}</small>
           </div>
           <span className="espacio" />
           <button className="btn fantasma" onClick={() => setSel(new Set())}>Limpiar</button>

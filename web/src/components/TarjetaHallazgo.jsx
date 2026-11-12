@@ -27,7 +27,7 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
           {h.resenas > 0 && <span className="lugar"><Star size={12} /> {h.rating ? `${h.rating} · ` : ''}{h.resenas} reseñas</span>}
         </div>
         {h.descripcion && <p className="hallazgo-que-es">{h.descripcion}</p>}
-        {h.encaje && <div className="hallazgo-te-sirve"><Target size={14} /><div><small>Por qué te serviría</small>{h.encaje}</div></div>}
+        {h.encaje && <div className="hallazgo-te-sirve"><Target size={14} /><div><small>{h.libre ? 'Por qué coincide' : 'Por qué te serviría'}</small>{h.encaje}</div></div>}
         {h.senales && <p className="hallazgo-senal"><Megaphone size={13} /> {h.senales}</p>}
         {h.decisor?.nombre && <p className="hallazgo-decisor"><UserRound size={13} style={{ verticalAlign: -2 }} /> Decide: <b>{h.decisor.nombre}</b>{h.decisor.cargo ? `, ${h.decisor.cargo}` : ''}{h.decisor.fuente && <> · <a href={h.decisor.fuente} target="_blank" rel="noreferrer">fuente</a></>}</p>}
         <div className="hallazgo-pie">

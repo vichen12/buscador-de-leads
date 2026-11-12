@@ -2413,3 +2413,27 @@ button.kpi.kpi-boton:focus-visible { outline: 2px solid var(--acc); outline-offs
 a.kpi-link { text-decoration: none; color: inherit; cursor: pointer; }
 a.kpi-link:hover { transform: translateY(-2px); border-color: var(--line-2); }
 a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+/* Buscar: para mi negocio / búsqueda libre */
+.modo-busqueda { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+.modo-busqueda > .muted { flex: 1; min-width: 220px; }
+.etiqueta-libre { display: inline-block; margin-left: 10px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; vertical-align: middle; background: color-mix(in srgb, currentColor 10%, transparent); }
+
+/* Uso y límites */
+.uso-grilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-bottom: 18px; }
+.uso-grilla > .tarjeta { margin-bottom: 0; }
+.uso-cab { display: flex; align-items: center; gap: 12px; }
+.uso-cab h3 { margin: 0; font-size: 16px; }
+.uso-icono { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: color-mix(in srgb, currentColor 8%, transparent); flex: none; }
+.uso-numero { margin-top: 14px; display: flex; align-items: baseline; gap: 7px; }
+.uso-numero b { font-size: 34px; line-height: 1; font-weight: 700; letter-spacing: -.02em; }
+.uso-numero span { color: var(--mut); }
+.uso-detalle { margin: 0 0 8px; }
+.uso-nota { margin: 0; color: var(--mut); line-height: 1.5; }
+.uso-gratis { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--mut); font-size: 13.5px; }
+.uso-gratis li { display: flex; align-items: center; gap: 6px; }
+.cupo-link { display: block; margin-top: 8px; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; color: inherit; opacity: .75; }
+.cupo-link:hover { opacity: 1; }
+.cupo.compacta .cupo-link { display: none; }
+.bb-costo { text-decoration: none; white-space: nowrap; }
+.bb-costo:hover { text-decoration: underline; }

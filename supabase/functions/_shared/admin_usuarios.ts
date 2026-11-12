@@ -111,8 +111,10 @@ export async function manejar(req: Request, h: { clienteDelUsuario: (r: Request)
     // Sin tope de usuarios: lo que se limita es el uso de IA de toda la empresa por mes
     if (body.modo === 'crear') body.empresa_id = empresaPropia
     if (body.modo === 'restablecer') {
-      const { data: otro } = await admin.from('perfiles').select('empresa_id').eq('id', String(body.id ?? '')).maybeSingle()
+      const { data: otro } = await admin.from('perfiles').select('empresa_id, es_admin').eq('id', String(body.id ?? '')).maybeSingle()
       if (otro?.empresa_id !== empresaPropia) return json({ error: 'Esa persona no es de tu equipo' }, 403)
+      // La contraseña de un super admin no la cambia el admin de una empresa (sería quedarse con su cuenta)
+      if (otro?.es_admin) return json({ error: 'La contraseña del super admin no se cambia desde acá.' }, 403)
     }
   }
 

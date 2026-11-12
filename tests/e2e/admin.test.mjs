@@ -5,7 +5,7 @@
 import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright')
-import { prepararCuenta } from './cuentas.mjs'
+import { prepararCuenta, deEntorno, clavesDeEntorno } from './cuentas.mjs'
 
 const APP = process.env.APP_URL || 'http://localhost:4173'
 const SHOTS = process.env.SHOTS || '/tmp'
@@ -19,8 +19,8 @@ page.on('pageerror', e => errores.push(e.message))
 const ver = async (t, timeout = 10000) => page.getByText(t, { exact: false }).first().waitFor({ timeout }).then(() => true).catch(() => false)
 
 // 1. Alta real de una cuenta común
-const EMAIL = process.env.TEST_EMAIL || 'prospecta.admin.1793331046262@example.com'
-const PASS = await prepararCuenta(EMAIL, ['Prueba-Admin-2026!'], { nombre: 'Admin UI' })
+const EMAIL = deEntorno('TEST_EMAIL')
+const PASS = await prepararCuenta(EMAIL, clavesDeEntorno('TEST_PASS'), { nombre: 'Admin UI' })
 await page.goto(APP)
 await page.getByLabel('Email').fill(EMAIL)
 await page.locator('input[autocomplete$=password]').fill(PASS)

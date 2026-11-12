@@ -7,10 +7,10 @@ const Papa = require('papaparse')
 import fs from 'fs'
 
 const URL_ = process.env.SUPABASE_URL, KEY = process.env.SUPABASE_ANON_KEY
-const PASS = 'Prueba-Prospecta-2026!'
+const PASS = deEntorno('TEST_PASS')
 // El registro está cerrado: se usan dos cuentas de prueba existentes (creadas por el admin) y se limpian al empezar
-const A = process.env.TEST_A || 'prospecta.a.1793330735305@example.com'
-const B = process.env.TEST_B || 'prospecta.b.1793330735305@example.com'
+const A = deEntorno('TEST_A')
+const B = deEntorno('TEST_B')
 const cliente = () => createClient(URL_, KEY, { auth: { persistSession: false } })
 let fallas = 0
 const ok = (c, m) => { console.log((c ? 'ok   - ' : 'FALLA- ') + m); if (!c) fallas++ }

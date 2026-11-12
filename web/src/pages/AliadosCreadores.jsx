@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { href } from '../components/Enlaces.jsx'
 import { Handshake, Megaphone, Plus, Pencil, Trash2, Sparkles, Loader2, Copy, MessageCircle, Mail, Search, AtSign, Globe } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fecha, mensajeError } from '../lib/util.js'
@@ -195,7 +196,7 @@ export function EscribirCon({ tipo, item, onCerrar, onUsado }) {
           <button type="button" className="btn fantasma" onClick={generar} disabled={cargando}>{cargando ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Otra versión</button>
           <button type="button" className="btn" onClick={copiar}><Copy size={14} /> Copiar</button>
           {canal === 'whatsapp' && tel && <a className="btn primario" href={`https://wa.me/${tel}?text=${encodeURIComponent(texto.cuerpo)}`} target="_blank" rel="noreferrer" onClick={() => onUsado?.()}><MessageCircle size={14} /> Abrir WhatsApp</a>}
-          {canal === 'whatsapp' && !tel && item?.link && <a className="btn primario" href={item.link} target="_blank" rel="noreferrer" onClick={copiar}>{item.red === 'instagram' ? <AtSign size={14} /> : <Globe size={14} />} Copiar y abrir perfil</a>}
+          {canal === 'whatsapp' && !tel && item?.link && <a className="btn primario" href={href(item.link)} target="_blank" rel="noreferrer" onClick={copiar}>{item.red === 'instagram' ? <AtSign size={14} /> : <Globe size={14} />} Copiar y abrir perfil</a>}
           {canal === 'email' && item?.email && <a className="btn primario" href={`mailto:${item.email}?subject=${encodeURIComponent(texto.asunto)}&body=${encodeURIComponent(texto.cuerpo)}`} onClick={() => onUsado?.()}><Mail size={14} /> Abrir en mi mail</a>}
         </div>
         <p className="muted chico">Lo enviás vos: Prospecta nunca manda mensajes de WhatsApp ni de redes por su cuenta.</p>

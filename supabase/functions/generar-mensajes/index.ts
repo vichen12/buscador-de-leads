@@ -43,7 +43,7 @@ Deno.serve(async req => {
       if (!key) return json({ error: 'Para escribir con Claude falta cargar la clave de Claude (Super admin → Claves).' }, 400)
       const tipo = ['campana', 'aliado', 'creador'].includes(body.tipo) ? body.tipo : 'campana'
       const { data: cupo } = await admin().rpc('cupo_chat', { p_usuario: user.id })
-      if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Llegaste al límite de IA de hoy.', codigo: 'LIMITE_CHAT' }, 429)
+      if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Se terminaron las consultas de IA. Mirá cuándo se renuevan en Uso y límites.', codigo: 'LIMITE_CHAT' }, 429)
       let datos: Dic = {}
       if (tipo !== 'campana' && body.id) {
         const { data } = await supabase.from(tipo === 'aliado' ? 'aliados' : 'creadores').select('*').eq('id', body.id).maybeSingle()
@@ -58,7 +58,7 @@ Deno.serve(async req => {
     if (body.modo === 'guion' || body.modo === 'brief') {
       if (!key) return json({ error: 'Para esto falta cargar la clave de Claude (Super admin → Claves).' }, 400)
       const { data: cupo } = await admin().rpc('cupo_chat', { p_usuario: user.id })
-      if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Llegaste al límite de IA de hoy.', codigo: 'LIMITE_CHAT' }, 429)
+      if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Se terminaron las consultas de IA. Mirá cuándo se renuevan en Uso y límites.', codigo: 'LIMITE_CHAT' }, 429)
       const [{ data: p }, { data: hs }, { data: cs }, { data: rs }] = await Promise.all([
         supabase.from('prospectos').select('*').eq('id', body.prospecto_id).maybeSingle(),
         supabase.from('interacciones').select('tipo, detalle, created_at').eq('prospecto_id', body.prospecto_id).order('created_at').limit(40),
@@ -113,7 +113,7 @@ Deno.serve(async req => {
 
     // Control de costos: la generación descuenta del cupo de IA
     const { data: cupo } = await admin().rpc('cupo_chat', { p_usuario: user.id })
-    if (key && cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Llegaste al límite de IA de hoy.', codigo: 'LIMITE_CHAT' }, 429)
+    if (key && cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'Se terminaron las consultas de IA. Mirá cuándo se renuevan en Uso y límites.', codigo: 'LIMITE_CHAT' }, 429)
 
     const resultados: Record<string, string> = {}
     let errorIA = ''
