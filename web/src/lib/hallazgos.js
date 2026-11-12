@@ -9,7 +9,7 @@ export async function aprobarHallazgos(ids) {
 
 /** "No sirve": queda guardada para que ninguna búsqueda la vuelva a traer */
 export async function descartarHallazgos(ids, motivo = '') {
-  const { error } = await supabase.from('hallazgos').update({ estado: 'descartado', motivo, revisado_at: new Date().toISOString() }).in('id', ids)
+  const { error } = await supabase.from('hallazgos').update({ estado: 'descartado', motivo, revisado_at: new Date().toISOString() }).in('id', ids).eq('estado', 'por_revisar')
   if (error) throw error
 }
 
@@ -20,7 +20,7 @@ export async function saltearHallazgos(ids) {
 }
 
 export async function recuperarHallazgos(ids) {
-  const { error } = await supabase.from('hallazgos').update({ estado: 'por_revisar', motivo: '', revisado_at: null }).in('id', ids)
+  const { error } = await supabase.from('hallazgos').update({ estado: 'por_revisar', motivo: '', revisado_at: null }).in('id', ids).eq('estado', 'descartado')
   if (error) throw error
 }
 

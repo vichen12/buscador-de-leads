@@ -83,9 +83,9 @@ Lo que contó (puede ser una sola frase: deducí vos lo que falte, como el clien
 - Web o redes de la empresa: ${txt(r.web, 200) || 's/d'}
 ${web.texto ? `\nLO QUE DICE SU PÁGINA WEB (${web.url}). Usala como fuente principal para entender qué vende, a quién, en qué países opera y qué la diferencia:\n-----\n${web.texto}\n-----\n` : web.url ? `\nNo pude leer su web (${web.url}). Si tenés la herramienta de búsqueda, buscala para entender qué vende.\n` : ''}
 Ojo: si "Qué vende" es un documento largo (un speech, una plantilla de mails, un manual o un pitch), no lo resumas como si el documento fuera el producto: sacá de ahí QUÉ VENDE ESA EMPRESA a sus clientes y a qué tipo de empresas. Las herramientas que usa para vender (apps, CRM, plantillas) no son lo que vende.
-Rubros: variados, de industrias DISTINTAS donde aparece la necesidad (no diez variantes del mismo rubro, como alimentos, bebidas, golosinas y almacenes). Ningún grupo puede tener más de un tercio de los rubros.
+Rubros: sólo los que de verdad le compran. Si su mercado es un nicho, pocos rubros está bien; si la necesidad aparece en varias industrias, incluilas. No inventes rubros para llegar a una cantidad.
 
-Armá su estrategia de prospección. Pensá en qué tipos de negocio u organización concretos (rubros buscables en Google Maps) son sus mejores clientes, incluso los que no son obvios. Los filtros tienen que ser cosas verificables mirando la presencia pública de un negocio (web, redes, fichas, reseñas, tamaño aparente, si tiene flota, sucursales, horarios, si vende online, etc.), específicas para ESTE negocio.
+Armá su estrategia de prospección. Pensá en qué tipos de negocio u organización concretos (rubros buscables en Google Maps) son sus mejores clientes. Los filtros tienen que ser cosas verificables mirando la presencia pública de un negocio (web, redes, fichas, reseñas, tamaño aparente), específicas para ESTE negocio.
 
 Filtros estándar que podés incluir si sirven (usá exactamente estos id): ${FILTROS_BASE.map(f => f.id).join(', ')}. "sin_web" sólo si lo que vende tiene que ver con tener o no tener web.
 
@@ -95,7 +95,7 @@ Respondé SOLO con JSON válido, sin texto antes ni después:
  "cliente_ideal": "una frase concreta",
  "rubros": [{"nombre": "rubro corto en minúscula como se buscaría en Google Maps", "grupo": "categoría corta", "por_que": "por qué es buen cliente, en pocas palabras"}],
  "zonas": ["zona o ciudad"],
- "filtros": [{"id": "id_corto", "titulo": "título corto", "descripcion": "qué tiene que cumplir, en una frase", "activo": true}],
+ "filtros": [{"id": "id_corto", "titulo": "título corto", "descripcion": "qué tiene que cumplir, en una frase"}],
  "criterios": ["señal concreta de que es buen prospecto"],
  "descartar": ["a quién descartar"],
  "presentacion": "cómo se presenta la empresa en un primer mail, en primera persona del plural y en 2 o 3 oraciones: qué hace en concreto (nombrando sus productos o servicios reales), para qué tipo de empresas, y una prueba real si aparece en lo que contó o en su web (clientes, años, países). Sin frases genéricas como 'soluciones innovadoras'",
@@ -103,7 +103,7 @@ Respondé SOLO con JSON válido, sin texto antes ni después:
  "angulo": "cómo conviene entrarle en el primer mensaje: qué valor ofrecer, en dos frases",
  "tono": "tono recomendado para los mensajes"
 }
-Entre 12 y 20 rubros en 3 a 6 grupos, ordenados de mejor a peor. Entre 4 y 7 filtros (marcá activo=true los 2 o 3 más importantes). Entre 3 y 6 criterios. Zonas: las que dijo, o las más lógicas si no dijo (y si la web muestra que opera en varios países, incluilos). Si dijo una región amplia de un país (ej. "Gran Mendoza", "Todo el país"), devolvé las ciudades o departamentos concretos donde conviene buscar. Si opera en varios países o en Latinoamérica, devolvé los países (y si sirve las ciudades principales con el país, ej. "Santiago, Chile"). Máximo 10. Los rubros tienen que servir en todos esos países.`
+Entre 3 y 20 rubros (los que correspondan a este negocio, sin rellenar), agrupados, ordenados de mejor a peor. Entre 2 y 5 filtros: son opcionales, la persona los prende cuando quiere. Entre 3 y 6 criterios. Zonas: las que dijo, o las más lógicas si no dijo (y si la web muestra que opera en varios países, incluilos). Si dijo una región amplia de un país (ej. "Gran Mendoza", "Todo el país"), devolvé las ciudades o departamentos concretos donde conviene buscar. Si opera en varios países o en Latinoamérica, devolvé los países (y si sirve las ciudades principales con el país, ej. "Santiago, Chile"). Máximo 10. Los rubros tienen que servir en todos esos países.`
 }
 
 Deno.serve(async req => {
@@ -153,7 +153,7 @@ Deno.serve(async req => {
     zonas: (Array.isArray(e.zonas) ? e.zonas : []).map((z: unknown) => txt(z, 60)).filter(Boolean).slice(0, 14),
     filtros: (Array.isArray(e.filtros) ? e.filtros : []).map((f: Dic) => {
       const base = FILTROS_BASE.find(b => b.id === f.id)
-      return { id: base?.id ?? (slug(txt(f.id) || txt(f.titulo)) || crypto.randomUUID().slice(0, 8)), titulo: txt(f.titulo, 60) || base?.titulo || '', descripcion: txt(f.descripcion, 200) || base?.descripcion || '', activo: f.activo !== false }
+      return { id: base?.id ?? (slug(txt(f.id) || txt(f.titulo)) || crypto.randomUUID().slice(0, 8)), titulo: txt(f.titulo, 60) || base?.titulo || '', descripcion: txt(f.descripcion, 200) || base?.descripcion || '', activo: false }
     }).filter((f: Dic) => f.titulo).slice(0, 10),
     criterios: (Array.isArray(e.criterios) ? e.criterios : []).map((c: unknown) => txt(c, 200)).filter(Boolean).slice(0, 10),
     descartar: (Array.isArray(e.descartar) ? e.descartar : []).map((c: unknown) => txt(c, 200)).filter(Boolean).slice(0, 10),
@@ -163,7 +163,7 @@ Deno.serve(async req => {
     tono: txt(e.tono, 200),
   }
   // Siempre ofrecer "con teléfono" para poder contactarlos
-  if (!estrategia.filtros.some((f: Dic) => f.id === 'con_telefono')) estrategia.filtros.push({ ...FILTROS_BASE[0], activo: true })
+  if (!estrategia.filtros.some((f: Dic) => f.id === 'con_telefono')) estrategia.filtros.push({ ...FILTROS_BASE[0], activo: false })
 
   if (body.guardar !== false) {
     const { error } = await supabase.from('perfil_comercial').upsert({ owner_id: user.id, respuestas, estrategia })

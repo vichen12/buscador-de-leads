@@ -240,12 +240,27 @@ function linkDe(v: unknown, patron: RegExp) {
 
 /** Lo que la persona (y su equipo) ya juzgó: qué empresas le sirvieron y cuáles descartó y por qué */
 async function aprendizaje(db: any, owner: string, equipo: string[]) {
-  const [{ data: pros }, { data: aprob }, { data: malos }] = await Promise.all([
-    db.from('prospectos').select('nombre, rubro, encaje, calificacion, estado, owner_id, perdido_motivo').in('owner_id', equipo)
-      .order('calificacion', { ascending: false, nullsFirst: false }).order('updated_at', { ascending: false }).limit(120),
-    db.from('hallazgos').select('nombre, rubro, encaje').in('owner_id', equipo).eq('estado', 'aprobado').order('revisado_at', { ascending: false, nullsFirst: false }).limit(30),
-    db.from('hallazgos').select('nombre, rubro, motivo').in('owner_id', equipo).eq('estado', 'descartado').order('revisado_at', { ascending: false, nullsFirst: false }).limit(30),
-  ])
+  // Sólo se aprende de lo que salió de búsquedas «para mi negocio». Lo que se sumó o descartó en una
+  // búsqueda libre (otro rubro, proveedores, competidores) no dice nada de a quién le vende esta persona.
+  // La marca es la columna `libre`; si la base todavía no la tiene, se deduce de la búsqueda de origen.
+  const { data: bl } = await db.from('busquedas').select('id').in('owner_id', equipo).contains('requisitos', { libre: true }).limit(2000)
+  const libres = new Set(((bl ?? []) as Dic[]).map(b => b.id))
+  const deNegocio = (f: Dic) => f.libre !== true && !(f.busqueda_id && libres.has(f.busqueda_id))
+  // Con la columna si existe; si no (migración sin aplicar), sin ella
+  const traer = async (armar: (cols: string) => any, cols: string) => {
+    const con = await armar(cols + ', libre')
+    return ((con.error ? (await armar(cols)).data : con.data) ?? []) as Dic[]
+  }
+  const [pros, aprob, malos] = (await Promise.all([
+    traer(c => db.from('prospectos').select(c).in('owner_id', equipo)
+      .order('calificacion', { ascending: false, nullsFirst: false }).order('updated_at', { ascending: false }).limit(200),
+      'nombre, rubro, encaje, calificacion, estado, owner_id, perdido_motivo, busqueda_id'),
+    // Aprobadas que siguen en la lista: si después borró el prospecto, ya no cuenta como «le sirve»
+    traer(c => db.from('hallazgos').select(c).in('owner_id', equipo).eq('estado', 'aprobado').not('prospecto_id', 'is', null).order('revisado_at', { ascending: false, nullsFirst: false }).limit(60),
+      'nombre, rubro, encaje, busqueda_id'),
+    traer(c => db.from('hallazgos').select(c).in('owner_id', equipo).eq('estado', 'descartado').order('revisado_at', { ascending: false, nullsFirst: false }).limit(60),
+      'nombre, rubro, motivo, busqueda_id'),
+  ])).map((filas, i) => filas.filter(deNegocio).slice(0, i === 0 ? 120 : 30))
   const linea = (p: Dic) => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.encaje ? ` — ${String(p.encaje).slice(0, 90)}` : ''}`
   const todos = (pros ?? []) as Dic[]
   const fuerte = (p: Dic) => p.calificacion === 3 || ['respondio', 'reunion', 'propuesta', 'cliente'].includes(p.estado)
@@ -261,7 +276,7 @@ async function aprendizaje(db: any, owner: string, equipo: string[]) {
   // Sólo las que de verdad funcionaron (respondieron, reunión, cliente o calificadas con 3) disparan la búsqueda de parecidas
   const ejemplos = muy.slice(0, 8).map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}`)
   if (!total) return { texto: '', sirven: 0, noSirven: 0, ejemplos }
-  const texto = `Lo que aprendimos de esta persona por las empresas que ya eligió y las que descartó. Usalo para entender QUÉ CARACTERÍSTICAS hacen buena a una empresa para ella (tamaño, forma de operar, necesidad) y cuáles no, NO para quedarte en el mismo rubro: buscá esas características también en otras industrias. Si casi todas son del mismo rubro, es porque es lo que se le mostró hasta ahora, no porque sólo quiera eso:
+  const texto = `Lo que aprendimos de esta persona por las empresas que ya eligió y las que descartó. Usalo para entender QUÉ CARACTERÍSTICAS hacen buena a una empresa para ella (tamaño, forma de operar, necesidad) y cuáles no, y con eso puntuar y ordenar mejor. NO cambia el tipo de empresa que se pide en esta búsqueda: si pidió un rubro, no traigas otro porque se parece a estas. Si casi todas son del mismo rubro, es porque es lo que se le mostró hasta ahora, no porque sólo quiera eso:
 ${muy.length ? `- Le sirven MUCHO (respondieron, tienen reunión o son clientes): ${muy.map(linea).join('; ')}\n` : ''}${si.length ? `- Le sirven (las sumó a su lista): ${si.map(linea).join('; ')}\n` : ''}${flojos.length ? `- NO le sirvieron después de contactarlas: ${flojos.map(p => `${linea(p)}${p.perdido_motivo ? ` — motivo: ${p.perdido_motivo}` : ''}`).join('; ')}\n` : ''}${no.length ? `- Descartadas (NO le sirven): ${no.map(p => `${p.nombre}${p.rubro ? ` (${p.rubro})` : ''}${p.motivo ? ` — motivo: ${p.motivo}` : ''}`).join('; ')}\n` : ''}`
   return { texto, sirven: muy.length + si.length, noSirven: no.length + flojos.length, ejemplos }
 }
@@ -306,14 +321,16 @@ async function interpretar(key: string, modelo: string, rubro: string, zona: str
 ${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}${aprendido ? `\n${aprendido}\n` : ''}
 IMPORTANTE: describí sólo el TIPO de empresa, sin ningún lugar. En "interpretacion", "incluir", "excluir" y "buscar" NO pongas países, provincias, ciudades ni barrios (el lugar lo elige la persona aparte y se agrega solo).
 
-Interpretá qué empresas le sirven COMO CLIENTES, pensando en lo que vende quien busca. Primero preguntate QUÉ NECESIDAD o característica hace que una empresa le compre (por ejemplo: tener mucho stock, una flota, muchos empleados, atención al público, un local grande, exportar), y después pensá en TODAS las industrias donde aparece esa necesidad. Las palabras ambiguas se resuelven por lo que vende (si vende algo para depósitos y escribe "depósito", son empresas que TIENEN depósito propio, no las que alquilan bauleras o hacen mudanzas). Si no hay contexto, elegí la lectura comercial más probable.
-VARIEDAD (obligatorio): en "incluir" poné de 5 a 8 tipos de empresa de industrias DISTINTAS entre sí (no cinco variantes del mismo rubro, por ejemplo no alimentos + bebidas + golosinas + almacén). No te quedes en el rubro más obvio ni en el rubro de las empresas de ejemplo: esas muestran qué características sirven, no el único rubro posible. Sólo si la persona pidió un rubro puntual (ej.: "bodegas", "farmacias"), quedate en ese rubro.
+LO QUE ESCRIBIÓ MANDA (obligatorio). Hay dos casos:
+A) Nombró uno o varios tipos de empresa o rubros (ej.: "bodegas", "e-commerce con depósito", "comercios y transportes"): quedate EXACTAMENTE en esos tipos. "incluir" son esos tipos y, como mucho, sus variantes cercanas (2 a 5 en total). No agregues otras industrias ni lo cambies por lo que te parece que le conviene: si pidió "transportes", son transportes, aunque lo que vende sea otra cosa. Lo que vende quien busca sirve sólo para resolver palabras ambiguas (si vende algo para depósitos y escribe "depósito", son empresas que TIENEN depósito propio, no las que alquilan bauleras) y para armar "excluir".
+B) El pedido es general y no nombra ningún tipo de empresa (ej.: "empresas que me sirvan", "clientes para mí", "empresas grandes"): ahí sí pensá qué necesidad hace que una empresa le compre y poné en "incluir" de 5 a 8 tipos de empresa de industrias distintas donde aparece esa necesidad.
+Las CONDICIONES que pida (tamaño, metros, "sin página web", "con buenas reseñas", "que estén creciendo") no son tipos de empresa: van en "interpretacion", nunca en "buscar" ni en "incluir".
 Nunca incluyas como clientes a empresas que venden o instalan lo mismo que quien busca (competencia, integradores, revendedores) ni a sus proveedores: van siempre en "excluir".
 
 ${multi ? `La búsqueda abarca varios países (${pais}): incluí términos con las variantes de vocabulario de cada país (ej.: "depósito" en Argentina, "bodega" en Chile, "almacén" en México).` : `Los términos de búsqueda tienen que estar en el vocabulario de ${pais} (ej.: en Chile "bodega" es depósito; en México "almacén").`}
 
 Respondé SOLO con JSON:
-{"especifica": true o false (false si el pedido es tan general que puede ser casi cualquier empresa, como "empresas", "empresas con depósito", "negocios grandes"; true si ya dice un tipo de empresa concreto o una característica clara), "opciones": ["si especifica es false: 4 a 6 búsquedas CONCRETAS que la persona podría elegir, cada una con un tipo de empresa + una característica verificable, cortas, en minúscula y sin lugares (ej.: 'operadores logísticos con depósito propio', 'laboratorios que están ampliando su planta'); si es true, 2 o 3 variantes más específicas"], "interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["6 a 10 términos concretos como aparecen en Google Maps o directorios, repartidos entre los distintos tipos de "incluir""], "incluir": ["5 a 8 tipos de empresa de industrias distintas que sí entran, del que más encaja al que menos"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
+{"especifica": true o false (false si el pedido es tan general que puede ser casi cualquier empresa, como "empresas", "empresas con depósito", "negocios grandes"; true si ya dice un tipo de empresa concreto o una característica clara), "opciones": ["si especifica es false: 4 a 6 búsquedas CONCRETAS que la persona podría elegir, cada una con un tipo de empresa + una característica verificable, cortas, en minúscula y sin lugares (ej.: 'operadores logísticos con depósito propio', 'laboratorios que están ampliando su planta'); si es true, 2 o 3 variantes más específicas"], "interpretacion": "una frase clara en español de qué empresas vamos a buscar", "buscar": ["5 a 10 términos concretos como aparecen en Google Maps o directorios (rubros, sin condiciones), repartidos entre los tipos de "incluir""], "incluir": ["los tipos de empresa que entran: caso A, los que pidió y sus variantes cercanas (2 a 5); caso B, 5 a 8 de industrias distintas"], "excluir": ["3 a 6 tipos de empresa que NO entran aunque aparezcan con palabras parecidas"]}`, 8000)
     const o = extraerObjeto(r.texto)
     if (!o) return { brief: base, usoIn: r.usoIn, usoOut: r.usoOut }
     return {
@@ -362,7 +379,7 @@ function limpiarBrief(b: Brief, zona: string): Brief {
 function briefDesde(b: unknown, rubro: string): Brief | null {
   if (!b || typeof b !== 'object') return null
   const o = b as Dic
-  return { interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 10).length ? lista(o.buscar, 10) : [rubro], incluir: lista(o.incluir, 10), excluir: lista(o.excluir, 10) }
+  return { interpretacion: String(o.interpretacion ?? rubro).slice(0, 300), buscar: lista(o.buscar, 10).length ? lista(o.buscar, 10) : [rubro], incluir: lista(o.incluir, 10), excluir: lista(o.excluir, 10), especifica: o.especifica !== false }
 }
 
 /** Segunda mirada: descarta lo que no es el tipo de empresa pedido o no cumple los filtros, y marca las más parecidas a las que le sirven */
@@ -562,7 +579,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     } catch (e) { console.error('preguntar', e); return json({ preguntas: [] }) }
   }
   let brief = briefDesde(body.brief, rubro)
-  if (brief) brief = limpiarBrief(brief, zona)
+  if (brief) brief = { ...limpiarBrief(brief, zona), especifica: brief.especifica }
   if (!brief) {
     const it = await interpretar(key, modeloRapido, rubro, zona, contexto, apr.texto, pais.nombre, pais.multi, libre)
     brief = it.brief; usoIn += it.usoIn; usoOut += it.usoOut
@@ -589,11 +606,15 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   // Con empresas que ya le sirven, una de las búsquedas va siempre a buscar parecidas a esas
   // Si la zona es uno o varios países, cada búsqueda va a una parte distinta (país o región): así no se amontonan en un solo lugar
   const partes = partesDeZona(zona, 4)
-  const lotes = Math.min(4, Math.max(apr.ejemplos.length ? 2 : 1, Math.ceil(cantidad / 10), partes.length))
+  // Pedido general (no nombra un tipo de empresa): ahí sí se abre a parecidas y se reparte por variedad.
+  // Si pidió algo concreto, todas las búsquedas van a eso.
+  const general = !libre && brief!.especifica === false
+  const conParecidas = general && apr.ejemplos.length > 0
+  const lotes = Math.min(4, Math.max(conParecidas ? 2 : 1, Math.ceil(cantidad / 10), partes.length))
   const cuantos = Math.ceil(cantidad / lotes) + 2
   const tareas = Array.from({ length: lotes }, (_, i) => {
     const parte = partes[i % partes.length]
-    const e = i === 0 && apr.ejemplos.length ? enfoqueParecidas(apr.ejemplos, parte.zona) : ENFOQUES[(i - (apr.ejemplos.length ? 1 : 0) + ENFOQUES.length) % ENFOQUES.length]
+    const e = i === 0 && conParecidas ? enfoqueParecidas(apr.ejemplos, parte.zona) : ENFOQUES[(i - (conParecidas ? 1 : 0) + ENFOQUES.length) % ENFOQUES.length]
     return { parte, e }
   })
   // Cada búsqueda recorre tipos de empresa distintos (así no se van todas al rubro más obvio)
@@ -612,6 +633,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     const u = partes.length === 1 ? { code: partes[0].code, zona: partes[0].zona } : { code: '', zona }
     const terminos = [...new Set([...brief!.buscar, ...brief!.incluir])].slice(0, 8)
     const fichas = (await desdeMaps(clavePlaces, terminos, u.zona, u.code, conteoPlaces)).filter(f => !nomConocidos.has(clave(f.nombre)))
+      .filter(f => !tipos.has('sin_web') || clasificarWeb(f.web).esProspecto)
     const ev = await evaluarFichas(key, modeloRapido, brief!, fichas.slice(0, 120), contexto, apr.texto, filtrosIA, libre)
     return { ...ev, fichas: fichas.length, estado: errorMaps ? 'error: ' + errorMaps.slice(0, 120) : 'ok' }
   })().catch(e => { console.error('maps', e); return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'error: ' + String(e).slice(0, 120) } })
@@ -716,7 +738,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     // Variedad: ningún tipo de empresa se lleva más de un tercio de los resultados (salvo que haya pocos tipos)
     .filter(((cuenta: Record<string, number>) => (c: Dic) => {
       // En la búsqueda libre los tipos son variantes del mismo pedido: no se recorta por variedad
-      if (libre || brief!.incluir.length <= 2 || !c.segmento) return true
+      if (!general || brief!.incluir.length <= 2 || !c.segmento) return true
       const tope = Math.max(3, Math.ceil(cantidad / 2.5))
       cuenta[c.segmento] = (cuenta[c.segmento] ?? 0) + 1
       return cuenta[c.segmento] <= tope
@@ -727,6 +749,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
 
   // Guardar en la bandeja "Por revisar"
   let busquedaId: string | null = null
+  let avisoGuardado = ''
   let salida: Dic[] = resultados.map(({ es_prospecto, no_cumple, segmento, evaluado, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
   if (guardar && resultados.length) {
     const { data: b } = await db.from('busquedas').insert({ owner_id: user.id, rubro, zona, pedido, requisitos: { filtros: [...ids], brief, ...(libre ? { libre: true } : {}) }, cantidad, encontrados: resultados.length }).select('id').single()
@@ -734,8 +757,8 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     const filas = resultados.map(({ es_prospecto, no_cumple, segmento, evaluado, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
       google_maps_url: r.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([r.nombre, r.direccion, zona].filter(Boolean).join(' '))}` }))
     const { data: ins, error } = await supabase.from('hallazgos').upsert(filas, { onConflict: 'owner_id,clave_nombre', ignoreDuplicates: true }).select('*')
-    if (error) console.error('hallazgos', error)
-    salida = (ins ?? []) as Dic[]
+    if (error) { console.error('hallazgos', error); avisoGuardado = 'Encontramos estas empresas pero no se pudieron guardar en «Por revisar». Bajalas a Excel o anotalas antes de salir, y avisale al administrador.' }
+    else salida = (ins ?? []) as Dic[]
     if (busquedaId) await db.from('busquedas').update({ guardados: salida.length, ya_estaban: yaConocidos }).eq('id', busquedaId)
   }
 
@@ -744,6 +767,6 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     resultados: salida, busqueda_id: busquedaId, brief, descartados, no_encajan: noEncajan, ya_conocidos: yaConocidos, ya_descartados: yaDescartados, cupo: cupoNuevo,
     diagnostico: { maps: deMaps.estado, maps_fichas: deMaps.fichas, maps_sirven: deMaps.items.length, web: corridas.map(c => extraerLista(c.salida).length), web_errores: corridas.filter(c => c.error).map(c => String(c.error).slice(0, 80)) },
     busquedas: corridas.reduce((a, c) => a + c.busquedas, 0), enfoques: lotes, modelo, libre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, parecidas: parecida.size },
-    aviso: corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : sinVerificar ? 'No llegamos a la segunda revisión: mirá estas empresas con más cuidado.' : '',
+    aviso: avisoGuardado || (corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : sinVerificar ? 'No llegamos a la segunda revisión: mirá estas empresas con más cuidado.' : ''),
   })
 }

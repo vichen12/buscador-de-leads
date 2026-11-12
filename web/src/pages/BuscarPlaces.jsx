@@ -16,7 +16,7 @@ import { useApp } from '../App.jsx'
 import { leerIA, textoCosto } from '../lib/uso.js'
 
 const FILTROS_DEFECTO = [
-  { id: 'con_telefono', titulo: 'Con teléfono o WhatsApp', descripcion: 'Que tenga un número para escribirle.', activo: true },
+  { id: 'con_telefono', titulo: 'Con teléfono o WhatsApp', descripcion: 'Que tenga un número para escribirle.', activo: false },
   { id: 'con_email', titulo: 'Con email', descripcion: 'Que tenga un email de contacto.', activo: false },
   { id: 'con_instagram', titulo: 'Con Instagram', descripcion: 'Que tenga Instagram.', activo: false },
   { id: 'sin_web', titulo: 'Sin página web', descripcion: 'Que no tenga sitio propio: sólo redes, WhatsApp, Maps o nada.', activo: false },
@@ -80,7 +80,10 @@ export default function BuscarPlaces() {
   const fuenteUsada = sinMaps ? 'claude' : 'ambas'
   const [zona, setZona] = useState(sugZonas[0])
   const [cantidad, setCantidad] = useState(20)
-  const [activos, setActivos] = useState(() => new Set(FILTROS_DEFECTO.filter(f => f.activo).map(f => f.id)))
+  // Los filtros arrancan apagados (prendidos de fábrica descartaban de más) y se recuerda lo que elijas, por modo
+  const claveFiltros = 'prospecta-filtros-' + modo
+  const filtrosGuardados = () => { try { return new Set(JSON.parse(localStorage.getItem(claveFiltros)) ?? []) } catch { return new Set() } }
+  const [activos, setActivos] = useState(filtrosGuardados)
   const [pedido, setPedido] = useState('')
   const [verFiltros, setVerFiltros] = useState(false)
   const [res, setRes] = useState(null)
@@ -91,14 +94,14 @@ export default function BuscarPlaces() {
   const resultadosRef = useRef(null)
   const rubroRef = useRef(null)
 
-  useEffect(() => { setActivos(new Set(filtros.filter(f => f.activo).map(f => f.id))) }, [filtros])
+  useEffect(() => { setActivos(filtrosGuardados()) }, [modo])
   // La zona por defecto sigue a la configuración de la cuenta hasta que la persona elige otra
   useEffect(() => { if ((!zonaTocada.current || !zona) && sugZonas[0]) setZona(sugZonas[0]) }, [sugZonas])
   const cargarHistorial = () => supabase.from('busquedas').select('*').order('created_at', { ascending: false }).limit(6).then(({ data }) => setHistorial(data ?? []))
   useEffect(() => { cargarHistorial() }, [])
 
   const filtrosActivos = filtros.filter(f => activos.has(f.id))
-  const alternar = id => setActivos(a => { const n = new Set(a); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const alternar = id => setActivos(a => { const n = new Set(a); n.has(id) ? n.delete(id) : n.add(id); try { localStorage.setItem(claveFiltros, JSON.stringify([...n])) } catch { /* sin almacenamiento */ } return n })
 
   const sinTilde = z => z.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   const zonaNormal = z => todasZonas.find(o => sinTilde(o) === sinTilde(z)) ?? z.trim()
@@ -124,7 +127,7 @@ export default function BuscarPlaces() {
       }
       setRes(r); setSinLibre(libre && r.libre !== true)
       toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info',
-        r.resultados.length ? { accion: { label: 'Ver en Por revisar', onClick: () => nav('/revisar') } } : {})
+        r.resultados.length ? { accion: { label: 'Ver en Por revisar', onClick: () => nav(`/revisar?busqueda=${r.busqueda_id ?? ''}`) } } : {})
       refrescar(); cargarHistorial()
       setTimeout(() => resultadosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (err) { setError(mensajeError(err)) }
@@ -298,7 +301,7 @@ export default function BuscarPlaces() {
           <small className="muted">Búsquedas recientes</small>
           {historial.map(b => (
             <button key={b.id} type="button" className="reciente" onClick={() => nav(`/revisar?busqueda=${b.id}`)} title="Ver lo que trajo">
-              {b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · {b.zona.replace(/, Mendoza$/, '')} <span className="muted">({b.guardados})</span>
+              {b.requisitos?.libre && <span className="etiqueta-libre">Libre</span>}{b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · {b.zona} <span className="muted">({b.guardados})</span>
             </button>
           ))}
         </div>

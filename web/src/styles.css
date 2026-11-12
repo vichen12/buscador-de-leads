@@ -2455,3 +2455,10 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .buscar-rapido input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 15px; padding: 8px 0; color: var(--ink); }
 .buscar-rapido input::placeholder { color: var(--mut-2); }
 .mas-item > svg:first-child { color: var(--acc); flex-shrink: 0; }
+
+/* De qué búsqueda vino: mi negocio / libre (Por revisar y Tu lista) */
+.origen-sel { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--hover); border: 1px solid var(--line); margin-bottom: 12px; }
+.origen-sel button { border: 0; background: transparent; border-radius: 999px; padding: 5px 13px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; transition: background .15s, color .15s; }
+.origen-sel button:hover { color: var(--ink); }
+.origen-sel button.on { background: var(--card); color: var(--ink); box-shadow: var(--sh); }
+.reciente .etiqueta-libre { margin: 0 6px 0 0; }

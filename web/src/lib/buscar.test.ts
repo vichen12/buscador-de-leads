@@ -7,12 +7,12 @@ import { buscar } from '../../../supabase/functions/_shared/buscar.ts';
 type Dic = Record<string, any>;
 
 /** Base de mentira: cualquier consulta encadenada devuelve vacío; anota inserts por tabla. */
-function baseFalsa() {
+function baseFalsa(datos: Record<string, Dic[]> = {}, opciones: { fallaGuardar?: boolean } = {}) {
   const inserts: Record<string, Dic[]> = {};
   const consulta = (tabla: string) => {
     let filas: Dic[] | null = null;
     const q: Dic = {};
-    for (const m of ['select', 'in', 'eq', 'order', 'limit', 'update', 'neq', 'not', 'or'])
+    for (const m of ['select', 'in', 'eq', 'order', 'limit', 'update', 'neq', 'not', 'or', 'contains'])
       q[m] = () => q;
     q.insert = (f: Dic | Dic[]) => {
       (inserts[tabla] ??= []).push(...(Array.isArray(f) ? f : [f]));
@@ -20,6 +20,7 @@ function baseFalsa() {
       return q;
     };
     q.upsert = (f: Dic[]) => {
+      if (opciones.fallaGuardar) { q.then = (ok: (v: unknown) => void) => ok({ data: null, error: { message: 'no se pudo' } }); return q; }
       filas = f.map((x, i) => ({ ...x, id: `h${i}`, estado: 'por_revisar' }));
       return q;
     };
@@ -27,27 +28,28 @@ function baseFalsa() {
       const r = { data: tabla === 'busquedas' ? { id: 'b1' } : null, error: null };
       return Promise.resolve(r);
     };
-    q.then = (ok: (v: unknown) => void) => ok({ data: filas ?? [], error: null });
+    q.then = (ok: (v: unknown) => void) => ok({ data: filas ?? datos[tabla] ?? [], error: null });
     return q;
   };
   const db = { from: consulta, rpc: async () => ({ data: { usados: 0, limite: 100 }, error: null }) };
   return { db, inserts };
 }
 
-type Respuestas = { web?: Dic[]; hangVerificar?: boolean; hangFichas?: boolean; alColgar?: () => void };
+type Respuestas = { sitio?: string; web?: Dic[]; hangVerificar?: boolean; hangFichas?: boolean; alColgar?: () => void };
 /** fetch de mentira: Anthropic (con y sin búsqueda web) y Google Places */
 function redFalsa(r: Respuestas = {}) {
-  const llamadas = { web: 0, places: 0, fichas: 0, verificar: 0 };
+  const llamadas = { web: 0, places: 0, fichas: 0, verificar: 0, textos: [] as string[], sitio: '' };
   const fetchFalso = vi.fn(async (url: string, init: Dic) => {
     const body = JSON.parse(init.body);
     if (url.includes('places.googleapis.com')) {
       llamadas.places++;
       if (r.hangFichas) r.alColgar?.(); // el reloj salta antes de que termine la búsqueda web
       return new Response(JSON.stringify({ places: [
-        { id: 'p1', displayName: { text: `Depósito Maps ${llamadas.places}` }, nationalPhoneNumber: '261 555 000' + llamadas.places, businessStatus: 'OPERATIONAL', formattedAddress: 'Calle 1, Mendoza' },
+        { id: 'p1', displayName: { text: `Depósito Maps ${llamadas.places}` }, nationalPhoneNumber: '261 555 000' + llamadas.places, businessStatus: 'OPERATIONAL', formattedAddress: 'Calle 1, Mendoza', ...(r.sitio ? { websiteUri: r.sitio } : {}) },
       ] }));
     }
     const texto: string = body.messages[0].content;
+    llamadas.textos.push(texto);
     let salida = '';
     let usage: Dic = { input_tokens: 100, output_tokens: 50 };
     if (body.tools) {
@@ -70,8 +72,8 @@ function redFalsa(r: Respuestas = {}) {
 }
 
 const brief = { interpretacion: 'distribuidoras con depósito', buscar: ['distribuidora'], incluir: ['distribuidoras'], excluir: [] };
-async function correr(body: Dic, { places = 'AIza-falsa' }: { places?: string } = {}) {
-  const { db, inserts } = baseFalsa();
+async function correr(body: Dic, { places = 'AIza-falsa', datos = {}, fallaGuardar = false }: { places?: string; datos?: Record<string, Dic[]>; fallaGuardar?: boolean } = {}) {
+  const { db, inserts } = baseFalsa(datos, { fallaGuardar });
   const usuario = { supabase: db, user: { id: 'u1' } };
   const claves: Dic = { anthropic: 'sk-ant-falsa', google_places: places };
   const res = await buscar(new Request('http://x', { method: 'POST', body: JSON.stringify({ rubro: 'distribuidoras', zona: 'Mendoza, Argentina', cantidad: 10, brief, ...body }) }), {
@@ -178,4 +180,76 @@ describe('búsqueda: tope de tiempo', () => {
     expect(String(data.diagnostico.maps)).toMatch(/tardó demasiado/);
     expect(data.resultados.length).toBeGreaterThan(0); // las de la web
   }, 10_000);
+});
+
+describe('los dos mundos: mi negocio y búsqueda libre', () => {
+  const datos = {
+    busquedas: [{ id: 'b-libre' }],
+    prospectos: [
+      { nombre: 'Cliente Bueno SA', rubro: 'distribuidora', estado: 'cliente', calificacion: 3, busqueda_id: 'b-negocio' },
+      { nombre: 'Peluquería Libre', rubro: 'peluquería', estado: 'cliente', calificacion: 3, busqueda_id: 'b-libre' },
+      { nombre: 'Kiosco Marcado', rubro: 'kiosco', estado: 'cliente', calificacion: 3, libre: true },
+    ],
+  };
+
+  it('lo que se sumó en una búsqueda libre no entra en lo que aprende mi negocio', async () => {
+    const red = redFalsa();
+    const { status } = await correr({ fuente: 'claude', brief: undefined }, { datos });
+    expect(status).toBe(200);
+    const todo = red.textos.join(' | ');
+    expect(todo).toContain('Cliente Bueno SA');
+    expect(todo).not.toContain('Peluquería Libre');
+    expect(todo).not.toContain('Kiosco Marcado');
+  });
+
+  it('la búsqueda libre no usa lo aprendido ni habla de «clientes que comprarían»', async () => {
+    const red = redFalsa();
+    const { status, data } = await correr({ fuente: 'claude', libre: true }, { datos });
+    expect(status).toBe(200);
+    expect(data.libre).toBe(true);
+    const todo = red.textos.join(' | ');
+    expect(todo).not.toContain('Cliente Bueno SA');
+    expect(todo).not.toContain('COMPRARÍAN');
+    expect(todo).toContain('EXACTAMENTE lo que pidió');
+  });
+
+  it('pedido concreto en mi negocio: no se desvía una búsqueda a «parecidas a las que ya te sirven»', async () => {
+    const red = redFalsa();
+    await correr({ fuente: 'claude', cantidad: 20 }, { datos });
+    expect(red.textos.join(' | ')).not.toContain('Enfoque: empresas PARECIDAS');
+  });
+
+  it('pedido general en mi negocio: ahí sí busca parecidas', async () => {
+    const red = redFalsa();
+    await correr({ fuente: 'claude', cantidad: 20, brief: { ...brief, especifica: false } }, { datos });
+    expect(red.textos.join(' | ')).toContain('Enfoque: empresas PARECIDAS');
+  });
+});
+
+describe('«sin página web»', () => {
+  it('escrito en el pedido activa el filtro solo, y las fichas de Maps con sitio propio no se evalúan', async () => {
+    const red = redFalsa({ sitio: 'https://www.empresa-con-web.com.ar' });
+    const { status, data } = await correr({ fuente: 'maps', libre: true, rubro: 'comercios que no tengan página web' });
+    expect(status).toBe(200);
+    expect(red.places).toBeGreaterThan(0);
+    expect(red.fichas).toBe(0);
+    expect(data.resultados).toHaveLength(0);
+  });
+
+  it('una ficha que sólo tiene Instagram sí entra', async () => {
+    const red = redFalsa({ sitio: 'https://www.instagram.com/elcomercio/' });
+    const { data } = await correr({ fuente: 'maps', libre: true, filtros: [{ id: 'sin_web', titulo: 'Sin página web' }] });
+    expect(red.fichas).toBeGreaterThan(0);
+    expect(data.resultados.length).toBeGreaterThan(0);
+  });
+});
+
+describe('si no se puede guardar en Por revisar', () => {
+  it('muestra igual lo que encontró y avisa (antes decía que no había encontrado nada)', async () => {
+    redFalsa();
+    const { status, data } = await correr({ fuente: 'claude' }, { fallaGuardar: true });
+    expect(status).toBe(200);
+    expect(data.resultados.length).toBeGreaterThan(0);
+    expect(data.aviso).toContain('no se pudieron guardar');
+  });
 });

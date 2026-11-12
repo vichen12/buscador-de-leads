@@ -14,7 +14,7 @@ export default function Mas() {
   const esAdminEquipo = perfil?.rol === 'admin' || perfil?.es_admin
   const grupos = [
     ['Herramientas', 'Para cuando las necesites', [
-      ['/', 'Tablero', 'El resumen de tu actividad', LayoutDashboard],
+      ['/tablero', 'Tablero', 'El resumen de tu actividad', LayoutDashboard],
       ['/hoy', 'Tu día', 'Lo que te toca hoy, en orden', Sun],
       ['/interesados', 'Interesados', 'Las que mostraron interés', Flame],
       ['/revisar?tab=descartado', 'Rechazadas', 'Las que descartaste en la búsqueda', Ban],

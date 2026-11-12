@@ -9,6 +9,7 @@ import { motivoHallazgo, aprobarHallazgos, descartarHallazgos, recuperarHallazgo
 import { Esqueleto, useToast } from '../components/ui.jsx'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
+import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
 import { useApp } from '../App.jsx'
 
 const TABS = [
@@ -27,6 +28,10 @@ export default function Revisar() {
   const motivoF = params.get('motivo') || ''
   const rubroF = params.get('rubro') || ''
   const cuandoF = params.get('cuando') || ''
+  const origen = params.get('origen') || '' // '' | negocio | libre
+  const [libres, setLibres] = useState(new Set())
+  // Los atajos S / N / O recién actúan cuando elegiste una tarjeta (clic o J/K): una tecla suelta no toca nada
+  const [armado, setArmado] = useState(false)
   const [todos, setTodos] = useState([])
   const [busquedas, setBusquedas] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -39,25 +44,27 @@ export default function Revisar() {
   async function cargar() {
     const [{ data, error }, { data: bs }] = await Promise.all([
       supabase.from('hallazgos').select('*').order('puntaje', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(2000),
-      supabase.from('busquedas').select('id, rubro, zona, created_at').order('created_at', { ascending: false }).limit(50),
+      supabase.from('busquedas').select('id, rubro, zona, created_at, requisitos').order('created_at', { ascending: false }).limit(50),
     ])
+    busquedasLibres().then(setLibres).catch(() => {})
     if (error) toast(mensajeError(error), 'error')
     setTodos(data ?? []); setBusquedas(bs ?? []); setCargando(false)
   }
   useEffect(() => { cargar() }, [])
-  useEffect(() => { setSel(new Set()) }, [tab, busqueda, motivoF, rubroF, cuandoF])
+  useEffect(() => { setSel(new Set()); setArmado(false) }, [tab, busqueda, motivoF, rubroF, cuandoF, origen])
   useEffect(() => { setPorRevisar(todos.filter(h => h.estado === 'por_revisar').length) }, [todos])
 
-  const cuenta = useMemo(() => Object.fromEntries(TABS.map(([k]) => [k, todos.filter(h => h.estado === k && (!busqueda || h.busqueda_id === busqueda)).length])), [todos, busqueda])
+  const cuenta = useMemo(() => Object.fromEntries(TABS.map(([k]) => [k, todos.filter(h => h.estado === k && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres)).length])), [todos, busqueda, origen, libres])
+  const hayLibres = useMemo(() => todos.some(h => esLibre(h, libres)), [todos, libres])
   const lista = useMemo(() => {
     const t = q.toLowerCase().trim()
     const desde = cuandoF ? Date.now() - Number(cuandoF) * 864e5 : 0
-    return todos.filter(h => h.estado === tab && (!busqueda || h.busqueda_id === busqueda) &&
+    return todos.filter(h => h.estado === tab && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres) &&
       (tab !== 'descartado' || ((!motivoF || (motivoF === '_sin' ? !h.motivo : h.motivo === motivoF)) && (!rubroF || (h.rubro || 'Sin rubro') === rubroF) && (!desde || new Date(h.revisado_at || h.created_at).getTime() >= desde))) &&
       (!t || [h.nombre, h.rubro, h.zona, h.direccion, h.telefono, h.email, h.motivo].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => tab === 'descartado' ? new Date(b.revisado_at || b.created_at) - new Date(a.revisado_at || a.created_at) : 0)
-  }, [todos, tab, busqueda, q, motivoF, rubroF, cuandoF])
-  const rechazadas = useMemo(() => todos.filter(h => h.estado === 'descartado'), [todos])
+  }, [todos, tab, busqueda, q, motivoF, rubroF, cuandoF, origen, libres])
+  const rechazadas = useMemo(() => todos.filter(h => h.estado === 'descartado' && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres)), [todos, busqueda, origen, libres])
   const porMotivo = useMemo(() => rechazadas.reduce((a, h) => { const k = h.motivo || '_sin'; a[k] = (a[k] ?? 0) + 1; return a }, {}), [rechazadas])
   const rubrosRechazadas = useMemo(() => Object.entries(rechazadas.reduce((a, h) => { const k = h.rubro || 'Sin rubro'; a[k] = (a[k] ?? 0) + 1; return a }, {})).sort((a, b) => b[1] - a[1]), [rechazadas])
   const busquedasConDatos = busquedas.filter(b => todos.some(h => h.busqueda_id === b.id))
@@ -86,6 +93,8 @@ export default function Revisar() {
       tab === 'descartado' ? {} : { accion: { label: 'Ver rechazadas', onClick: () => nav('/revisar?tab=descartado') } })
   })
   const saltear = ids => conOcupado(ids, async () => {
+    // Saltear borra: de a muchas se confirma (y se aclara que son todas las elegidas, no sólo esta página)
+    if (ids.length > 5 && !window.confirm(`Vas a sacar ${ids.length} empresas de la bandeja (todas las elegidas, no sólo las de esta página). No se pueden recuperar, aunque pueden volver a aparecer en otra búsqueda. ¿Seguimos?`)) return
     await saltearHallazgos(ids)
     setTodos(l => l.filter(h => !ids.includes(h.id)))
     toast(ids.length === 1 ? 'Salteada: no cuenta como rechazada y puede volver en otra búsqueda' : `${ids.length} salteadas`)
@@ -98,9 +107,9 @@ export default function Revisar() {
 
   const todasSel = lista.length > 0 && lista.every(h => sel.has(h.id))
   const ids = [...sel]
-  const nombreBusqueda = b => `${b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · ${b.zona.replace(/, Mendoza$/, '')}`
+  const nombreBusqueda = b => `${b.requisitos?.libre ? 'Libre · ' : ''}${b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · ${b.zona}`
 
-  const pag = usePaginado(lista, 30, [tab, busqueda, q])
+  const pag = usePaginado(lista, 30, [tab, busqueda, q, origen])
   // Atajos de teclado para revisar rápido (sólo en "Por revisar" y si no estás escribiendo)
   useEffect(() => { setFoco(f => Math.min(f, Math.max(0, pag.items.length - 1))) }, [pag.items.length, pag.pagina])
   useEffect(() => {
@@ -109,8 +118,9 @@ export default function Revisar() {
       if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea|select/i.test(e.target.tagName) || e.target.isContentEditable) return
       const h = pag.items[foco]
       const k = e.key.toLowerCase()
-      if (k === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setFoco(f => Math.min(pag.items.length - 1, f + 1)) }
-      else if (k === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setFoco(f => Math.max(0, f - 1)) }
+      if (k === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setArmado(true); setFoco(f => Math.min(pag.items.length - 1, f + 1)) }
+      else if (k === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setArmado(true); setFoco(f => Math.max(0, f - 1)) }
+      else if (!armado) return
       else if (k === 's' && h && !ocupados.size) { e.preventDefault(); aprobar([h.id]) }
       else if (k === 'n' && h && !ocupados.size) { e.preventDefault(); descartar([h.id]) }
       else if (k === 'o' && h && !ocupados.size) { e.preventDefault(); saltear([h.id]) }
@@ -142,6 +152,12 @@ export default function Revisar() {
           </button>
         ))}
       </div>
+
+      {hayLibres && (
+        <div className="origen-sel" role="radiogroup" aria-label="De qué búsqueda vienen">
+          {ORIGENES.map(([k, label]) => <button key={k} type="button" role="radio" aria-checked={origen === k} className={origen === k ? 'on' : ''} onClick={() => set('origen', k)}>{label}</button>)}
+        </div>
+      )}
 
       <div className="barra-herramientas">
         <div className="buscador"><Search size={16} /><input placeholder="Buscar por nombre, teléfono, zona…" value={q} onChange={e => setQ(e.target.value)} /></div>
@@ -188,12 +204,12 @@ export default function Revisar() {
         </div>
       )}
 
-      {tab === 'por_revisar' && lista.length > 0 && <p className="atajos-teclado muted chico">Atajos: <kbd>J</kbd>/<kbd>K</kbd> moverse · <kbd>S</kbd> sirve · <kbd>N</kbd> no sirve · <kbd>O</kbd> saltear · <kbd>X</kbd> seleccionar</p>}
+      {tab === 'por_revisar' && lista.length > 0 && <p className="atajos-teclado muted chico">Atajos (primero elegí una tarjeta): <kbd>J</kbd>/<kbd>K</kbd> moverse · <kbd>S</kbd> sirve · <kbd>N</kbd> no sirve · <kbd>O</kbd> saltear · <kbd>X</kbd> seleccionar</p>}
       {cargando ? <Esqueleto filas={5} /> : lista.length ? (
         <div className="lista-hallazgos">
           {pag.items.map((h, i) => (
-            <div key={h.id} data-foco={tab === 'por_revisar' && i === foco ? '1' : undefined} className="hallazgo-envoltura" onMouseDown={() => setFoco(i)}>
-            <TarjetaHallazgo key={h.id} h={h} sel={sel.has(h.id)} ocupado={ocupados.has(h.id)}
+            <div key={h.id} data-foco={tab === 'por_revisar' && armado && i === foco ? '1' : undefined} className="hallazgo-envoltura" onMouseDown={() => { setFoco(i); setArmado(true) }}>
+            <TarjetaHallazgo key={h.id} h={esLibre(h, libres) ? { ...h, libre: true } : h} sel={sel.has(h.id)} ocupado={ocupados.has(h.id)}
               onSel={tab === 'descartado' || tab === 'por_revisar' ? () => setSel(s => { const n = new Set(s); n.has(h.id) ? n.delete(h.id) : n.add(h.id); return n }) : undefined}
               onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onSaltear={() => saltear([h.id])} onMotivo={m => motivoHallazgo(h.id, m).then(() => marcar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} onRecuperar={() => recuperar([h.id])} />
             </div>

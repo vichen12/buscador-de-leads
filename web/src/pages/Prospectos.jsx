@@ -17,6 +17,7 @@ import Duplicados from '../components/Duplicados.jsx'
 import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { useApp } from '../App.jsx'
 
+import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
 export default function Prospectos() {
   const [params, setParams] = useSearchParams()
   const nav = useNavigate()
@@ -45,6 +46,9 @@ export default function Prospectos() {
   const califFiltro = params.get('calif') ?? ''
   const de = params.get('de') ?? 'mias' // mias | todas (del equipo)
   const etiqueta = params.get('etiqueta') ?? ''
+  const origen = params.get('origen') ?? '' // '' | negocio | libre
+  const [libres, setLibres] = useState(new Set())
+  useEffect(() => { busquedasLibres().then(setLibres).catch(() => {}) }, [])
   const [vistas, setVistas] = useState([])
   useEffect(() => { supabase.from('vistas').select('*').eq('pagina', 'prospectos').order('created_at').then(({ data }) => setVistas(data ?? [])) }, [])
   const [infoBusqueda, setInfoBusqueda] = useState(null)
@@ -87,7 +91,7 @@ export default function Prospectos() {
   const filtrados = useMemo(() => {
     const t = q.toLowerCase()
     const r = lista.filter(p =>
-      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!califFiltro || String(p.calificacion ?? '') === califFiltro) && (!busqueda || p.busqueda_id === busqueda) && (!etiqueta || (p.etiquetas ?? []).includes(etiqueta)) &&
+      (vista === 'pipeline' || !estado || p.estado === estado) && (!rubro || p.rubro === rubro) && (!califFiltro || String(p.calificacion ?? '') === califFiltro) && (!busqueda || p.busqueda_id === busqueda) && delOrigen(p, origen, libres) && (!etiqueta || (p.etiquetas ?? []).includes(etiqueta)) &&
       (!t || [p.nombre, p.rubro, p.zona, p.direccion, p.telefono, p.email, p.instagram, p.notas].join(' ').toLowerCase().includes(t)))
     const cmp = {
       resenas: (a, b) => (b.calificacion ?? 0) - (a.calificacion ?? 0) || (b.puntaje ?? 0) - (a.puntaje ?? 0) || (b.resenas ?? 0) - (a.resenas ?? 0),
@@ -96,8 +100,11 @@ export default function Prospectos() {
       seguimiento: (a, b) => (a.proximo_seguimiento ?? '9999').localeCompare(b.proximo_seguimiento ?? '9999'),
     }[orden]
     return r.sort(cmp)
-  }, [lista, q, estado, rubro, orden, vista, busqueda, califFiltro, etiqueta])
-  const CLAVES_VISTA = ['q', 'estado', 'rubro', 'orden', 'calif', 'etiqueta', 'de', 'vista']
+  }, [lista, q, estado, rubro, orden, vista, busqueda, califFiltro, etiqueta, origen, libres])
+  const hayLibres = useMemo(() => lista.some(p => esLibre(p, libres)), [lista, libres])
+  // Cambió un filtro: la selección se limpia, así ninguna acción cae sobre filas que ya no se ven
+  useEffect(() => { setSel(new Set()) }, [q, estado, rubro, busqueda, califFiltro, etiqueta, origen, de, vista])
+  const CLAVES_VISTA = ['q', 'estado', 'rubro', 'orden', 'calif', 'etiqueta', 'de', 'vista', 'origen', 'busqueda']
   async function guardarVista() {
     const nombre = window.prompt('Nombre para esta vista (ej.: "Distribuidoras con 3 llamas")')
     if (!nombre?.trim()) return
@@ -109,7 +116,7 @@ export default function Prospectos() {
   const borrarVista = async v => { await supabase.from('vistas').delete().eq('id', v.id); setVistas(x => x.filter(y => y.id !== v.id)) }
   const hayFiltros = CLAVES_VISTA.some(k => k !== 'vista' && params.get(k))
 
-  const pag = usePaginado(filtrados, 50, [q, estado, rubro, orden, busqueda, califFiltro, etiqueta, de])
+  const pag = usePaginado(filtrados, 50, [q, estado, rubro, orden, busqueda, califFiltro, etiqueta, de, origen])
   const [colAbierta, setColAbierta] = useState({})
   const toggle = id => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const todos = filtrados.length > 0 && filtrados.every(p => sel.has(p.id))
@@ -212,6 +219,11 @@ export default function Prospectos() {
         </Link>
       )}
 
+      {hayLibres && (
+        <div className="origen-sel" role="radiogroup" aria-label="De qué búsqueda vienen">
+          {ORIGENES.map(([k, label]) => <button key={k} type="button" role="radio" aria-checked={origen === k} className={origen === k ? 'on' : ''} onClick={() => set('origen', k)}>{label}</button>)}
+        </div>
+      )}
       <div className="barra-herramientas">
         <div className="buscador"><Search size={16} />
           <input placeholder="Buscar por nombre, teléfono, zona…" value={q} onChange={e => set('q', e.target.value)} />

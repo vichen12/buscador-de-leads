@@ -141,7 +141,9 @@ function Privada() {
     <Ctx.Provider value={valor}>
       <Layout>
         <Routes>
-          <Route path="/" element={perfil?.modo === 'b2c' ? <TableroB2C /> : <Tablero />} />
+          {/* B2B: lo primero es Buscar. El tablero sigue en /tablero (está en «Más»). */}
+          <Route path="/" element={perfil?.modo === 'b2c' ? <TableroB2C /> : <Navigate to="/buscar" replace />} />
+          <Route path="/tablero" element={<Tablero />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/hoy" element={<TuDia />} />
           <Route path="/ayuda" element={<Ayuda />} />

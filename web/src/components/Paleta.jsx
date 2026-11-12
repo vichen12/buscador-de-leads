@@ -5,9 +5,9 @@ import { supabase } from '../lib/supabase.js'
 import { EstadoBadge } from './ui.jsx'
 
 const PAGINAS = [
-  ['/hoy', 'Tu día', Sun], ['/', 'Tablero', LayoutDashboard], ['/reportes', 'Reportes', BarChart3], ['/metas', 'Metas', Target], ['/visitas', 'Visitas', MapPin], ['/catalogo', 'Catálogo', Package], ['/plantillas', 'Plantillas', Workflow], ['/interesados', 'Interesados', Inbox], ['/ayuda', 'Ayuda', Bot], ['/prospectos', 'Tu lista', Users], ['/seguimientos', 'Seguimientos', CalendarClock],
-  ['/respuestas', 'Respuestas', MessageSquareReply], ['/envios', 'Envío masivo', Send], ['/secuencias', 'Secuencias', Workflow],
-  ['/buscar', 'Buscar clientes', Search], ['/revisar', 'Por revisar', Inbox], ['/importar', 'Importar', Upload],
+  ['/buscar', 'Buscar', Search], ['/revisar', 'Por revisar', Inbox], ['/prospectos', 'Tu lista', Users], ['/seguimientos', 'Seguimientos', CalendarClock], ['/respuestas', 'Respuestas', MessageSquareReply], ['/envios', 'Envíos', Send], ['/reportes', 'Informe', BarChart3], ['/mas', 'Más y configuración', Bot], ['/hoy', 'Tu día', Sun], ['/tablero', 'Tablero', LayoutDashboard], ['/metas', 'Metas', Target], ['/visitas', 'Visitas', MapPin], ['/catalogo', 'Catálogo', Package], ['/plantillas', 'Plantillas', Workflow], ['/interesados', 'Interesados', Inbox], ['/ayuda', 'Ayuda', Bot],
+  ['/secuencias', 'Secuencias', Workflow],
+  ['/importar', 'Importar', Upload],
   ['/negocio', 'Mi negocio', Store], ['/email', 'Email', Mail], ['/asistente', 'Asistente IA', Bot],
 ]
 const PAGINAS_B2C = [
