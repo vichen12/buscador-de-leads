@@ -45,6 +45,7 @@ export default function Prospecto() {
   const [hist, setHist] = useState([])
   const [tab, setTab] = useState(params.get('tab') || 'whatsapp')
   const [generando, setGenerando] = useState(false)
+  const [noExiste, setNoExiste] = useState(false)
   const [reescribiendo, setReescribiendo] = useState(false)
   const [instruccion, setInstruccion] = useState('')
   const [confirmarEnvio, setConfirmarEnvio] = useState(null)
@@ -60,6 +61,8 @@ export default function Prospecto() {
       supabase.from('mensajes').select('*').eq('prospecto_id', id),
       supabase.from('interacciones').select('*').eq('prospecto_id', id).order('created_at', { ascending: false }),
     ])
+    // No existe (o se borró): se avisa en vez de dejar la rueda girando para siempre
+    if (!pr) { setNoExiste(true); return }
     setP(pr)
     const porTipo = Object.fromEntries((ms ?? []).map(m => [m.tipo, m]))
     setMsgs(porTipo)
@@ -83,6 +86,7 @@ export default function Prospecto() {
   }, [p?.id, p?.email, p?.email_verificado_at])
   // Los borradores se escriben cuando los pedís con el botón: abrir una ficha para mirarla no gasta IA.
 
+  if (noExiste) return <div className="vacio"><h2>Esta empresa ya no está</h2><p className="muted">Puede que la hayas borrado o que el enlace sea viejo.</p><Link className="btn primario" to="/prospectos">Ir a Tu lista</Link></div>
   if (!p) return <Cargando />
   const ajena = p.owner_id !== session.user.id // la trabaja otra persona del equipo
   const optOut = NO_CONTACTAR.includes(p.estado) || ajena
@@ -238,15 +242,16 @@ export default function Prospecto() {
 
   async function borrar() {
     if (!(await confirmar({ titulo: `¿Borrar a ${p.nombre}?`, texto: 'Se borra con sus borradores y todo su historial. No se puede deshacer.', aceptar: 'Borrar', peligro: true }))) return
-    await supabase.from('prospectos').delete().eq('id', id)
-    toast('Prospecto borrado'); refrescar(); nav('/prospectos')
+    const { error } = await supabase.from('prospectos').delete().eq('id', id)
+    if (error) { toast(mensajeError(error), 'error'); return }
+    toast('Borrada de tu lista'); refrescar(); nav('/prospectos')
   }
 
   const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 
   return (
     <>
-      <Link to="/prospectos" className="migas"><ArrowLeft size={15} /> Prospectos</Link>
+      <Link to="/prospectos" className="migas"><ArrowLeft size={15} /> Tu lista</Link>
       {ajena && <div className="banner info-banner"><Users size={18} /> La está trabajando {responsable || 'otra persona de tu equipo'}. <button className="btn chico" onClick={tomar}>¿Querés seguir igual? Tomarla</button></div>}
       {!ajena && NO_CONTACTAR.includes(p.estado) && <div className="banner"><Ban size={18} /> {p.estado === 'no_contactar' ? 'Pidió no recibir más mensajes o está en tu lista de "No contactar"' : 'Marcado como No interesado'}: fuera de toda secuencia. No se le puede escribir más.</div>}
       {p.estado === 'perdido' && <div className="banner info-banner"><Ban size={18} /> Perdido{p.perdido_motivo ? `: ${MOTIVOS_PERDIDO[p.perdido_motivo]}` : ''}{p.perdido_detalle ? ` (${p.perdido_detalle})` : ''}. Si la volvés a contactar, cambiá el estado.</div>}
@@ -294,7 +299,7 @@ export default function Prospecto() {
               <Globe size={16} /><div><Enlaces e={p} conTexto /></div>
               {(p.resenas || p.rating) && <><Star size={16} /><div>{p.resenas ?? '—'} reseñas{p.rating ? ` · ${p.rating}★` : ''}</div></>}
               {p.descripcion && <><Building2 size={16} /><div><small>Qué es</small>{p.descripcion}</div></>}
-              {p.encaje && <><Target size={16} /><div><small>Por qué te serviría</small>{p.encaje}</div></>}
+              {p.encaje && <><Target size={16} /><div><small>{p.libre ? 'Por qué coincide con lo que buscaste' : 'Por qué te serviría'}</small>{p.encaje}</div></>}
               {p.senales && <><Sparkles size={16} /><div><small>Novedades (motivo para escribir ahora)</small>{p.senales}</div></>}
               <Clock size={16} /><div><small>Último contacto</small>{fechaHora(p.ultimo_contacto)}</div>
               <CalendarClock size={16} /><div><small>Próximo seguimiento</small>{p.proximo_seguimiento ? fecha(p.proximo_seguimiento) : '—'}</div>
@@ -305,15 +310,21 @@ export default function Prospecto() {
           <NotasEditor p={p} onGuardado={cargar} />
           <div className="acciones-estado">
             <button className="btn" onClick={() => registrar('respuesta', 'Respondió')} disabled={optOut}><Reply size={15} /> Respondió</button>
-            <button className="btn" onClick={() => cambiarEstado('cliente')}><Trophy size={15} /> ¡Es cliente!</button>
             <button className="btn" onClick={() => registrar('llamada', 'Llamada registrada')} disabled={optOut}><Phone size={15} /> Llamé</button>
             <button className="btn" onClick={() => { const m = new Date(Date.now() + 86400000); setAgenda({ titulo: `Llamada con ${p.nombre}`, fecha: m.toLocaleDateString('en-CA'), hora: '10:00', duracion: 30 }) }} disabled={optOut}><CalendarPlus size={15} /> Agendar</button>
-            <button className="btn peligro" onClick={() => cambiarEstado('perdido')} disabled={optOut || p.estado === 'perdido'}><Ban size={15} /> Perdido</button>
-            <button className="btn fantasma chico" onClick={() => cambiarEstado('no_contactar')} disabled={p.estado === 'no_contactar' || ajena}>No contactar más</button>
           </div>
-          <HerramientasIA p={p} />
-          <SecuenciaDeEmpresa p={p} onCambio={cargar} />
-          <button className="btn fantasma chico peligro" style={{ marginTop: 14 }} onClick={borrar}><Trash2 size={14} /> Borrar prospecto</button>
+          {/* Lo que se usa poco va plegado: la ficha muestra primero lo de todos los días */}
+          <details className="mas-acciones">
+            <summary>Más acciones</summary>
+            <div className="acciones-estado">
+              <button className="btn" onClick={() => cambiarEstado('cliente')}><Trophy size={15} /> ¡Es cliente!</button>
+              <button className="btn peligro" onClick={() => cambiarEstado('perdido')} disabled={optOut || p.estado === 'perdido'}><Ban size={15} /> Perdido</button>
+              <button className="btn fantasma chico" onClick={() => cambiarEstado('no_contactar')} disabled={p.estado === 'no_contactar' || ajena}>No contactar más</button>
+            </div>
+            <HerramientasIA p={p} />
+            <SecuenciaDeEmpresa p={p} onCambio={cargar} />
+            <button className="btn fantasma chico peligro" style={{ marginTop: 14 }} onClick={borrar} disabled={ajena}><Trash2 size={14} /> Borrar de mi lista</button>
+          </details>
         </section>
 
         <section className="tarjeta">
@@ -399,12 +410,19 @@ export default function Prospecto() {
                   {mandando ? <Loader2 size={16} className="spin" /> : <Send size={16} />} Enviar email
                 </button>
               )}
-              {tab !== 'whatsapp' && <>
-                <button className="btn" onClick={() => abrir('gmail')} disabled={optOut || !p.email || sinCupoEmail || !!emailBloqueado} title={!p.email ? 'Cargá un email' : emailBloqueado}><Mail size={16} /> Abrir en Gmail</button>
-                <button className="btn" onClick={() => abrir('email')} disabled={optOut || !p.email || sinCupoEmail || !!emailBloqueado}>App de mail</button>
-              </>}
-              {p.instagram && <button className="btn" onClick={() => abrir('instagram')} disabled={optOut || sinCupo}><Copy size={16} /> Copiar y abrir Instagram</button>}
+              {/* Sin casilla conectada, Gmail es la forma principal; con casilla, queda como alternativa */}
+              {tab !== 'whatsapp' && !correo && <button className="btn primario" onClick={() => abrir('gmail')} disabled={optOut || !p.email || sinCupoEmail || !!emailBloqueado} title={!p.email ? 'Cargá un email' : emailBloqueado}><Mail size={16} /> Abrir en Gmail</button>}
+              {tab !== 'email' && p.instagram && <button className="btn" onClick={() => abrir('instagram')} disabled={optOut || sinCupo}><Copy size={16} /> Copiar y abrir Instagram</button>}
             </div>
+            {tab !== 'whatsapp' && (
+              <details className="otras-formas">
+                <summary>Otras formas de enviarlo</summary>
+                <div className="acciones">
+                  {correo && <button className="btn" onClick={() => abrir('gmail')} disabled={optOut || !p.email || sinCupoEmail || !!emailBloqueado}><Mail size={16} /> Abrir en Gmail</button>}
+                  <button className="btn" onClick={() => abrir('email')} disabled={optOut || !p.email || sinCupoEmail || !!emailBloqueado}>App de mail del equipo</button>
+                </div>
+              </details>
+            )}
             {tab !== 'whatsapp' && emailBloqueado && !optOut && <Aviso tipo="error">{emailBloqueado}</Aviso>}
             {tab !== 'email' && sinCupo && <Aviso>Llegaste al límite de WhatsApp de hoy ({limite}). Seguí mañana o cambialo en Mi cuenta.</Aviso>}
             {tab !== 'whatsapp' && sinCupoEmail && <Aviso>Llegaste al límite de emails de hoy para tu casilla ({limEmail.limite_hoy}{limEmail.calentando ? ', está en calentamiento' : ''}). Seguí mañana.</Aviso>}
@@ -413,6 +431,8 @@ export default function Prospecto() {
       </div>
 
       <RespuestasDeEmpresa p={p} />
+      <details className="ajustes-finos">
+        <summary>Más sobre esta empresa <span className="muted chico">contactos, tareas, propuestas, visitas, comentarios y archivos</span></summary>
       <div className="grilla-ficha-extra">
         <ContactosDeEmpresa p={p} />
         <TareasDeEmpresa p={p} />
@@ -425,6 +445,7 @@ export default function Prospecto() {
         <Comentarios p={p} />
         <ArchivosEmpresa p={p} />
       </div>
+      </details>
 
       <section className="tarjeta">
         <div className="tarjeta-titulo"><h3><Clock size={16} /> Historial</h3></div>

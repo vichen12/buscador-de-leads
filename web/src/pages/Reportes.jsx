@@ -71,7 +71,7 @@ export default function Reportes() {
       <header className="home-cab">
         <div>
           <p className="home-fecha">{new Date(desde + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} al {new Date(hasta + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-          <h1>Reportes</h1>
+          <h1>Informe</h1>
           <p className="home-sub">Qué te funciona y qué no: qué empresas responden, dónde y con qué mensajes.</p>
         </div>
         <div className="rep-acciones">

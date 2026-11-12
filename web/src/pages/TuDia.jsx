@@ -55,7 +55,7 @@ export default function TuDia() {
   const quedan = lim ? Math.max(0, lim.limite_hoy - lim.enviados_hoy) : null
   const bloques = [
     d.respuestas.length && { icono: MessageSquareReply, titulo: `Contestá ${d.respuestas.length === 1 ? 'la respuesta' : `las ${d.respuestas.length} respuestas`}`, sub: 'Primero las de gente interesada: es lo que más rápido se convierte en venta.', to: '/respuestas?clase=sin_leer',
-      items: d.respuestas.slice(0, 4).map(x => ({ k: x.id, texto: x.prospectos?.nombre, sub: x.motivo, to: `/prospectos/${x.prospecto_id}` })) },
+      items: d.respuestas.slice(0, 4).map(x => ({ k: x.id, texto: x.prospectos?.nombre, sub: x.motivo, to: x.prospecto_id ? `/prospectos/${x.prospecto_id}` : '/respuestas' })) },
     d.visitas.length && { icono: MapPin, titulo: `${d.visitas.length} ${d.visitas.length === 1 ? 'visita' : 'visitas'} para hoy`, sub: 'Con la ruta armada en Google Maps.', to: '/visitas',
       items: d.visitas.map(x => ({ k: x.id, texto: x.prospectos?.nombre, sub: x.prospectos?.direccion, to: `/prospectos/${x.prospectos?.id}` })) },
     d.tareas.length && { icono: ListTodo, titulo: `${d.tareas.length} ${d.tareas.length === 1 ? 'tarea' : 'tareas'} para hoy`, sub: 'Llamadas, WhatsApp y LinkedIn de tus secuencias.', to: '/seguimientos',

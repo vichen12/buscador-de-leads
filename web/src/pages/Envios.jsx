@@ -48,7 +48,7 @@ export default function Envios() {
     <div className="pagina-envios">
       <header className="cabecera">
         <div>
-          <h1>Envío masivo</h1>
+          <h1>Envíos</h1>
           <p>Elegí a qué empresas escribirles. Claude escribe un email distinto para cada una, con tu tono, tu estructura, tu firma y tus archivos. Los revisás y salen todos juntos desde tu casilla.</p>
         </div>
       </header>

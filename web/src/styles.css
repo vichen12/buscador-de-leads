@@ -2466,3 +2466,20 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 /* Instalar la app (PWA) */
 .home-card.instalar-app { flex-direction: row; align-items: center; gap: 14px; margin-bottom: 14px; }
 .home-card.instalar-app > svg { color: var(--acc); flex-shrink: 0; }
+
+/* Mi negocio: lo esencial a la vista, el resto plegado */
+.ajustes-finos { margin-top: 14px; }
+.ajustes-finos > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; padding: 12px 16px; border: 1px dashed var(--line-2); border-radius: var(--r); font-weight: 600; color: var(--ink-2); transition: background .15s, color .15s; }
+.ajustes-finos > summary::-webkit-details-marker { display: none; }
+.ajustes-finos > summary:hover { background: var(--hover); color: var(--ink); }
+.ajustes-finos[open] > summary { margin-bottom: 14px; border-style: solid; }
+.ajustes-finos > summary .muted { font-weight: 400; margin-left: 4px; }
+
+/* Ficha: lo de todos los días a la vista; lo demás plegado */
+.mas-acciones, .otras-formas { margin-top: 12px; }
+.mas-acciones > summary, .otras-formas > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--mut); list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; }
+.mas-acciones > summary::-webkit-details-marker, .otras-formas > summary::-webkit-details-marker { display: none; }
+.mas-acciones > summary::before, .otras-formas > summary::before { content: '+'; display: inline-block; width: 14px; text-align: center; transition: transform .2s var(--ease); }
+.mas-acciones[open] > summary::before, .otras-formas[open] > summary::before { transform: rotate(45deg); }
+.mas-acciones > summary:hover, .otras-formas > summary:hover { color: var(--ink); }
+.mas-acciones[open] > summary, .otras-formas[open] > summary { margin-bottom: 8px; }

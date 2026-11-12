@@ -138,11 +138,11 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
       <header className="cabecera">
         <div>
           <h1>{comercial.respuestas?.empresa || 'Mi negocio'}</h1>
-          <p>Tu estrategia de prospección. Claude la usa para buscar y para escribir los mensajes. Cambiá lo que quieras.</p>
+          <p>Lo que Prospecta sabe de tu negocio. Con esto busca clientes y escribe los mensajes. Tocá cualquier texto para cambiarlo.</p>
         </div>
         <div className="acciones">
-          <button className="btn" onClick={onRehacer}><RotateCcw size={15} /> Cambiar mis respuestas</button>
-          <button className="btn primario" onClick={() => nav('/buscar')}>Buscar clientes <ArrowRight size={15} /></button>
+          <button className="btn" onClick={onRehacer}><RotateCcw size={15} /> Empezar de nuevo</button>
+          <button className="btn primario" onClick={() => nav('/buscar')}>Buscar <ArrowRight size={15} /></button>
         </div>
       </header>
 
@@ -154,9 +154,8 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
         </div>
       </section>
 
-      <div className="grid-estrategia">
-        <section className="tarjeta">
-          <div className="tarjeta-titulo"><h3><Target size={16} /> Rubros a buscar</h3><span className="muted chico">{e.rubros.length} rubros</span></div>
+      <section className="tarjeta">
+          <div className="tarjeta-titulo"><h3><Target size={16} /> A quién buscar</h3><span className="muted chico">Tipos de empresa que te compran. Sacá los que no y sumá los que falten.</span></div>
           {grupos.map(g => (
             <div key={g} className="zona-grupo">
               <small>{g}</small>
@@ -168,9 +167,15 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
               </div>
             </div>
           ))}
-          <Agregar placeholder="Agregar un rubro (ej. bodega)" onAgregar={v => !e.rubros.some(r => r.nombre === v.toLowerCase()) && set('rubros', [...e.rubros, { nombre: v.toLowerCase(), grupo: 'Agregados por vos', por_que: '' }])} />
-        </section>
+          <Agregar placeholder="Agregar un tipo de empresa (ej. bodega)" onAgregar={v => !e.rubros.some(r => r.nombre === v.toLowerCase()) && set('rubros', [...e.rubros, { nombre: v.toLowerCase(), grupo: 'Agregados por vos', por_que: '' }])} />
+      </section>
 
+      <ListaEditable icono={Ban} titulo="A quién NO buscar" items={e.descartar} onCambiar={v => set('descartar', v)} placeholder="Ej.: competidores, particulares" />
+
+      {/* Todo lo demás es ajuste fino: viene bien armado y casi nunca hace falta tocarlo */}
+      <details className="ajustes-finos">
+        <summary><SlidersHorizontal size={15} /> Ajustes finos <span className="muted chico">zonas, filtros, cómo te presentás y cómo escribirles</span></summary>
+      <div className="grid-estrategia">
         <section className="tarjeta">
           <div className="tarjeta-titulo"><h3><MapPin size={16} /> Zonas</h3></div>
           <div className="chips-sel" style={{ marginTop: 0 }}>
@@ -183,11 +188,10 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
       </div>
 
       <section className="tarjeta">
-        <div className="tarjeta-titulo"><h3><SlidersHorizontal size={16} /> Filtros</h3><span className="muted chico">Los encendidos vienen marcados en cada búsqueda. Los podés cambiar ahí también.</span></div>
+        <div className="tarjeta-titulo"><h3><SlidersHorizontal size={16} /> Filtros</h3><span className="muted chico">Aparecen como opciones en Buscar: los prendés cuando los necesitás.</span></div>
         <div className="lista-filtros">
           {e.filtros.map((f, i) => (
-            <div key={f.id + i} className={'filtro-fila' + (f.activo ? ' on' : '')}>
-              <button type="button" className="req-check" aria-pressed={f.activo} aria-label="Activar filtro" onClick={() => set('filtros', e.filtros.map((x, j) => j === i ? { ...x, activo: !x.activo } : x))}>{f.activo && <Check size={13} />}</button>
+            <div key={f.id + i} className="filtro-fila">
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Editable valor={f.titulo} onCambiar={v => set('filtros', e.filtros.map((x, j) => j === i ? { ...x, titulo: v } : x))} className="fuerte" />
                 <Editable valor={f.descripcion} onCambiar={v => set('filtros', e.filtros.map((x, j) => j === i ? { ...x, descripcion: v } : x))} className="muted chico" multilinea />
@@ -196,13 +200,10 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
             </div>
           ))}
         </div>
-        <Agregar placeholder="Nuevo filtro (ej. Tiene más de una sucursal)" onAgregar={v => set('filtros', [...e.filtros, { id: 'f_' + Date.now().toString(36), titulo: v, descripcion: '', activo: true }])} />
+        <Agregar placeholder="Nuevo filtro (ej. Tiene más de una sucursal)" onAgregar={v => set('filtros', [...e.filtros, { id: 'f_' + Date.now().toString(36), titulo: v, descripcion: '', activo: false }])} />
       </section>
 
-      <div className="grid-estrategia">
-        <ListaEditable icono={ThumbsUp} titulo="Señales de buen prospecto" items={e.criterios} onCambiar={v => set('criterios', v)} placeholder="Agregar una señal" />
-        <ListaEditable icono={Ban} titulo="A quién descartar" items={e.descartar} onCambiar={v => set('descartar', v)} placeholder="Agregar a quién descartar" />
-      </div>
+      <ListaEditable icono={ThumbsUp} titulo="Señales de buen prospecto" items={e.criterios} onCambiar={v => set('criterios', v)} placeholder="Agregar una señal" />
 
       <div className="grid-estrategia">
         <section className="tarjeta">
@@ -218,6 +219,7 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
         <label>Por dónde entrarle<textarea rows={3} value={e.angulo} onChange={ev => set('angulo', ev.target.value)} /></label>
         <label style={{ marginBottom: 0 }}>Tono<input value={e.tono} onChange={ev => set('tono', ev.target.value)} /></label>
       </section>
+      </details>
 
       {cambios && (
         <div className="barra-guardar">

@@ -140,8 +140,6 @@ export default function Revisar() {
         </div>
         <div className="acciones">
           <button className="btn" disabled={!lista.length} onClick={() => descargarExcel(`empresas_${tab}_${new Date().toISOString().slice(0, 10)}.xlsx`, lista.map(h => filaEmpresa(h)))}><Download size={16} /> Descargar Excel</button>
-          <Link className="btn" to="/prospectos"><ListChecks size={16} /> Ir a mi lista</Link>
-          <Link className="btn ia" to="/buscar"><Sparkles size={16} /> Buscar más</Link>
         </div>
       </header>
 
