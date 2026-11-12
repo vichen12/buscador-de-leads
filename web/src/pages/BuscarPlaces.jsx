@@ -33,6 +33,14 @@ const MODOS = [
   { id: 'negocio', nombre: 'Clientes para mi negocio', ayuda: 'Claude piensa qué empresas te pueden comprar, según lo que vendés' },
   { id: 'libre', nombre: 'Cualquier cosa', ayuda: 'Cualquier rubro, tal cual lo escribís' },
 ]
+// Con qué se busca: más potente entiende mejor pedidos difíciles, y usa más créditos
+const CALIDADES = [
+  { id: 'rapida', nombre: 'Rápida', creditos: 1, ayuda: 'La de siempre: rápida y económica. Alcanza para la mayoría de las búsquedas.' },
+  { id: 'mejor', nombre: 'Mejor', creditos: 3, ayuda: 'Un modelo más capaz: entiende mejor pedidos difíciles y revisa con más criterio.' },
+  { id: 'maxima', nombre: 'Máxima', creditos: 5, ayuda: 'El modelo más potente. Para búsquedas muy específicas o difíciles.' },
+]
+const CLAVE_CALIDAD = 'prospecta-calidad-busqueda'
+const calidadGuardada = () => { try { const c = localStorage.getItem(CLAVE_CALIDAD); return CALIDADES.some(x => x.id === c) ? c : 'rapida' } catch { return 'rapida' } }
 const CLAVE_MODO = 'prospecta-modo-busqueda'
 const modoGuardado = () => { try { return localStorage.getItem(CLAVE_MODO) === 'libre' ? 'libre' : 'negocio' } catch { return 'negocio' } }
 const PASOS = ['Buscando en Google Maps…', 'Mirando directorios y redes…', 'Recorriendo la zona…', 'Revisando que encajen con lo que pediste…']
@@ -42,6 +50,9 @@ export default function BuscarPlaces() {
   const nav = useNavigate()
   const { servicios, refrescar, perfil, comercial } = useApp()
   const [modo, setModo] = useState(modoGuardado)
+  const [calidad, setCalidad] = useState(calidadGuardada)
+  const creditos = CALIDADES.find(c => c.id === calidad)?.creditos ?? 1
+  const elegirCalidad = c => { setCalidad(c); try { localStorage.setItem(CLAVE_CALIDAD, c) } catch { /* sin almacenamiento */ } }
   const libre = modo === 'libre'
   const [sinLibre, setSinLibre] = useState(false) // el servidor todavía no conoce la búsqueda libre
   function elegirModo(m) {
@@ -116,7 +127,7 @@ export default function BuscarPlaces() {
     const timer = setInterval(() => setSeg(Math.round((Date.now() - t0) / 1000)), 500)
     try {
       // Sin paso previo: el servidor entiende el pedido y busca de una
-      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f, libre })
+      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, calidad, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f, libre })
       let r
       try { r = await pedirA(fuenteUsada) } catch (err) {
         // Maps sin clave (se quitó recién): se avisa y se busca con Claude, sin perder el pedido
@@ -229,8 +240,15 @@ export default function BuscarPlaces() {
             <SlidersHorizontal size={12} /> {pedido ? 'Con un pedido extra' : 'Algo más'}
           </button>
         </div>
+      </div>
+      <div className="bb-pie">
+        <div className="fuente-sel" role="radiogroup" aria-label="Con qué buscar">
+          {CALIDADES.map(c => <button key={c.id} type="button" role="radio" aria-checked={calidad === c.id} className={calidad === c.id ? 'on' : ''} disabled={cargando} title={c.ayuda} onClick={() => elegirCalidad(c.id)}>
+            {c.nombre} <span className="calidad-creditos">{c.creditos}</span></button>)}
+        </div>
+        <span className="muted chico">{CALIDADES.find(c => c.id === calidad)?.ayuda}</span>
         <span className="espacio" />
-        {ia && <Link to="/uso" className={'chico bb-costo ' + (ia.agotada ? 'texto-alerta' : 'muted')} title="Ver uso y límites">{textoCosto(ia)}</Link>}
+        {ia && <Link to="/uso" className={'chico bb-costo ' + (ia.agotada ? 'texto-alerta' : 'muted')} title="Ver uso y límites">{textoCosto(ia, creditos)}</Link>}
       </div>
       </section>
       {verFiltros && (

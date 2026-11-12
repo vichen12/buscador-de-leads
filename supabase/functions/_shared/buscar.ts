@@ -482,6 +482,14 @@ function mensajeDeError(status: number | undefined, detalle: string) {
     : `Claude respondió con un error (${status ?? '?'}).`
 }
 
+// Con qué modelo se busca en la web y cuántos créditos cuesta. «rapida» usa el modelo configurado por el
+// administrador (por defecto, el más económico). Los créditos siguen el costo relativo de cada modelo.
+const CALIDADES: Record<string, { modelo: string, creditos: number }> = {
+  rapida: { modelo: '', creditos: 1 },
+  mejor: { modelo: 'claude-sonnet-5-5', creditos: 3 },
+  maxima: { modelo: 'claude-opus-5-5', creditos: 5 },
+}
+
 // El plan de Supabase corta la función a los 150 s (error 546) y se pierde todo lo encontrado:
 // la búsqueda web tiene hasta 85 s y la segunda mirada sólo corre hasta los 125 s del pedido.
 const LIMITE_BUSQUEDA_MS = 85_000
@@ -529,10 +537,15 @@ export async function buscar(req: Request, h: Ayudas) {
   if ((!rubro && body.modo !== 'preguntar') || !zona) return json({ error: 'Escribí qué buscás y dónde.' }, 400)
 
   const { data: cupo } = await db.rpc('cupo_chat', { p_usuario: user.id })
+  // Con qué se busca: la persona elige. Más potente = más créditos (cada crédito es una consulta del plan).
+  const calidad = CALIDADES[String(body.calidad)] ? String(body.calidad) : 'rapida'
+  const creditos = body.modo === 'interpretar' || body.modo === 'preguntar' ? 0 : CALIDADES[calidad].creditos
+  if (cupo && !cupo.sin_tope && creditos > 1 && cupo.usados < cupo.limite && cupo.usados + creditos > cupo.limite)
+    return json({ error: `Esta búsqueda usa ${creditos} créditos y te quedan ${cupo.limite - cupo.usados}. Elegí una búsqueda más liviana o ampliá el plan.`, codigo: 'LIMITE_CHAT', cupo }, 429)
   if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de IA de hoy. Mañana se renueva.`, codigo: 'LIMITE_CHAT', cupo }, 429)
   const key = await claveServicio('anthropic')
   if (!key) return json({ error: 'Falta la clave de Claude: la carga el super admin en Super admin → Claves.', codigo: 'SIN_CLAVE' }, 503)
-  const modelo = (await claveServicio('modelo_busqueda')) || 'claude-haiku-5-5' // barato y rinde bien para buscar
+  const modelo = CALIDADES[calidad].modelo || (await claveServicio('modelo_busqueda')) || 'claude-haiku-5-5' // rápida: barato y rinde bien para buscar
 
   const { data: comercial } = await supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', user.id).maybeSingle()
   // Búsqueda libre: cualquier rubro, sin atarla a «Mi negocio» ni a lo aprendido de la lista
@@ -744,7 +757,15 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
       return cuenta[c.segmento] <= tope
     })({}))
     .slice(0, cantidad + 5)
-  if (usoIn && !anotada) await anotarChatUso(db, user.id, 'prospecta_buscar', uso)
+  if (usoIn && !anotada) {
+    await anotarChatUso(db, user.id, 'prospecta_buscar', uso)
+    // Los créditos de más de una búsqueda potente: una fila por crédito (el cupo cuenta filas). Sólo si hubo resultados.
+    if (creditos > 1 && resultados.length) {
+      const extra = Array.from({ length: creditos - 1 }, () => ({ owner_id: user.id, funcion: 'prospecta_buscar_calidad', tokens_in: 0, tokens_out: 0 }))
+      const { error } = await db.from('chat_uso').insert(extra)
+      if (error) await db.from('chat_uso').insert(extra.map(({ funcion: _f, ...r }) => r))
+    }
+  }
   await anotarSinCupo(db, { funcion: 'prospecta_buscar', usuario: user.id, uso }) // lo que llegó después de anotar, o una búsqueda sin tokens de entrada
 
   // Guardar en la bandeja "Por revisar"
@@ -766,6 +787,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   return json({
     resultados: salida, busqueda_id: busquedaId, brief, descartados, no_encajan: noEncajan, ya_conocidos: yaConocidos, ya_descartados: yaDescartados, cupo: cupoNuevo,
     diagnostico: { maps: deMaps.estado, maps_fichas: deMaps.fichas, maps_sirven: deMaps.items.length, web: corridas.map(c => extraerLista(c.salida).length), web_errores: corridas.filter(c => c.error).map(c => String(c.error).slice(0, 80)) },
+    calidad, creditos: resultados.length ? creditos : Math.min(1, creditos),
     busquedas: corridas.reduce((a, c) => a + c.busquedas, 0), enfoques: lotes, modelo, libre, aprendizaje: { sirven: apr.sirven, no_sirven: apr.noSirven, parecidas: parecida.size },
     aviso: avisoGuardado || (corridas.some(c => c.error) ? 'Una de las búsquedas no terminó; te mostramos lo que encontró el resto.' : sinVerificar ? 'No llegamos a la segunda revisión: mirá estas empresas con más cuidado.' : ''),
   })

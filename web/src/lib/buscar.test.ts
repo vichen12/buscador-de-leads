@@ -38,7 +38,7 @@ function baseFalsa(datos: Record<string, Dic[]> = {}, opciones: { fallaGuardar?:
 type Respuestas = { sitio?: string; web?: Dic[]; hangVerificar?: boolean; hangFichas?: boolean; alColgar?: () => void };
 /** fetch de mentira: Anthropic (con y sin búsqueda web) y Google Places */
 function redFalsa(r: Respuestas = {}) {
-  const llamadas = { web: 0, places: 0, fichas: 0, verificar: 0, textos: [] as string[], sitio: '' };
+  const llamadas = { web: 0, places: 0, fichas: 0, verificar: 0, textos: [] as string[], sitio: '', modelosWeb: [] as string[] };
   const fetchFalso = vi.fn(async (url: string, init: Dic) => {
     const body = JSON.parse(init.body);
     if (url.includes('places.googleapis.com')) {
@@ -54,6 +54,7 @@ function redFalsa(r: Respuestas = {}) {
     let usage: Dic = { input_tokens: 100, output_tokens: 50 };
     if (body.tools) {
       llamadas.web++;
+      llamadas.modelosWeb.push(body.model);
       usage = { ...usage, server_tool_use: { web_search_requests: 3 } };
       salida = '```json\n' + JSON.stringify(r.web ?? [{ nombre: `Empresa Web ${llamadas.web}`, telefono: `261 400 00${llamadas.web}`, tipo: 'distribuidora' }]) + '\n```';
     } else if (texto.includes('fichas de Google Maps')) {
@@ -251,5 +252,27 @@ describe('si no se puede guardar en Por revisar', () => {
     expect(status).toBe(200);
     expect(data.resultados.length).toBeGreaterThan(0);
     expect(data.aviso).toContain('no se pudieron guardar');
+  });
+});
+
+describe('con qué se busca (créditos)', () => {
+  it('rápida: 1 crédito', async () => {
+    redFalsa();
+    const { data, inserts } = await correr({ fuente: 'claude' });
+    expect(data.creditos).toBe(1);
+    expect(inserts.chat_uso).toHaveLength(1);
+  });
+  it('máxima: busca con el modelo más potente y descuenta 5 créditos', async () => {
+    const red = redFalsa();
+    const { data, inserts } = await correr({ fuente: 'claude', calidad: 'maxima' });
+    expect(red.modelosWeb.length).toBeGreaterThan(0);
+    expect(red.modelosWeb.every((m: string) => m === 'claude-opus-5-5')).toBe(true);
+    expect(data.creditos).toBe(5);
+    expect(inserts.chat_uso).toHaveLength(5);
+  });
+  it('una calidad inventada cae en rápida', async () => {
+    redFalsa();
+    const { data } = await correr({ fuente: 'claude', calidad: 'gratis-total' });
+    expect(data.calidad).toBe('rapida');
   });
 });

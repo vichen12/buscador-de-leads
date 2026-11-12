@@ -2483,3 +2483,39 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .mas-acciones[open] > summary::before, .otras-formas[open] > summary::before { transform: rotate(45deg); }
 .mas-acciones > summary:hover, .otras-formas > summary:hover { color: var(--ink); }
 .mas-acciones[open] > summary, .otras-formas[open] > summary { margin-bottom: 8px; }
+
+.calidad-creditos { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 11px; font-weight: 700; background: color-mix(in srgb, currentColor 14%, transparent); }
+
+/* ---------- Pulido visual: movimiento suave y con sentido (se apaga con «reducir movimiento») ---------- */
+/* Los resultados entran de a uno, en cascada */
+.lista-hallazgos > *:nth-child(1) .hallazgo, .lista-hallazgos > .hallazgo:nth-child(1) { animation-delay: 0ms; }
+.lista-hallazgos > *:nth-child(2) .hallazgo, .lista-hallazgos > .hallazgo:nth-child(2) { animation-delay: 40ms; }
+.lista-hallazgos > *:nth-child(3) .hallazgo, .lista-hallazgos > .hallazgo:nth-child(3) { animation-delay: 80ms; }
+.lista-hallazgos > *:nth-child(4) .hallazgo, .lista-hallazgos > .hallazgo:nth-child(4) { animation-delay: 120ms; }
+.lista-hallazgos > *:nth-child(5) .hallazgo, .lista-hallazgos > .hallazgo:nth-child(5) { animation-delay: 160ms; }
+.lista-hallazgos > *:nth-child(n+6) .hallazgo, .lista-hallazgos > .hallazgo:nth-child(n+6) { animation-delay: 200ms; }
+/* Tarjetas: se levantan apenas al pasar el mouse */
+.hallazgo:hover { transform: translateY(-2px); box-shadow: var(--sh-md); border-color: var(--line-2); }
+.home-card { transition: box-shadow .2s var(--ease), transform .2s var(--ease), border-color .2s; animation: subir .35s var(--ease) both; }
+.home-grid > .home-card:nth-child(2) { animation-delay: 60ms; }
+.home-grid > .home-card:nth-child(3) { animation-delay: 120ms; }
+.home-card:hover { box-shadow: var(--sh-md); }
+/* El buscador es el protagonista: brilla al enfocarlo */
+.busqueda-hero { transition: box-shadow .25s var(--ease), border-color .25s; }
+.busqueda-hero:focus-within { box-shadow: 0 0 0 4px var(--acc-soft), var(--sh-md); }
+.buscar-rapido { transition: box-shadow .25s var(--ease), border-color .25s; }
+.buscar-rapido:focus-within { border-color: var(--acc); box-shadow: 0 0 0 4px var(--acc-soft), var(--sh-md); }
+/* Selectores y chips: cambio de estado suave y un toque al apretar */
+.fuente-sel button, .origen-sel button, .filtro-chip, .chip-sel { transition: background .18s var(--ease), color .18s, box-shadow .18s, transform .12s var(--ease), border-color .18s; }
+.fuente-sel button:active:not(:disabled), .origen-sel button:active, .filtro-chip:active:not(:disabled), .chip-sel:active { transform: scale(.96); }
+.filtro-chip.on svg { animation: desplegar .2s var(--ease); }
+/* Secciones plegables: el contenido aparece deslizándose */
+.ajustes-finos[open] > *:not(summary), .mas-acciones[open] > *:not(summary), .otras-formas[open] > *:not(summary) { animation: subir .28s var(--ease) both; }
+/* Menú: el ítem activo marca su barrita con un pequeño crecimiento */
+.lateral nav a.activo::before { animation: crecerY .25s var(--ease); transform-origin: center; }
+.lateral nav a { transition: background .15s, color .15s, padding-left .2s var(--ease); }
+/* Botón principal: leve elevación */
+.btn.primario, .btn.ia { transition: transform .12s var(--ease), box-shadow .2s var(--ease), filter .2s, background .2s; }
+.btn.primario:hover:not(:disabled), .btn.ia:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sh-md); }
+/* Panel «buscando»: entra suave */
+.buscando-panel, .resultados-busqueda { animation: subir .3s var(--ease) both; }
