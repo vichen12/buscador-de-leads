@@ -145,7 +145,10 @@ async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, 
   return listas.flat().filter(p => { const k = clave(p.nombre); if (!k || vistos.has(k)) return false; vistos.add(k); return true })
 }
 /** Claude mira cada ficha de Maps y decide si sirve como cliente, con qué puntaje y por qué */
-async function evaluarFichas(key: string, modelo: string, brief: Brief, fichas: Dic[], contexto: string, aprendido: string, filtros: Dic[]): Promise<{ items: Dic[], usoIn: number, usoOut: number }> {
+async function evaluarFichas(key: string, modelo: string, brief: Brief, fichas: Dic[], contexto: string, aprendido: string, filtros: Dic[], libre = false): Promise<{ items: Dic[], usoIn: number, usoOut: number }> {
+  const criterio = libre
+    ? 'Para cada una decidí si es lo que se pide (el tipo de negocio buscado), sin juzgar para qué lo quiere la persona. Ante la duda, que entre con puntaje bajo.'
+    : 'Para cada una decidí si es un cliente potencial razonable de quien busca (no competencia, no proveedores del mismo rubro). Ante la duda, que entre con puntaje bajo.'
   if (!fichas.length) return { items: [], usoIn: 0, usoOut: 0 }
   const lotes: Dic[][] = []
   for (let i = 0; i < fichas.length; i += 20) lotes.push(fichas.slice(i, i + 20))
@@ -154,7 +157,7 @@ async function evaluarFichas(key: string, modelo: string, brief: Brief, fichas: 
       const r = await llamarClaude(key, modelo, `${contexto || ''}
 Buscamos: ${brief.interpretacion}
 ${brief.incluir.length ? `Tipos que entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}${filtros.length ? `Requisitos (marcá false SÓLO si por lo que se ve claramente no cumple; si no se sabe, null): ${filtros.map(f => `${f.id} = ${f.titulo}`).join('; ')}\n` : ''}${aprendido ? aprendido + '\n' : ''}
-Estas son fichas de Google Maps. Para cada una decidí si es un cliente potencial razonable de quien busca (no competencia, no proveedores del mismo rubro). Ante la duda, que entre con puntaje bajo. Usá lo que sabés de la empresa si la conocés.
+Estas son fichas de Google Maps. ${criterio} Usá lo que sabés de la empresa si la conocés.
 Respondé SOLO con JSON: {"items": [{"i": índice, "entra": true, "puntaje": 1-5, "segmento": "cuál de los tipos que entran es", "que_es": "qué es en una frase", "encaje": "por qué le serviría a quien busca, concreto", "a_favor": ["..."], "en_contra": ["..."], "cumple": {${filtros.map(f => `"${f.id}": null`).join(', ')}}}]}
 
 ${lote.map((f, i) => `${i}. ${f.nombre} — ${f.tipo || 's/d'} — ${f.direccion}${f.web ? ` — ${f.web}` : ''}${f.resenas ? ` — ${f.rating}★ (${f.resenas} reseñas)` : ''} — encontrada buscando "${f.termino}"`).join('\n')}`, 16000)
@@ -190,12 +193,17 @@ Cliente ideal: ${e.cliente_ideal || r.cliente_ideal || 's/d'}
 ${e.criterios?.length ? `Señales de buen prospecto: ${e.criterios.join('; ')}\n` : ''}${e.descartar?.length ? `Descartá: ${e.descartar.join('; ')}\n` : ''}${r.no_quiere ? `NO quiere: ${String(r.no_quiere).slice(0, 300)}\n` : ''}${r.ejemplos ? `Empresas que ya son sus clientes o que le encantaría tener (buscá parecidas): ${String(r.ejemplos).slice(0, 400)}\n` : ''}`
 }
 
-function prompt(o: { tipos?: string[], pais: string, multi?: boolean, rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string }) {
+function prompt(o: { tipos?: string[], pais: string, multi?: boolean, rubro: string, zona: string, cuantos: number, enfoque: string, filtros: Dic[], pedido: string, excluir: string[], contexto: string, brief: Brief, aprendido: string, libre?: boolean }) {
   const reglas = o.filtros.length
     ? o.filtros.map(f => `${f.titulo}${f.descripcion ? ` (${f.descripcion})` : ''}`)
     : []
   const b = o.brief
-  return `Buscá en la web empresas reales y activas en "${o.zona}"${o.zona.toLowerCase().includes(o.pais.toLowerCase()) ? '' : ` (${o.pais})`} que sean clientes potenciales: empresas que COMPRARÍAN lo que vende quien busca, nunca competencia, integradores ni proveedores de lo mismo.
+  const sinWeb = o.filtros.some(f => tipoFiltro(f) === 'sin_web')
+  const objetivo = o.libre
+    ? `que sean EXACTAMENTE lo que pidió la persona, tal cual lo escribió (puede querer clientes, proveedores, competidores, aliados o un relevamiento: no lo juzgues ni lo cambies).`
+    : `que sean clientes potenciales: empresas que COMPRARÍAN lo que vende quien busca, nunca competencia, integradores ni proveedores de lo mismo.`
+  return `Buscá en la web negocios y empresas reales y activos en "${o.zona}"${o.zona.toLowerCase().includes(o.pais.toLowerCase()) ? '' : ` (${o.pais})`} ${objetivo}
+${sinWeb ? `SIN PÁGINA WEB PROPIA (obligatorio): traé sólo negocios que NO tienen sitio web con dominio propio: los que se manejan con Instagram, Facebook, WhatsApp, una ficha de Google Maps, un directorio o nada. Buscalos justamente ahí (fichas de Maps, perfiles de Instagram/Facebook, guías y directorios), no en buscadores de webs. Si encontrás que tiene web propia, no la traigas.\n` : ''}
 ${o.multi ? `La zona abarca varios países: repartí los resultados entre los principales mercados de esa zona (no todos del mismo país) y poné el país en la dirección.\n` : ''}${reglaZona(o.zona)}
 Pedido original: "${o.rubro}".
 Qué buscamos exactamente (el TIPO de empresa; el lugar es ${o.zona}): ${b.interpretacion}
@@ -326,7 +334,8 @@ async function interpretarLibre(key: string, modelo: string, rubro: string, zona
   try {
     const r = await llamarClaude(key, modelo, `Una persona quiere armar una lista de empresas o negocios ${multi ? 'en Latinoamérica' : `en ${pais}`} y escribió: "${rubro}".
 
-Es una BÚSQUEDA LIBRE: buscá exactamente lo que pidió, tal cual. No supongas qué vende quien busca ni para qué quiere la lista (pueden ser clientes, proveedores, competidores, aliados o un relevamiento). No lo lleves a otras industrias ni lo reinterpretes: si escribió "restaurantes", son restaurantes.
+Es una BÚSQUEDA LIBRE: buscá exactamente lo que pidió, tal cual. No supongas qué vende quien busca ni para qué quiere la lista (pueden ser clientes, proveedores, competidores, aliados o un relevamiento). No lo lleves a otras industrias ni lo reinterpretes: si escribió "restaurantes", son restaurantes. Si pidió varios rubros o "de todo" (ej.: "comercios, transportes, lo que sea"), repartí "incluir" y "buscar" entre rubros variados de negocios comunes.
+Las CONDICIONES que pida (ej.: "que no tengan página web", "con buenas reseñas", "chicos", "nuevos") no son tipos de negocio: no las pongas en "buscar" ni en "incluir" (ahí van sólo rubros, como se buscan en Google Maps); se filtran aparte. Sí mencionalas en "interpretacion".
 
 IMPORTANTE: describí sólo el TIPO de empresa o negocio, sin ningún lugar. En "interpretacion", "incluir", "excluir" y "buscar" NO pongas países, provincias, ciudades ni barrios (el lugar lo elige la persona aparte y se agrega solo).
 
@@ -357,13 +366,16 @@ function briefDesde(b: unknown, rubro: string): Brief | null {
 }
 
 /** Segunda mirada: descarta lo que no es el tipo de empresa pedido o no cumple los filtros, y marca las más parecidas a las que le sirven */
-async function verificar(key: string, modelo: string, brief: Brief, items: Dic[], aprendido = '', requisitos: Dic[] = [], zona = '') {
+async function verificar(key: string, modelo: string, brief: Brief, items: Dic[], aprendido = '', requisitos: Dic[] = [], zona = '', libre = false) {
+  const regla = libre
+    ? 'Para cada empresa decidí si es lo que se pide (el tipo de negocio buscado). No juzgues para qué la quiere la persona: puede buscar competidores o proveedores. No entran las que son otra cosa ni las que no cumplen los requisitos. Ante la duda razonable, que entre.'
+    : 'Para cada empresa decidí si entra como CLIENTE. No entran: competencia (venden o instalan lo mismo que quien busca), integradores, revendedores o proveedores del mismo rubro, ni las que no cumplen los requisitos. Ante la duda razonable sobre el tipo de empresa, que entre.'
   const todos = new Set(items.map((_, i) => i))
   if (!items.length) return { quedan: todos, parecidas: new Set<number>(), noCumplen: 0, usoIn: 0, usoOut: 0 }
   try {
     const r = await llamarClaude(key, modelo, `Buscamos: ${brief.interpretacion}
 ${brief.incluir.length ? `Entran: ${brief.incluir.join('; ')}\n` : ''}${brief.excluir.length ? `NO entran: ${brief.excluir.join('; ')}\n` : ''}${requisitos.length ? `Requisitos OBLIGATORIOS (si por lo que dice de la empresa claramente no cumple alguno, no entra): ${requisitos.map(f => `${f.titulo}${f.descripcion ? ` (${f.descripcion})` : ''}`).join('; ')}\n` : ''}${aprendido ? `${aprendido}\n` : ''}
-${zona ? `Zona pedida: ${zona}. Las que claramente están fuera de esa zona no entran.\n` : ''}Para cada empresa decidí si entra como CLIENTE. No entran: competencia (venden o instalan lo mismo que quien busca), integradores, revendedores o proveedores del mismo rubro, ni las que no cumplen los requisitos. Ante la duda razonable sobre el tipo de empresa, que entre.${aprendido ? ' Además marcá en "parecidas" las que más se parecen a las que le sirven a esta persona.' : ''}
+${zona ? `Zona pedida: ${zona}. Las que claramente están fuera de esa zona no entran.\n` : ''}${regla}${aprendido ? ' Además marcá en "parecidas" las que más se parecen a las que le sirven a esta persona.' : ''}
 Respondé SOLO con JSON: {"no_entran": [índices], "no_cumplen": [índices de las que no entran por un requisito]${aprendido ? ', "parecidas": [índices]' : ''}}
 
 ${items.map((n, i) => `${i}. ${n.nombre} — ${n.rubro}${n.encaje ? ` — ${n.encaje}` : ''}${n.razones?.a_favor?.length ? ` — a favor: ${n.razones.a_favor.join(', ')}` : ''}${n.razones?.en_contra?.length ? ` — en contra: ${n.razones.en_contra.join(', ')}` : ''}${n.direccion ? ` — ${n.direccion}` : ''}${n.web_actual ? ` — ${n.web_actual}` : ''}`).join('\n')}`, 8000)
@@ -488,6 +500,9 @@ export async function buscar(req: Request, h: Ayudas) {
     const T: Dic = { sin_web: 'Sin página web propia', con_telefono: 'Con teléfono o WhatsApp', con_instagram: 'Con Instagram' }
     filtros = Object.keys(T).filter(k => k === 'sin_web' ? body.requisitos.sin_web !== false : !!body.requisitos[k]).map(k => ({ id: k, titulo: T[k], descripcion: '' }))
   }
+  // Si lo pidió con palabras ("que no tengan página web"), el filtro se activa solo: no hace falta marcarlo
+  const pideSinWeb = /\b(sin|no (tengan?|tienen|posean?)|que no tengan?)\s+(una\s+)?(p[aá]gina|sitio|web)/i.test(`${rubroCrudo} ${body.pedido ?? ''}`)
+  if (pideSinWeb && !filtros.some(f => tipoFiltro(f) === 'sin_web')) filtros.push({ id: 'sin_web', titulo: 'Sin página web propia', descripcion: 'Sólo redes, WhatsApp, un directorio o nada' })
   const ids = new Set(filtros.map(f => f.id))
   const tipos = new Set(filtros.map(tipoFiltro))
   const filtrosIA = filtros.filter(f => tipoFiltro(f) === 'ia')
@@ -597,12 +612,12 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
     const u = partes.length === 1 ? { code: partes[0].code, zona: partes[0].zona } : { code: '', zona }
     const terminos = [...new Set([...brief!.buscar, ...brief!.incluir])].slice(0, 8)
     const fichas = (await desdeMaps(clavePlaces, terminos, u.zona, u.code, conteoPlaces)).filter(f => !nomConocidos.has(clave(f.nombre)))
-    const ev = await evaluarFichas(key, modeloRapido, brief!, fichas.slice(0, 120), contexto, apr.texto, filtrosIA)
+    const ev = await evaluarFichas(key, modeloRapido, brief!, fichas.slice(0, 120), contexto, apr.texto, filtrosIA, libre)
     return { ...ev, fichas: fichas.length, estado: errorMaps ? 'error: ' + errorMaps.slice(0, 120) : 'ok' }
   })().catch(e => { console.error('maps', e); return { items: [] as Dic[], usoIn: 0, usoOut: 0, fichas: 0, estado: 'error: ' + String(e).slice(0, 120) } })
   const corridas = await Promise.all((fuente === 'maps' ? [] : tareas).map(({ parte, e }, i) => {
     const u = paisDe(parte.zona)
-    return unaBusqueda(key, modelo, prompt({ tipos: tiposDe(i), pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.filter((_, k) => k % lotes === i % lotes).slice(0, 4).join('", "') || brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto }), LIMITE_BUSQUEDA_MS, { code: parte.code, tz: parte.tz })
+    return unaBusqueda(key, modelo, prompt({ tipos: tiposDe(i), pais: u.multi ? pais.nombre : u.nombre, multi: false, rubro, zona: parte.zona, cuantos, enfoque: e.texto(brief!.buscar.filter((_, k) => k % lotes === i % lotes).slice(0, 4).join('", "') || brief!.buscar.slice(0, 3).join('", "'), parte.zona), filtros, pedido, excluir, contexto, brief: brief!, aprendido: apr.texto, libre }), LIMITE_BUSQUEDA_MS, { code: parte.code, tz: parte.tz })
   }))
   usoIn += corridas.reduce((a, c) => a + c.usoIn, 0); usoOut += corridas.reduce((a, c) => a + c.usoOut, 0)
   for (const c of corridas) { sumarTokens(uso, modelo, c.usoIn, c.usoOut); uso.busquedasWeb += c.busquedas }
@@ -682,8 +697,8 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   const web = candidatos.filter(c => !c.evaluado)
   // Si no llega antes del corte, se muestran sin la segunda mirada y se avisa
   let sinVerificar = false
-  const ver = !web.length ? await verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona) : await Promise.race([
-    verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona),
+  const ver = !web.length ? await verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona, libre) : await Promise.race([
+    verificar(key, modeloRapido, brief, web, apr.texto, filtrosIA, zona, libre),
     new Promise<Awaited<ReturnType<typeof verificar>>>(listo => setTimeout(() => {
       sinVerificar = true
       listo({ quedan: new Set(web.map((_, i) => i)), parecidas: new Set<number>(), noCumplen: 0, usoIn: 0, usoOut: 0 })

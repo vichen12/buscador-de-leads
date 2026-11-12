@@ -65,6 +65,9 @@ export default function Tablero() {
         </div>
       </header>
 
+      {/* Lo primero de la home: buscar. Escribís y te lleva a Buscar con eso puesto. */}
+      <BuscarRapido />
+
       <PrimerosPasos />
 
       {porRevisar > 0 && (
@@ -256,5 +259,17 @@ function Kpi({ titulo, valor, pie, alerta, grafico, to }) {
       <div><b>{typeof valor === 'number' ? <Contador valor={valor} /> : valor}</b>{grafico}</div>
       {pie && <span className="rep-kpi-pie">{pie}</span>}
     </Tag>
+  )
+}
+
+function BuscarRapido() {
+  const nav = useNavigate()
+  const [q, setQ] = useState('')
+  return (
+    <form className="buscar-rapido" onSubmit={e => { e.preventDefault(); nav(q.trim() ? `/buscar?q=${encodeURIComponent(q.trim())}` : '/buscar') }}>
+      <Search size={18} aria-hidden="true" />
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="¿Qué querés encontrar? Ej.: ferreterías sin página web" aria-label="Qué querés encontrar" maxLength={300} />
+      <button className="btn primario">Buscar</button>
+    </form>
   )
 }

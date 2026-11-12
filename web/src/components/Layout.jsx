@@ -79,31 +79,18 @@ export default function Layout({ children }) {
     ]],
     config,
   ] : [
-    ['Inicio', [['/hoy', 'Tu día', Sun, 0, true], ['/', 'Tablero', LayoutDashboard], ['/reportes', 'Reportes', BarChart3], ['/metas', 'Metas', Target]]],
-    ['Prospectar', [
-      ['/negocio', 'Mi negocio', Store],
-      ['/buscar', 'Buscar clientes', Search],
+    // B2B: siete cosas, en el orden en que se trabaja. Lo demás (herramientas y configuración) está en «Más».
+    ['Prospecta', [
+      ['/buscar', 'Buscar', Search, 0, true],
       ['/revisar', 'Por revisar', Inbox, porRevisar, true],
-      ['/revisar?tab=descartado', 'Rechazadas', Ban],
-      ['/importar', 'Importar', Upload],
-    ]],
-    ['Trabajo diario', [
       ['/prospectos', 'Tu lista', Users, 0, true],
       ['/seguimientos', 'Seguimientos', CalendarClock, vencidos, true],
-      ['/interesados', 'Interesados', Flame],
-      ['/respuestas', 'Respuestas', MessageSquareReply, sinLeer, true],
-      ['/envios', 'Envío masivo', Send],
-      ['/secuencias', 'Secuencias', Workflow],
-      ['/plantillas', 'Plantillas', BookOpen],
-      ['/visitas', 'Visitas', MapPin],
-      ['/asistente', 'Asistente IA', Bot],
+      ['/respuestas', 'Respuestas', MessageSquareReply, sinLeer],
+      ['/envios', 'Envíos', Send],
+      ['/reportes', 'Informe', BarChart3],
     ]],
-    ['Configuración', [
-      ['/catalogo', 'Catálogo', Package],
-      ['/email', 'Email', Mail],
-      ...(esAdminEquipo && perfil?.empresa_id ? [['/equipo', 'Equipo', UsersRound]] : []),
-      ['/conexiones', 'Conexiones', Plug],
-      ...(perfil?.es_admin ? [['/admin', 'Super admin', Crown]] : []),
+    ['Ajustes', [
+      ['/mas', 'Más y configuración', MoreHorizontal],
     ]],
   ]
   const enlace = ([to, label, Icono, badge]) => (

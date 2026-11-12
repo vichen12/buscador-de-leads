@@ -27,6 +27,7 @@ import Catalogo from './pages/Catalogo.jsx'
 import Visitas from './pages/Visitas.jsx'
 import Ayuda from './pages/Ayuda.jsx'
 import Uso from './pages/Uso.jsx'
+import Mas from './pages/Mas.jsx'
 import Landing from './pages/Landing.jsx'
 import Interesados from './pages/Interesados.jsx'
 import Plantillas from './pages/Plantillas.jsx'
@@ -145,6 +146,7 @@ function Privada() {
           <Route path="/hoy" element={<TuDia />} />
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="/uso" element={<Uso />} />
+          <Route path="/mas" element={<Mas />} />
           <Route path="/interesados" element={<Interesados />} />
           <Route path="/plantillas" element={<Plantillas />} />
           <Route path="/metas" element={<Metas />} />
