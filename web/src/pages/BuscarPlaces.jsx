@@ -55,6 +55,9 @@ export default function BuscarPlaces() {
   const elegirCalidad = c => { setCalidad(c); try { localStorage.setItem(CLAVE_CALIDAD, c) } catch { /* sin almacenamiento */ } }
   const libre = modo === 'libre'
   const [sinLibre, setSinLibre] = useState(false) // el servidor todavía no conoce la búsqueda libre
+  // Van antes de elegirModo y del efecto del cupo, que los usan (si no, la pantalla se rompe al abrir)
+  const [res, setRes] = useState(null)
+  const [error, setError] = useState('')
   function elegirModo(m) {
     setModo(m); setRes(null); setError('')
     try { localStorage.setItem(CLAVE_MODO, m) } catch { /* sin almacenamiento */ }
@@ -97,8 +100,6 @@ export default function BuscarPlaces() {
   const [activos, setActivos] = useState(filtrosGuardados)
   const [pedido, setPedido] = useState('')
   const [verFiltros, setVerFiltros] = useState(false)
-  const [res, setRes] = useState(null)
-  const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
   const [seg, setSeg] = useState(0)
   const [historial, setHistorial] = useState([])

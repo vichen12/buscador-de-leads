@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
+import FalloPantalla from './components/FalloPantalla.jsx'
 import './styles.css'
 import './lib/instalar.js' // registra la app instalable (PWA)
 // Tema guardado (claro / oscuro / según el sistema)
@@ -25,7 +26,9 @@ window.addEventListener('unhandledrejection', e => registrarError(e.reason?.mess
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <FalloPantalla>
+        <App />
+      </FalloPantalla>
     </BrowserRouter>
   </React.StrictMode>
 )
