@@ -11,13 +11,13 @@ import Logo from './Logo.jsx'
 import AsistenteFlotante from './AsistenteFlotante.jsx'
 import Paleta from './Paleta.jsx'
 import NuevoProspecto from './NuevoProspecto.jsx'
+import BarraMovil from './BarraMovil.jsx'
 import { leerEnCurso, limpiarEnCurso, estadoBusqueda } from '../lib/busquedaEnCurso.js'
 
 export default function Layout({ children }) {
   const { perfil, tablero, session, servicios, acceso, correo, refrescar, porRevisar, contadores } = useApp()
   const toastRevision = useToast()
   const [paleta, setPaleta] = useState(false)
-  const [mas, setMas] = useState(false)
   const [nuevo, setNuevo] = useState(false)
   const loc = useLocation()
   // Menú: secciones plegables y modo "sólo íconos" (se recuerdan en este navegador)
@@ -27,7 +27,6 @@ export default function Layout({ children }) {
   useEffect(() => { try { localStorage.setItem('prospecta-nav-plegadas', JSON.stringify(plegadas)) } catch { /* nada */ } }, [plegadas])
   const plegar = t => setPlegadas(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])
   const navegar = useNavigate()
-  useEffect(() => setMas(false), [loc.pathname])
 
   // Si el email está conectado, revisar respuestas al entrar (como mucho cada 15 minutos; el servidor igual lo hace cada 10)
   useEffect(() => {
@@ -147,21 +146,8 @@ export default function Layout({ children }) {
         <nav className="nav-pie" aria-label="Más">{enlace(MAS)}</nav>
       </aside>
 
-      {/* Celular: barra de abajo con lo que más se usa en la calle + "Más" */}
-      <nav className="barra-movil" aria-label="Secciones principales">
-        {enBarra.map(enlace)}
-        <button type="button" className={'mas-movil' + (mas ? ' activo' : '')} onClick={() => setMas(v => !v)} aria-expanded={mas}>
-          <MoreHorizontal size={18} /> <span className="nav-texto">Más</span>{hayMas && <span className="cuenta punto" />}
-        </button>
-      </nav>
-      {mas && (
-        <div className="hoja-mas" role="dialog" aria-label="Más secciones" onClick={e => e.target === e.currentTarget && setMas(false)}>
-          <div className="hoja-mas-panel">
-            <div className="hoja-mas-cab"><b>Más</b><button className="btn fantasma chico" onClick={() => setMas(false)} aria-label="Cerrar"><X size={16} /></button></div>
-            <div className="hoja-mas-grilla">{enMas.map(enlace)}</div>
-          </div>
-        </div>
-      )}
+      {/* Celular: barra flotante con «Buscar» elevado en el medio + hoja «Más» */}
+      <BarraMovil items={enBarra} enMas={enMas} hayMas={hayMas} enlace={enlace} />
 
       <div style={{ minWidth: 0 }}>
         <Topbar modo={modo} nombre={nombre} perfil={perfil} session={session} empresa={acceso?.empresa} onBuscar={() => setPaleta(true)} onNuevo={() => setNuevo(true)} />

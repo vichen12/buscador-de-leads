@@ -41,7 +41,7 @@ export default function Landing() {
 
       <section className="landing-hero">
         <span className="chip"><Sparkles size={12} /> Con Claude, de Anthropic</span>
-        <h1>Conseguí clientes para tu negocio,<br />de a uno y bien.</h1>
+        <h1>Conseguí clientes para tu negocio,{' '}<br />de a uno y bien.</h1>
         <p>Prospecta encuentra a las empresas que te pueden comprar, les escribe un mensaje pensado para cada una y te ordena el seguimiento. Vos revisás y decidís; la app cuida tu casilla y la ley.</p>
         <div className="acciones" style={{ justifyContent: 'center' }}><a href="#acceso" className="btn primario btn-grande">Pedí acceso <ArrowRight size={16} /></a><a href="#demo" className="btn btn-grande">Ver el demo</a></div>
       </section>
