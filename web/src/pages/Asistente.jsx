@@ -12,6 +12,12 @@ import { useApp } from '../App.jsx'
 marked.setOptions({ gfm: true, breaks: true })
 export const aHTML = md => DOMPurify.sanitize(marked.parse(md ?? ''))
 
+const SUGERENCIAS_B2C = [
+  ['Resumime cómo vengo', '¿Cómo vengo con mis clientes? Resumime los números, qué funciona y qué no.'],
+  ['¿A quién le escribo hoy?', '¿A qué clientes me conviene escribirles hoy (recompra, dormidos, cumpleaños) y qué les digo? Dame un mensaje corto para cada uno.'],
+  ['Recuperar dormidos', 'Armame una campaña para los clientes que hace más de 90 días que no compran: a quién, por qué canal y el mensaje.'],
+  ['Ideas de aliados', 'Según lo que vendo, ¿qué negocios me conviene tener como aliados para que me recomienden clientes?'],
+]
 const SUGERENCIAS = [
   ['Resumime cómo vengo', '¿Cómo vengo? Resumime mis números, qué está funcionando y qué no.'],
   ['¿A quién le escribo hoy?', '¿A qué 5 prospectos le conviene escribirles hoy y por qué? Dame un mensaje corto para cada uno.'],
@@ -169,7 +175,7 @@ export default function Asistente() {
           <span className="chat-avatar"><Sparkles size={16} /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
             <b className="chat-titulo">{activa ? tituloActiva : 'Asistente IA'}</b>
-            <small className="muted">{servicios.ia ? `Claude · conoce tus prospectos y tus números` : 'Claude'}</small>
+            <small className="muted">{servicios.ia ? `Claude · conoce tus ${perfil?.modo === 'b2c' ? 'clientes' : 'prospectos'} y tus números` : 'Claude'}</small>
           </div>
           {mensajes.length > 0 && <button className="btn chico" onClick={() => pdfDe(tituloActiva, mensajes)}><FileDown size={15} /> Exportar PDF</button>}
         </header>
@@ -182,7 +188,7 @@ export default function Asistente() {
               <p className="muted">Preguntame lo que quieras: tus números, a quién escribirle, cómo responder una objeción o cuánto cobrar. También puedo leer un PDF (por ejemplo, el de tu empresa) y armarte un informe para exportar.</p>
               {sinIA && <Aviso>Falta la clave de Claude. {perfil?.es_admin ? <Link to="/admin">Cargala en Super admin → Claves</Link> : 'Pedile al administrador que la cargue.'}</Aviso>}
               <div className="sugerencias stagger">
-                {SUGERENCIAS.map(([t, p]) => <button key={t} onClick={() => enviar(p)} disabled={sinIA || sinCupo}>{t}</button>)}
+                {(perfil?.modo === 'b2c' ? SUGERENCIAS_B2C : SUGERENCIAS).map(([t, p]) => <button key={t} onClick={() => enviar(p)} disabled={sinIA || sinCupo}>{t}</button>)}
                 <button onClick={() => archivoRef.current?.click()} disabled={sinIA || sinCupo}><FileText size={14} /> Analizar un PDF</button>
               </div>
             </div>

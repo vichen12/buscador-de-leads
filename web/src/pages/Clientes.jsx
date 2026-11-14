@@ -12,10 +12,22 @@ const FUENTES = ['Me los dio al comprar', 'Formulario de mi web', 'En el local /
 const ORIGENES = { manual: 'Cargado a mano', compra: 'Compra', formulario: 'Formulario', importado: 'Importado', referido: 'Referido', aliado: 'Aliado', creador: 'Creador' }
 const FILTROS = [
   ['todos', 'Todos'], ['consentimiento', 'Aceptan mensajes'], ['sin', 'Sin permiso'],
-  ['recompra', 'Compraron más de una vez'], ['dormidos', 'Dormidos (+90 días)'], ['baja', 'Se dieron de baja'],
+  ['recompra', 'Compraron más de una vez'], ['dormidos', 'Dormidos (+90 días)'], ['cumple', 'Cumplen esta semana'], ['baja', 'Se dieron de baja'],
 ]
 const VACIO = { aliado_id: '', creador_id: '', nombre: '', email: '', telefono: '', ciudad: '', compras: 0, total_gastado: 0, ultima_compra: '', cumpleanos: '', notas: '', acepta_email: false, acepta_whatsapp: false, consentimiento_fuente: '', origen: 'manual' }
 const plata = n => '$ ' + Math.round(Number(n) || 0).toLocaleString('es-AR')
+
+/** ¿Cumple años en los próximos 7 días? (contempla el cambio de año: 28/12 → 3/1) */
+function cumpleEnSemana(fecha) {
+  if (!fecha) return false
+  const [, m, d] = String(fecha).slice(0, 10).split('-').map(Number)
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+  for (const anio of [hoy.getFullYear(), hoy.getFullYear() + 1]) {
+    const dias = (new Date(anio, m - 1, d) - hoy) / 864e5
+    if (dias >= 0 && dias <= 7) return true
+  }
+  return false
+}
 
 export default function Clientes() {
   const { session } = useApp()
@@ -36,11 +48,14 @@ export default function Clientes() {
   }
   useEffect(() => { cargar() }, [])
   useEffect(() => {
+    // El tablero manda a la lista ya filtrada (?filtro=dormidos|sin|cumple)
+    const f = params.get('filtro')
+    if (f) setFiltro(f)
     if (params.get('nuevo')) setEditando({ ...VACIO })
     if (params.get('importar')) setImportar(true)
     const id = params.get('id')
     if (id && lista) { const c = lista.find(x => x.id === id); if (c) setEditando(c) }
-    if (params.get('nuevo') || params.get('importar') || (id && lista)) setParams({}, { replace: true })
+    if (f || params.get('nuevo') || params.get('importar') || (id && lista)) setParams({}, { replace: true })
   }, [params, lista])
 
   const hace90 = useMemo(() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10) }, [])
@@ -52,6 +67,7 @@ export default function Clientes() {
       if (filtro === 'recompra' && !(c.compras > 1)) return false
       if (filtro === 'dormidos' && !(c.ultima_compra && c.ultima_compra < hace90)) return false
       if (filtro === 'baja' && !c.baja_at) return false
+      if (filtro === 'cumple' && !cumpleEnSemana(c.cumpleanos)) return false
       if (t && !limpiar([c.nombre, c.email, c.telefono, c.ciudad].join(' ')).includes(t)) return false
       return true
     })
@@ -166,9 +182,11 @@ function EditarCliente({ inicial, onCerrar, onGuardado }) {
       compras: Number(f.compras) || 0, total_gastado: Number(f.total_gastado) || 0, ultima_compra: f.ultima_compra || null, cumpleanos: f.cumpleanos || null,
       notas: f.notas, aliado_id: f.origen === 'aliado' ? (f.aliado_id || null) : null, creador_id: f.origen === 'creador' ? (f.creador_id || null) : null, acepta_email: !!f.acepta_email, acepta_whatsapp: !!f.acepta_whatsapp, consentimiento_fuente: pide ? f.consentimiento_fuente : null, origen: f.origen || 'manual',
     }
-    const { error } = inicial.id ? await supabase.from('clientes').update(fila).eq('id', inicial.id) : await supabase.from('clientes').insert(fila)
+    // .select(): si el cliente es de otra persona del equipo, la base no cambia nada y hay que avisarlo
+    const { data: hechos, error } = inicial.id ? await supabase.from('clientes').update(fila).eq('id', inicial.id).select('id') : await supabase.from('clientes').insert(fila).select('id')
     setGuardando(false)
     if (error) return toast(/clientes_email_unico/.test(error.message) ? 'Ya tenés un cliente con ese email.' : mensajeError(error), 'error')
+    if (!hechos?.length) return toast('Este cliente lo carga otra persona de tu equipo: no lo podés cambiar.', 'error')
     toast(inicial.id ? 'Cliente actualizado' : 'Cliente sumado', 'ok'); onGuardado()
   }
 
@@ -238,7 +256,10 @@ function ImportarClientes({ onCerrar, onListo }) {
   async function subir() {
     if (!mapeo.nombre) return toast('Elegí qué columna tiene el nombre.', 'error')
     if ((permiso.email || permiso.whatsapp) && !permiso.fuente) return toast('Contanos cómo te dieron el permiso.', 'error')
-    const vistos = new Set()
+    const vistos = new Set(), telVistos = new Set()
+    const digitos = t => String(t ?? '').replace(/\D/g, '').slice(-10)
+    const { data: ya } = await supabase.from('clientes').select('telefono').not('telefono', 'is', null).limit(10000)
+    const telefonosYa = new Set((ya ?? []).map(c => digitos(c.telefono)).filter(Boolean))
     const filas = archivo.filas.map(x => {
       const v = k => (mapeo[k] ? x[mapeo[k]] : '')
       const email = String(v('email')).trim().toLowerCase() || null, telefono = String(v('telefono')).trim() || null
@@ -249,6 +270,8 @@ function ImportarClientes({ onCerrar, onListo }) {
         consentimiento_fuente: (permiso.email && email) || (permiso.whatsapp && telefono) ? permiso.fuente : null,
       }
     }).filter(f => f.nombre && (f.email || f.telefono) && (!f.email || (!vistos.has(f.email) && vistos.add(f.email))))
+      // Sin email, se evita duplicar por teléfono (en el archivo y contra los que ya tenés)
+      .filter(f => f.email || !(telefonosYa.has(digitos(f.telefono)) || telVistos.has(digitos(f.telefono)) || !telVistos.add(digitos(f.telefono))))
     if (!filas.length) return toast('No encontré filas con nombre y email o teléfono.', 'error')
     setSubiendo(true)
     let ok = 0, repetidos = 0

@@ -12,7 +12,45 @@ const HISTORIAL = 20
 
 const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
 
+/** B2C: el contexto son tus clientes (personas), campañas, aliados y creadores, no prospectos de empresas */
+async function contextoB2C(supabase: any, perfil: Dic, userId: string) {
+  const [{ data: t }, { data: cs }, { data: camps }, { data: als }, { data: crs }, { data: com }] = await Promise.all([
+    supabase.rpc('tablero_b2c'),
+    supabase.from('clientes').select('nombre, ciudad, compras, total_gastado, ultima_compra, cumpleanos, acepta_email, acepta_whatsapp, baja_at, origen')
+      .eq('owner_id', userId).order('updated_at', { ascending: false }).limit(300),
+    supabase.from('campanas').select('nombre, tipo, segmento, canal, estado, created_at').eq('owner_id', userId).order('created_at', { ascending: false }).limit(20),
+    supabase.from('aliados').select('nombre, rubro, estado').eq('owner_id', userId).limit(50),
+    supabase.from('creadores').select('nombre, red, estado').eq('owner_id', userId).limit(50),
+    supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', userId).maybeSingle(),
+  ])
+  const e = (com?.estrategia ?? {}) as Dic, resp = (com?.respuestas ?? {}) as Dic
+  const filas = (cs ?? []).map((c: Dic) => [c.nombre, c.ciudad, c.compras ? `${c.compras} compras` : '', c.total_gastado ? `gastó ${c.total_gastado}` : '',
+    c.ultima_compra ? `última ${c.ultima_compra}` : '', c.cumpleanos ? `cumple ${String(c.cumpleanos).slice(5)}` : '',
+    c.baja_at ? 'se dio de baja' : [c.acepta_email ? 'acepta email' : '', c.acepta_whatsapp ? 'acepta WhatsApp' : ''].filter(Boolean).join(' y ') || 'sin permiso', c.origen ? `llegó por ${c.origen}` : '']
+    .filter(Boolean).join(' | '))
+  return `## Quién usa el sistema
+${perfil.nombre || 'Usuario'}${resp.empresa || perfil.estudio ? `, de ${resp.empresa || perfil.estudio}` : ''}. Le vende a PERSONAS (consumidores finales), no a empresas.
+${e.resumen ? `Qué vende: ${e.resumen}` : resp.que_vende ? `Qué vende: ${String(resp.que_vende).slice(0, 400)}` : 'Todavía no completó «Mi negocio».'}
+${perfil.instrucciones_ia ? `Indicaciones propias: ${perfil.instrucciones_ia}` : ''}
+
+## Métricas actuales (JSON del tablero)
+${JSON.stringify(t ?? {})}
+
+## Clientes (${filas.length}${filas.length === 300 ? ', los 300 más recientes' : ''}): nombre | ciudad | compras | gastado | última compra | cumpleaños | permiso | origen
+${filas.join('\n') || '(todavía no cargó clientes)'}
+
+## Campañas recientes
+${(camps ?? []).map((c: Dic) => `${String(c.created_at).slice(0, 10)} · ${c.nombre} · ${c.tipo} · ${c.canal} · ${c.estado}`).join('\n') || '(sin campañas)'}
+
+## Aliados (negocios que le recomiendan clientes)
+${(als ?? []).map((a: Dic) => `${a.nombre}${a.rubro ? ` (${a.rubro})` : ''} · ${a.estado}`).join('\n') || '(sin aliados)'}
+
+## Creadores de contenido
+${(crs ?? []).map((c: Dic) => `${c.nombre}${c.red ? ` (${c.red})` : ''} · ${c.estado}`).join('\n') || '(sin creadores)'}`
+}
+
 async function contexto(supabase: any, perfil: Dic, userId: string) {
+  if (perfil?.modo === 'b2c') return contextoB2C(supabase, perfil, userId)
   const [{ data: t }, { data: ps }, { data: ints }, { data: com }] = await Promise.all([
     supabase.rpc('tablero'),
     supabase.from('prospectos')

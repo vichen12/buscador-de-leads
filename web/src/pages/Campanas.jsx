@@ -69,7 +69,7 @@ export default function Campanas() {
 }
 
 function EditorCampana({ inicial, onVolver }) {
-  const { correo } = useApp()
+  const { correo, session } = useApp()
   const toast = useToast()
   const confirmar = useConfirmar()
   const [c, setC] = useState(inicial)
@@ -82,7 +82,8 @@ function EditorCampana({ inicial, onVolver }) {
   const set = (k, v) => setC(x => ({ ...x, [k]: v }))
 
   useEffect(() => {
-    traerTodo(() => supabase.from('clientes').select('*')).then(({ data }) => setClientes(data ?? []))
+    // Sólo tus clientes: los de un compañero el servidor no te deja escribirles (fallarían uno por uno)
+    traerTodo(() => supabase.from('clientes').select('*').eq('owner_id', session.user.id)).then(({ data }) => setClientes(data ?? []))
     if (inicial.id) supabase.from('campana_envios').select('cliente_id').eq('campana_id', inicial.id).then(({ data }) => setEnviados(new Set((data ?? []).map(x => x.cliente_id))))
   }, [])
 
@@ -134,11 +135,18 @@ function EditorCampana({ inicial, onVolver }) {
     const camp = c.id ? c : await guardar({ estado: 'enviando' }); if (!camp) return
     const { error } = await supabase.from('campana_envios').insert({ campana_id: camp.id, cliente_id: cl.id, canal: 'whatsapp' })
     if (error && !/duplicate/.test(error.message)) return toast(mensajeError(error), 'error')
-    setEnviados(s => new Set(s).add(cl.id))
+    const nuevos = new Set(enviados).add(cl.id)
+    setEnviados(nuevos)
+    // Si ya se le escribió a todos, la campaña pasa a «terminada» (antes quedaba en borrador o enviando)
+    if (destino.every(x => nuevos.has(x.id))) await guardar({ estado: 'terminada' })
+    else if (camp.estado !== 'enviando') await guardar({ estado: 'enviando' })
   }
   async function borrar() {
     if (!(await confirmar({ titulo: '¿Borrar esta campaña?', aceptar: 'Borrar', peligro: true }))) return
-    await supabase.from('campanas').delete().eq('id', c.id); onVolver()
+    const { data, error } = await supabase.from('campanas').delete().eq('id', c.id).select('id')
+    if (error) return toast(mensajeError(error), 'error')
+    if (!data?.length) return toast('Esta campaña es de otra persona de tu equipo: no la podés borrar.', 'error')
+    onVolver()
   }
   const nombreDe = cl => String(cl.nombre ?? '').split(/\s+/)[0]
   const textoPara = cl => c.cuerpo.replace(/\{\{\s*nombre\s*\}\}/gi, nombreDe(cl))

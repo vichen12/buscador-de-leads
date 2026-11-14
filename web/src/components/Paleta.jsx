@@ -11,7 +11,7 @@ const PAGINAS = [
   ['/negocio', 'Mi negocio', Store], ['/email', 'Email', Mail], ['/asistente', 'Asistente IA', Bot],
 ]
 const PAGINAS_B2C = [
-  ['/', 'Tablero', LayoutDashboard], ['/clientes', 'Mis clientes', Heart], ['/campanas', 'Campañas', Send], ['/aliados', 'Aliados', Users], ['/creadores', 'Creadores', Users], ['/asistente', 'Asistente IA', Bot],
+  ['/', 'Inicio', LayoutDashboard], ['/clientes', 'Clientes', Heart], ['/campanas', 'Campañas', Send], ['/aliados', 'Aliados', Users], ['/creadores', 'Creadores', Users], ['/mas', 'Más y configuración', Bot], ['/asistente', 'Asistente IA', Bot], ['/catalogo', 'Catálogo', Package], ['/uso', 'Uso y límites', Target], ['/ayuda', 'Ayuda', Bot],
   ['/negocio', 'Mi negocio', Store], ['/email', 'Email', Mail],
 ]
 const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
@@ -69,7 +69,7 @@ export default function Paleta({ onCerrar, modo = 'b2b' }) {
       <div className="paleta" role="dialog" aria-modal="true" aria-label="Buscar">
         <div className="paleta-input">
           {buscando ? <Loader2 size={18} className="spin" /> : <Search size={18} />}
-          <input ref={input} value={q} onChange={e => setQ(e.target.value)} onKeyDown={teclas} placeholder="Buscá una empresa, un contacto, una web o un teléfono…" aria-label="Buscar" />
+          <input ref={input} value={q} onChange={e => setQ(e.target.value)} onKeyDown={teclas} placeholder={modo === 'b2c' ? 'Buscá un cliente o una sección…' : 'Buscá una empresa, un contacto, una web o un teléfono…'} aria-label="Buscar" />
           <kbd>Esc</kbd>
         </div>
         <div className="paleta-lista" role="listbox">

@@ -20,7 +20,7 @@ export default function Interesados() {
     Promise.all([
       supabase.from('respuestas').select('id, clasificacion, motivo, texto, recibida_at, leida, prospecto_id, prospectos(nombre, estado)').eq('owner_id', yo).in('clasificacion', ['interesado', 'reunion', 'pide_info', 'derivar']).gte('recibida_at', hace).order('recibida_at', { ascending: false }).limit(300),
       supabase.from('prospectos').select('id, nombre, estado, created_at, notas').eq('owner_id', yo).eq('fuente', 'formulario').gte('created_at', hace).order('created_at', { ascending: false }).limit(300),
-      perfil?.modos?.includes('b2c') ? supabase.from('clientes').select('id, nombre, origen, created_at, email').eq('owner_id', yo).in('origen', ['formulario', 'referido', 'aliado', 'creador']).gte('created_at', hace).order('created_at', { ascending: false }).limit(300) : Promise.resolve({ data: [] }),
+      perfil?.modo === 'b2c' ? supabase.from('clientes').select('id, nombre, origen, created_at, email').eq('owner_id', yo).in('origen', ['formulario', 'referido', 'aliado', 'creador']).gte('created_at', hace).order('created_at', { ascending: false }).limit(300) : Promise.resolve({ data: [] }),
     ]).then(([r, f, c]) => {
       const lista = [
         ...(r.data ?? []).map(x => ({ k: 'r' + x.id, tipo: x.clasificacion, nombre: x.prospectos?.nombre, texto: x.motivo || x.texto?.slice(0, 160), fecha: x.recibida_at, to: `/prospectos/${x.prospecto_id}`, nuevo: !x.leida, canal: 'respuesta' })),
