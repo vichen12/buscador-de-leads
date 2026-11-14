@@ -2583,14 +2583,19 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .bh-atajo:hover .bh-flecha, .bh-reciente:hover .bh-flecha { transform: translateX(3px); }
 
 .bh-recientes { margin-top: 8px; }
-.bh-recientes h2 { font-size: 1.3rem; margin-bottom: 6px; }
-.bh-reciente { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 15px 6px; font: inherit; font-size: 15px; color: var(--ink); cursor: pointer; transition: background .15s; border-radius: 0; }
-.bh-reciente > svg:first-child { color: var(--mut); flex-shrink: 0; }
-.bh-reciente-texto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bh-reciente .etiqueta-libre { margin: 0; }
-.bh-reciente .bh-flecha { color: var(--mut); }
-.bh-reciente:hover { background: var(--hover); }
-.bh-reciente:hover .bh-flecha { color: var(--acc); }
+.bh-recientes-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.bh-recientes-cab h2 { font-size: 1.2rem; }
+.bh-recientes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.bh-reciente { display: flex; align-items: center; gap: 12px; min-width: 0; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 12px 14px; font: inherit; color: var(--ink); cursor: pointer; transition: transform .18s var(--ease), box-shadow .2s, border-color .2s; animation: subir .3s var(--ease) both; }
+.bh-reciente:hover { transform: translateY(-2px); box-shadow: var(--sh-md); border-color: color-mix(in srgb, var(--acc) 30%, var(--line)); }
+.bh-reciente-icono { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0; background: var(--acc-soft); color: var(--acc); }
+.bh-reciente-icono.libre { background: var(--info-soft); color: var(--info); }
+.bh-reciente-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bh-reciente-texto b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bh-reciente-texto small { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bh-reciente-texto small svg { flex-shrink: 0; }
+.bh-reciente-num { flex-shrink: 0; min-width: 28px; padding: 3px 8px; border-radius: 999px; background: var(--hover); color: var(--ink-2); font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.bh-reciente:hover .bh-reciente-num { background: var(--acc); color: #fff; }
 
 @media (max-width: 760px) {
   .bh-barra { flex-wrap: wrap; padding: 10px 10px 10px 16px; }
@@ -2601,4 +2606,19 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   .bh-opciones { gap: 2px 8px; }
   .bh-atajos { grid-template-columns: 1fr; }
   .bh-creditos { order: -1; }
+}
+
+/* ---------- Menú lateral en gris tranquilo (compu) ---------- */
+@media (min-width: 921px) {
+  :root { --nav-fondo: #f3f2ef; --nav-borde: #e6e3dd; --nav-hover: #e9e7e2; }
+  html[data-tema="oscuro"] { --nav-fondo: #1b1a19; --nav-borde: #2c2a27; --nav-hover: #252321; }
+  .lateral, .app.modo-b2c .lateral, html[data-tema="oscuro"] .lateral, html[data-tema="oscuro"] .app.modo-b2c .lateral { background: var(--nav-fondo); border-right-color: var(--nav-borde); }
+  .lateral nav a { color: var(--ink-2); }
+  .lateral nav a:hover { background: var(--nav-hover); }
+  /* El ítem activo es una tarjeta blanca apoyada sobre el gris */
+  .lateral nav a.activo { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(40,30,20,.06), 0 1px 1px rgba(40,30,20,.04); }
+  .lateral nav a.activo::before { display: none; }
+  .lateral .selector-modo { background: var(--nav-hover); }
+  .lateral .cupo { background: var(--card); border-color: var(--nav-borde); }
+  .lateral .nav-compacto { color: var(--mut); }
 }

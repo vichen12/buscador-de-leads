@@ -49,6 +49,18 @@ const ATAJOS_LIBRE = [
   { texto: 'Distribuidoras con depósito propio', icono: Warehouse },
   { texto: 'Negocios que abrieron hace poco', icono: TrendingUp },
 ]
+/** «hace 5 min», «ayer», «12 nov» */
+function haceCuanto(fecha) {
+  const min = Math.round((Date.now() - new Date(fecha).getTime()) / 60000)
+  if (min < 1) return 'recién'
+  if (min < 60) return `hace ${min} min`
+  const h = Math.round(min / 60)
+  if (h < 24) return `hace ${h} h`
+  const d = Math.round(h / 24)
+  if (d === 1) return 'ayer'
+  if (d < 7) return `hace ${d} días`
+  return new Date(fecha).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+}
 const PASOS = ['Buscando en Google Maps…', 'Mirando directorios y redes…', 'Recorriendo la zona…', 'Revisando que encajen con lo que pediste…']
 
 export default function BuscarPlaces() {
@@ -347,16 +359,22 @@ export default function BuscarPlaces() {
 
       {!cargando && historial.length > 0 && (
         <section className="bh-recientes">
-          <h2>Búsquedas recientes</h2>
-          {historial.map(b => (
-            <button key={b.id} type="button" className="bh-reciente" onClick={() => nav(`/revisar?busqueda=${b.id}`)} title="Ver lo que trajo">
-              <Clock size={17} aria-hidden="true" />
-              <span className="bh-reciente-texto">{b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} <span className="muted">· {b.zona}</span></span>
-              {b.requisitos?.libre && <span className="etiqueta-libre">Libre</span>}
-              <span className="muted chico">{b.guardados ?? 0}</span>
-              <ArrowRight size={17} className="bh-flecha" aria-hidden="true" />
-            </button>
-          ))}
+          <div className="bh-recientes-cab">
+            <h2>Búsquedas recientes</h2>
+            <Link to="/revisar" className="chico">Ver todo en Por revisar <ArrowRight size={13} style={{ verticalAlign: -2 }} /></Link>
+          </div>
+          <div className="bh-recientes-grid">
+            {historial.map(b => (
+              <button key={b.id} type="button" className="bh-reciente" onClick={() => nav(`/revisar?busqueda=${b.id}`)} title="Ver lo que trajo">
+                <span className={'bh-reciente-icono' + (b.requisitos?.libre ? ' libre' : '')}>{b.requisitos?.libre ? <Search size={16} /> : <Store size={16} />}</span>
+                <span className="bh-reciente-texto">
+                  <b>{b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)}</b>
+                  <small><MapPin size={11} /> {b.zona.replace(/, (Argentina|Chile|Uruguay|México|Colombia|Perú|Paraguay|Brasil)$/, '')} · {haceCuanto(b.created_at)}</small>
+                </span>
+                <span className="bh-reciente-num" title="Empresas que trajo">{b.guardados ?? 0}</span>
+              </button>
+            ))}
+          </div>
         </section>
       )}
     </>
