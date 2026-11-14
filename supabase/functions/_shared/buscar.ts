@@ -519,6 +519,11 @@ export function creditosPorCosto(costo: number, precios: Dic = PRECIOS) {
   return Math.min(tope, Math.max(1, Math.ceil((costo * margen) / valor - 1e-9)))
 }
 
+export const CANTIDAD_MAX = 100
+/** Créditos que se reservan antes de buscar: el de la calidad para 20 empresas, proporcional a lo pedido. */
+export const estimadoCreditos = (calidad: string, cantidad: number) =>
+  Math.max(1, Math.ceil((CALIDADES[calidad] ?? CALIDADES.rapida).creditos * Math.max(1, cantidad / 20)))
+
 // El plan de Supabase corta la función a los 150 s (error 546) y se pierde todo lo encontrado:
 // la búsqueda web tiene hasta 85 s y la segunda mirada sólo corre hasta los 125 s del pedido.
 const LIMITE_BUSQUEDA_MS = 85_000
@@ -547,7 +552,8 @@ export async function buscar(req: Request, h: Ayudas) {
   // El lugar sale SOLO del selector "Dónde": si escribió un lugar en "Qué buscás" o en el pedido especial, se ignora
   const rubro = sinLugares(rubroCrudo, zona) || rubroCrudo
   const pedido = sinLugares(String(body.pedido ?? '').trim().slice(0, 400), zona)
-  const cantidad = Math.min(Math.max(Number(body.cantidad) || 10, 5), 40)
+  // Cualquier número entre 5 y 100 (antes, sólo 10, 20, 30 o 40)
+  const cantidad = Math.min(Math.max(Math.round(Number(body.cantidad)) || 10, 5), CANTIDAD_MAX)
   // Filtros elegidos: [{id, titulo, descripcion}]. Compatibilidad con la versión anterior ({requisitos: {sin_web, ...}}).
   let filtros: Dic[] = Array.isArray(body.filtros) ? body.filtros.slice(0, 12).map((f: Dic) => ({ id: String(f.id ?? '').slice(0, 40), titulo: String(f.titulo ?? '').slice(0, 80), descripcion: String(f.descripcion ?? '').slice(0, 220) })).filter((f: Dic) => f.titulo) : []
   if (!Array.isArray(body.filtros) && body.requisitos) {
@@ -568,7 +574,8 @@ export async function buscar(req: Request, h: Ayudas) {
   const { data: cupo } = await db.rpc('cupo_chat', { p_usuario: user.id })
   // Con qué se busca: la persona elige. Más potente = más créditos (cada crédito es una consulta del plan).
   const calidad = CALIDADES[String(body.calidad)] ? String(body.calidad) : 'rapida'
-  const creditos = body.modo === 'interpretar' || body.modo === 'preguntar' ? 0 : CALIDADES[calidad].creditos
+  // El estimado crece con la cantidad pedida (más empresas = más trabajo); al final se cobra lo real
+  const creditos = body.modo === 'interpretar' || body.modo === 'preguntar' ? 0 : estimadoCreditos(calidad, cantidad)
   if (cupo && !cupo.sin_tope && creditos > 1 && cupo.usados < cupo.limite && cupo.usados + creditos > cupo.limite)
     return json({ error: `Esta búsqueda usa unos ${creditos} créditos y te quedan ${cupo.limite - cupo.usados}. Elegí una búsqueda más liviana o ampliá el plan.`, codigo: 'LIMITE_CHAT', cupo }, 429)
   if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de IA de hoy. Mañana se renueva.`, codigo: 'LIMITE_CHAT', cupo }, 429)
@@ -698,7 +705,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   // Si pidió algo concreto, todas las búsquedas van a eso.
   const general = !libre && brief!.especifica === false
   const conParecidas = general && apr.ejemplos.length > 0
-  const lotes = Math.min(4, Math.max(conParecidas ? 2 : 1, Math.ceil(cantidad / 10), partes.length))
+  const lotes = Math.min(cantidad > 40 ? 6 : 4, Math.max(conParecidas ? 2 : 1, Math.ceil(cantidad / 10), partes.length))
   const cuantos = Math.ceil(cantidad / lotes) + 2
   const tareas = Array.from({ length: lotes }, (_, i) => {
     const parte = partes[i % partes.length]

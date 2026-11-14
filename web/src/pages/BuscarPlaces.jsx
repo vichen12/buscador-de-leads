@@ -39,6 +39,9 @@ const CALIDADES = [
   { id: 'mejor', nombre: 'Mejor', creditos: 15, ayuda: 'Un modelo más capaz: entiende mejor pedidos difíciles y revisa con más criterio.' },
   { id: 'maxima', nombre: 'Máxima', creditos: 30, ayuda: 'El modelo más potente. Para búsquedas muy específicas o difíciles.' },
 ]
+const CANTIDAD_MIN = 5, CANTIDAD_MAX = 100
+/** Estimado de créditos: el de la calidad es para 20 empresas; crece con lo pedido (igual que en el servidor). */
+const estimar = (creditos, cantidad) => Math.max(1, Math.ceil(creditos * Math.max(1, cantidad / 20)))
 const CLAVE_CALIDAD = 'prospecta-calidad-busqueda'
 const calidadGuardada = () => { try { const c = localStorage.getItem(CLAVE_CALIDAD); return CALIDADES.some(x => x.id === c) ? c : 'rapida' } catch { return 'rapida' } }
 const CLAVE_MODO = 'prospecta-modo-busqueda'
@@ -111,7 +114,9 @@ export default function BuscarPlaces() {
   const sinMaps = servicios.places === false
   const fuenteUsada = sinMaps ? 'claude' : 'ambas'
   const [zona, setZona] = useState(sugZonas[0])
-  const [cantidad, setCantidad] = useState(20)
+  // Cualquier número: se escribe libre y al salir del campo se ajusta entre 5 y 100
+  const [cantidadTexto, setCantidadTexto] = useState('20')
+  const cantidad = Math.min(CANTIDAD_MAX, Math.max(CANTIDAD_MIN, Number(cantidadTexto) || 20))
   // Los filtros arrancan apagados (prendidos de fábrica descartaban de más) y se recuerda lo que elijas, por modo
   const claveFiltros = 'prospecta-filtros-' + modo
   const filtrosGuardados = () => { try { return new Set(JSON.parse(localStorage.getItem(claveFiltros)) ?? []) } catch { return new Set() } }
@@ -243,14 +248,19 @@ export default function BuscarPlaces() {
           <span className="bh-sep" aria-hidden="true" />
           <div className="bh-opcion">
             <Layers size={18} aria-hidden="true" />
-            <Desplegable className="bh-desplegable" ariaLabel="Cuántas empresas" value={cantidad} onChange={v => setCantidad(Number(v))} disabled={cargando} anchoMenu={200}
-              opciones={[10, 20, 30, 40].map(n => ({ value: n, label: `Cantidad: ${n}`, ayuda: n <= 10 ? 'menos de 1 minuto' : n <= 20 ? '≈ 1 minuto' : 'un par de minutos' }))} />
+            <label className="bh-cantidad" title={cantidad <= 10 ? 'Tarda menos de 1 minuto' : cantidad <= 20 ? 'Tarda ≈ 1 minuto' : cantidad <= 40 ? 'Tarda un par de minutos' : 'Tarda unos minutos; con muchas, puede traer algo menos'}>
+              <span>Cantidad:</span>
+              <input type="number" inputMode="numeric" min={CANTIDAD_MIN} max={CANTIDAD_MAX} step={1} value={cantidadTexto} disabled={cargando} aria-label="Cuántas empresas"
+                onChange={e => setCantidadTexto(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+                onBlur={() => setCantidadTexto(String(cantidad))}
+                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+            </label>
           </div>
           <span className="bh-sep" aria-hidden="true" />
           <div className="bh-opcion">
             <Zap size={18} aria-hidden="true" />
             <Desplegable className="bh-desplegable" ariaLabel="Con qué buscar" value={calidad} onChange={elegirCalidad} disabled={cargando} anchoMenu={300}
-              opciones={CALIDADES.map(c => ({ value: c.id, label: `Modo: ${c.nombre} (≈${c.creditos} créditos)`, ayuda: c.ayuda }))} />
+              opciones={CALIDADES.map(c => ({ value: c.id, label: `Modo: ${c.nombre} (≈${estimar(c.creditos, cantidad)} créditos)`, ayuda: c.ayuda }))} />
           </div>
           <span className="espacio" />
           <button type="button" className={'bh-filtros' + (verFiltros ? ' abierto' : '') + (filtrosActivos.length || pedido ? ' con' : '')} onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros} disabled={cargando}>

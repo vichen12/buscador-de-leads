@@ -34,7 +34,8 @@ describe('las pantallas se dibujan', () => {
   it('Buscar (mi negocio): hero, opciones y atajos de tu estrategia', async () => {
     const html = await dibujar('/buscar', () => import('../BuscarPlaces.jsx'))
     expect(html).toContain('Encontrá tu próximo cliente.')
-    expect(html).toContain('Cantidad: 20')
+    expect(html).toContain('Cantidad:')
+    expect(html).toContain('value="20"')
     expect(html).toContain('Modo: Rápida')
     expect(html).toContain('¿Por dónde empezamos?')
     expect(html).toContain('Distribuidoras')

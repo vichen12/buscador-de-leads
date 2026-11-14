@@ -2631,3 +2631,10 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   .lateral nav a { padding: 10px 12px; font-size: 14.5px; }
   .lateral nav:not(.nav-pie) { margin-top: 6px; gap: 3px; }
 }
+
+/* Cantidad: un número libre, con el mismo aspecto que las otras opciones */
+.bh-cantidad { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border-radius: 10px; font-size: 14.5px; font-weight: 500; color: var(--ink); cursor: text; margin: 0; transition: background .15s; }
+.bh-cantidad:hover, .bh-cantidad:focus-within { background: var(--hover); }
+.bh-cantidad input { width: 58px; border: 1px solid transparent; background: transparent; font: inherit; font-weight: 600; padding: 4px 6px; border-radius: 8px; color: var(--ink); box-shadow: none; -moz-appearance: textfield; }
+.bh-cantidad input:focus { outline: 0; border-color: var(--acc); background: var(--card); }
+.bh-cantidad input::-webkit-outer-spin-button, .bh-cantidad input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

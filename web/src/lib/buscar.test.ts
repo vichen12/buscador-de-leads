@@ -311,3 +311,23 @@ describe('reserva de créditos (no se puede pasar del plan con búsquedas a la v
     expect(red.web).toBe(0);
   });
 });
+
+describe('cantidad libre', () => {
+  it('acepta cualquier número entre 5 y 100 y el estimado de créditos crece con lo pedido', async () => {
+    const { estimadoCreditos, CANTIDAD_MAX } = await import('../../../supabase/functions/_shared/buscar.ts');
+    expect(CANTIDAD_MAX).toBe(100);
+    expect(estimadoCreditos('rapida', 20)).toBe(5);
+    expect(estimadoCreditos('rapida', 7)).toBe(5); // menos de 20: no baja del mínimo de la calidad
+    expect(estimadoCreditos('rapida', 37)).toBe(10);
+    expect(estimadoCreditos('maxima', 100)).toBe(150);
+    expect(estimadoCreditos('inventada', 20)).toBe(5);
+  });
+  it('el servidor respeta un número raro (37) y lo topa en 100', async () => {
+    redFalsa();
+    const a = await correr({ fuente: 'claude', cantidad: 37 });
+    expect(a.status).toBe(200);
+    redFalsa();
+    const b = await correr({ fuente: 'claude', cantidad: 5000 });
+    expect(b.status).toBe(200);
+  });
+});
