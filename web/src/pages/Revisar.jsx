@@ -10,6 +10,7 @@ import { Esqueleto, useToast } from '../components/ui.jsx'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
+import { sumarComoAliado } from '../lib/aliados.js'
 import { useApp } from '../App.jsx'
 
 const TABS = [
@@ -20,7 +21,8 @@ const TABS = [
 
 export default function Revisar() {
   const toast = useToast()
-  const { refrescar, setPorRevisar } = useApp()
+  const { refrescar, setPorRevisar, perfil } = useApp()
+  const b2c = perfil?.modo === 'b2c'
   const [params, setParams] = useSearchParams()
   const nav = useNavigate()
   const tab = params.get('tab') || 'por_revisar'
@@ -207,7 +209,7 @@ export default function Revisar() {
         <div className="lista-hallazgos">
           {pag.items.map((h, i) => (
             <div key={h.id} data-foco={tab === 'por_revisar' && armado && i === foco ? '1' : undefined} className="hallazgo-envoltura" onMouseDown={() => { setFoco(i); setArmado(true) }}>
-            <TarjetaHallazgo key={h.id} h={esLibre(h, libres) ? { ...h, libre: true } : h} sel={sel.has(h.id)} ocupado={ocupados.has(h.id)}
+            <TarjetaHallazgo key={h.id} h={esLibre(h, libres) ? { ...h, libre: true } : h} sel={sel.has(h.id)} onAliado={b2c ? () => conOcupado([h.id], async () => { await sumarComoAliado(h); marcar([h.id], { estado: 'aprobado', aliado: true }); refrescar(); toast(`${h.nombre} quedó en tus aliados`, 'ok') }) : undefined} ocupado={ocupados.has(h.id)}
               onSel={tab === 'descartado' || tab === 'por_revisar' ? () => setSel(s => { const n = new Set(s); n.has(h.id) ? n.delete(h.id) : n.add(h.id); return n }) : undefined}
               onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onSaltear={() => saltear([h.id])} onMotivo={m => motivoHallazgo(h.id, m).then(() => marcar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} onRecuperar={() => recuperar([h.id])} />
             </div>

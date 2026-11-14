@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound, Building2, Target, SkipForward } from 'lucide-react'
+import { Check, X, Phone, Mail, MapPin, Star, Undo2, ArrowRight, Loader2, Megaphone, UserRound, Building2, Target, SkipForward, Handshake } from 'lucide-react'
 import Enlaces from './Enlaces.jsx'
 import PorQue from './PorQue.jsx'
 import { LogoEmpresa } from './ui.jsx'
@@ -7,7 +7,7 @@ import { LogoEmpresa } from './ui.jsx'
 /** Una empresa encontrada, para revisar: sumarla a la lista o marcar que no sirve */
 const MOTIVOS = ['No es del rubro', 'Muy chica', 'Muy grande', 'Muy lejos', 'Ya es cliente', 'Es competencia', 'Datos malos']
 
-export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar, onSaltear, onRecuperar, onMotivo, ocupado }) {
+export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar, onSaltear, onRecuperar, onMotivo, onAliado, ocupado }) {
   const dir = [h.direccion, h.zona && !h.direccion?.toLowerCase().includes(h.zona.toLowerCase()) ? h.zona : ''].filter(Boolean).join(' · ')
   return (
     <article className={'hallazgo ' + h.estado + (sel ? ' sel' : '')}>
@@ -45,11 +45,17 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
       </div>
       <div className="hallazgo-acciones">
         {h.estado === 'por_revisar' && <>
-          <button className="btn primario" onClick={onAprobar} disabled={ocupado}>{ocupado ? <Loader2 size={15} className="spin" /> : <Check size={15} />} Sumar a mi lista</button>
+          {onAliado
+            ? <button className="btn primario" onClick={onAliado} disabled={ocupado}>{ocupado ? <Loader2 size={15} className="spin" /> : <Handshake size={15} />} Sumar como aliado</button>
+            : <button className="btn primario" onClick={onAprobar} disabled={ocupado}>{ocupado ? <Loader2 size={15} className="spin" /> : <Check size={15} />} Sumar a mi lista</button>}
           <button className="btn fantasma" onClick={onDescartar} disabled={ocupado}><X size={15} /> No sirve</button>
           {onSaltear && <button className="btn fantasma chico saltear" onClick={onSaltear} disabled={ocupado} title="La saco de acá sin marcarla como buena ni mala: puede volver a aparecer en otra búsqueda"><SkipForward size={13} /> Saltear</button>}
         </>}
-        {h.estado === 'aprobado' && <>
+        {h.estado === 'aprobado' && !h.prospecto_id && h.aliado && <>
+          <span className="chip ok"><Handshake size={12} /> En tus aliados</span>
+          <Link className="btn fantasma chico" to="/aliados">Ver aliados <ArrowRight size={13} /></Link>
+        </>}
+        {h.estado === 'aprobado' && !(h.aliado && !h.prospecto_id) && <>
           <span className="chip ok"><Check size={12} /> En tu lista</span>
           {/* Las viejas pueden no tener el prospecto anotado: se la busca por nombre en la lista */}
           <Link className="btn fantasma chico" to={h.prospecto_id ? `/prospectos/${h.prospecto_id}` : `/prospectos?q=${encodeURIComponent(h.nombre)}`}

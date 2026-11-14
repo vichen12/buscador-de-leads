@@ -15,6 +15,7 @@ import SelectorZona from '../components/SelectorZona.jsx'
 import { useApp } from '../App.jsx'
 import { leerIA, textoCosto } from '../lib/uso.js'
 import { guardarEnCurso, leerEnCurso, limpiarEnCurso, esperarBusqueda } from '../lib/busquedaEnCurso.js'
+import { sumarComoAliado } from '../lib/aliados.js'
 
 const FILTROS_DEFECTO = [
   { id: 'con_telefono', titulo: 'Con teléfono o WhatsApp', descripcion: 'Que tenga un número para escribirle.', activo: false },
@@ -52,6 +53,12 @@ const leerBorrador = () => { try { return JSON.parse(sessionStorage.getItem(CLAV
 const CLAVE_MODO = 'prospecta-modo-busqueda'
 const modoGuardado = () => { try { return localStorage.getItem(CLAVE_MODO) === 'libre' ? 'libre' : 'negocio' } catch { return 'negocio' } }
 // «¿Por dónde empezamos?»: un toque arma la búsqueda. En «mi negocio» salen de tu estrategia.
+// B2C: le vendés a personas, así que lo que se busca son negocios para hacer alianzas, creadores o proveedores
+const ATAJOS_B2C = [
+  { texto: 'Negocios que venden a mi mismo público', icono: Store },
+  { texto: 'Creadores de contenido de mi zona', icono: TrendingUp },
+  { texto: 'Comercios sin página web', icono: MonitorSmartphone, sinWeb: true },
+]
 const ATAJOS_LIBRE = [
   { texto: 'Comercios sin página web', icono: MonitorSmartphone, sinWeb: true },
   { texto: 'Distribuidoras con depósito propio', icono: Warehouse },
@@ -75,7 +82,10 @@ export default function BuscarPlaces() {
   const toast = useToast()
   const nav = useNavigate()
   const { servicios, refrescar, perfil, comercial } = useApp()
-  const [modo, setModo] = useState(modoGuardado)
+  const b2c = perfil?.modo === 'b2c'
+  // En B2C la búsqueda es siempre libre: «mi negocio» busca empresas que te compren, y en B2C le vendés a personas
+  const [modoElegido, setModo] = useState(modoGuardado)
+  const modo = b2c ? 'libre' : modoElegido
   const [calidad, setCalidad] = useState(calidadGuardada)
   const creditos = CALIDADES.find(c => c.id === calidad)?.creditos ?? 1
   const elegirCalidad = c => { setCalidad(c); try { localStorage.setItem(CLAVE_CALIDAD, c) } catch { /* sin almacenamiento */ } }
@@ -148,7 +158,7 @@ export default function BuscarPlaces() {
 
   const filtrosActivos = filtros.filter(f => activos.has(f.id))
   // En «mi negocio» los atajos son tus rubros; en libre, ideas comunes
-  const atajos = libre ? ATAJOS_LIBRE : (est?.rubros ?? []).slice(0, 3).map((r, i) => ({ texto: r.nombre.charAt(0).toUpperCase() + r.nombre.slice(1), icono: [Warehouse, TrendingUp, Store][i] }))
+  const atajos = b2c ? ATAJOS_B2C : libre ? ATAJOS_LIBRE : (est?.rubros ?? []).slice(0, 3).map((r, i) => ({ texto: r.nombre.charAt(0).toUpperCase() + r.nombre.slice(1), icono: [Warehouse, TrendingUp, Store][i] }))
   const usarAtajo = a => {
     setRubro(a.texto)
     if (a.sinWeb && !activos.has('sin_web')) alternar('sin_web')
@@ -205,7 +215,7 @@ export default function BuscarPlaces() {
     let enCurso = null
     try {
       // Sin paso previo: el servidor entiende el pedido y busca de una
-      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, calidad, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f, libre, segundo_plano: true })
+      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, calidad, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f, libre, b2c, segundo_plano: true })
       // En segundo plano: el servidor contesta enseguida con el id y la búsqueda sigue aunque te vayas
       const esperar = async r0 => {
         if (!r0?.en_curso) return r0 // función vieja: ya trae el resultado
@@ -250,6 +260,11 @@ export default function BuscarPlaces() {
     toast(ids.length === 1 ? 'Listo, no va a volver a aparecer' : `${ids.length} descartadas`)
   })
 
+  const aliado = h => conOcupado([h.id], async () => {
+    await sumarComoAliado(h)
+    actualizar([h.id], { estado: 'aprobado', aliado: true }); refrescar()
+    toast(`${h.nombre} quedó en tus aliados`, 'ok', { accion: { label: 'Ver aliados', onClick: () => nav('/aliados') } })
+  })
   const saltear = ids => conOcupado(ids, async () => {
     await saltearHallazgos(ids)
     setRes(r => ({ ...r, resultados: r.resultados.filter(h => !ids.includes(h.id)) })); refrescar()
@@ -265,8 +280,8 @@ export default function BuscarPlaces() {
         <div className="bh-cab">
           <div className="bh-titulos">
             <span className="bh-eyebrow">Buscador inteligente</span>
-            <h1>{libre ? 'Encontrá lo que necesites.' : 'Encontrá tu próximo cliente.'}</h1>
-            <p>{libre ? 'Escribí cualquier rubro o tipo de negocio: busca exactamente eso.' : 'Buscá empresas con el perfil ideal para tu negocio.'}</p>
+            <h1>{b2c ? 'Encontrá aliados para crecer.' : libre ? 'Encontrá lo que necesites.' : 'Encontrá tu próximo cliente.'}</h1>
+            <p>{b2c ? 'Negocios que te pueden recomendar clientes, creadores o proveedores: escribí lo que buscás.' : libre ? 'Escribí cualquier rubro o tipo de negocio: busca exactamente eso.' : 'Buscá empresas con el perfil ideal para tu negocio.'}</p>
           </div>
           {ia && (
             <Link to="/uso" className={'bh-creditos' + (ia.agotada ? ' agotados' : '')} title="Ver uso y límites">
@@ -275,10 +290,10 @@ export default function BuscarPlaces() {
           )}
         </div>
 
-        <div className="bh-modo" role="radiogroup" aria-label="Tipo de búsqueda">
+        {!b2c && <div className="bh-modo" role="radiogroup" aria-label="Tipo de búsqueda">
           {MODOS.map(m => <button key={m.id} type="button" role="radio" aria-checked={modo === m.id} className={modo === m.id ? 'on' : ''} disabled={cargando} title={m.ayuda} onClick={() => elegirModo(m.id)}>
             {m.id === 'libre' ? <Search size={13} /> : <Store size={13} />}{m.nombre}</button>)}
-        </div>
+        </div>}
 
         <form className="bh-barra" onSubmit={e => { e.preventDefault(); buscar() }}>
           <Sparkles size={22} className="bh-chispa" aria-hidden="true" />
@@ -342,7 +357,7 @@ export default function BuscarPlaces() {
         )}
       </section>
 
-      {comercial === null && !libre && (
+      {comercial === null && !libre && !b2c && (
         <div className="aviso-negocio">
           <Store size={22} />
           <div style={{ flex: 1 }}><b>Contanos qué vendés y la búsqueda se arma sola</b><p>Una sola pregunta y Claude te sugiere qué rubros y zonas buscar.</p></div>
@@ -405,14 +420,14 @@ export default function BuscarPlaces() {
             <div className="acciones">
               <button className="btn" onClick={() => { setRes(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Nueva búsqueda</button>
               {res.resultados.length > 0 && <button className="btn" onClick={() => descargarExcel(`busqueda_${new Date().toISOString().slice(0, 10)}.xlsx`, res.resultados.map(h => filaEmpresa(h)))}><Download size={15} /> Excel</button>}
-              {pendientes.length > 1 && <button className="btn primario" disabled={ocupados.size > 0} onClick={() => aprobar(pendientes.map(h => h.id))}><Check size={15} /> Sumar las {pendientes.length}</button>}
+              {!b2c && pendientes.length > 1 && <button className="btn primario" disabled={ocupados.size > 0} onClick={() => aprobar(pendientes.map(h => h.id))}><Check size={15} /> Sumar las {pendientes.length}</button>}
             </div>
           </div>
           {res.aviso && <Aviso>{res.aviso}</Aviso>}
           {res.resultados.length > 0 && <p className="ayuda-revisar"><Inbox size={15} /> <span>Quedaron guardadas en <Link to={`/revisar?busqueda=${res.busqueda_id ?? ''}`}>Por revisar</Link>. Sumá a tu lista las que vas a contactar y marcá las que no sirven: esas no vuelven a aparecer.</span></p>}
           <div className="lista-hallazgos">
             {res.resultados.map(h => (
-              <TarjetaHallazgo key={h.id ?? h.nombre} h={res.libre ? { ...h, libre: true } : h} ocupado={ocupados.has(h.id)}
+              <TarjetaHallazgo key={h.id ?? h.nombre} h={res.libre ? { ...h, libre: true } : h} ocupado={ocupados.has(h.id)} onAliado={b2c && h.id ? () => aliado(h) : undefined}
                 onAprobar={() => aprobar([h.id])} onDescartar={() => descartar([h.id])} onSaltear={h.id ? () => saltear([h.id]) : null} onMotivo={m => motivoHallazgo(h.id, m).then(() => actualizar([h.id], { motivo: m })).catch(e => toast(mensajeError(e), 'error'))} />
             ))}
           </div>

@@ -185,6 +185,14 @@ const ENFOQUES = [
 ]
 
 
+function contextoB2C(c: Dic | null) {
+  const e = c?.estrategia ?? {}, r = c?.respuestas ?? {}
+  const vende = e.resumen || String(r.que_vende ?? '').slice(0, 400)
+  if (!vende) return ''
+  return `Quién busca: ${r.empresa ? r.empresa + ', ' : ''}un negocio que le vende a PERSONAS (consumidores finales). Qué vende: ${vende}
+Si el pedido habla de «mi negocio», «mi público», «mis clientes», «lo mío» o «mi rubro», usá esto para entenderlo (por ejemplo, «negocios que venden a mi mismo público» son negocios distintos que atienden a la misma gente, buenos para hacer alianzas; nunca competencia directa). Si el pedido no lo menciona, buscá exactamente lo que escribió.`
+}
+
 function contextoEmpresa(c: Dic | null) {
   const e = c?.estrategia ?? {}, r = c?.respuestas ?? {}
   if (!e.resumen && !r.que_vende) return ''
@@ -315,7 +323,7 @@ const lista = (v: unknown, n = 10) => Array.isArray(v) ? v.map(x => String(x ?? 
 /** Traduce lo que escribió la persona a un pedido preciso: qué tipo de empresa entra, cómo buscarla y qué NO entra */
 async function interpretar(key: string, modelo: string, rubro: string, zona: string, contexto: string, aprendido = '', pais = 'Argentina', multi = false, libre = false): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
   const base: Brief = { interpretacion: rubro, buscar: [rubro], incluir: [], excluir: [] }
-  if (libre) return interpretarLibre(key, modelo, rubro, zona, pais, multi, base)
+  if (libre) return interpretarLibre(key, modelo, rubro, zona, pais, multi, base, contexto)
   try {
     const r = await llamarClaude(key, modelo, `Sos analista comercial B2B ${multi ? 'en Latinoamérica' : `en ${pais}`}. Una persona quiere encontrar clientes potenciales y escribió: "${rubro}".
 ${contexto ? `\nQuién busca y qué vende:\n${contexto}\n` : ''}${aprendido ? `\n${aprendido}\n` : ''}
@@ -347,10 +355,12 @@ Respondé SOLO con JSON:
  * (clientes de otro rubro, proveedores, competidores, aliados, un relevamiento). No se usa «Mi negocio»
  * ni lo aprendido de su lista: se interpreta el pedido tal cual.
  */
-async function interpretarLibre(key: string, modelo: string, rubro: string, zona: string, pais: string, multi: boolean, base: Brief): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
+async function interpretarLibre(key: string, modelo: string, rubro: string, zona: string, pais: string, multi: boolean, base: Brief, contexto = ''): Promise<{ brief: Brief, usoIn: number, usoOut: number }> {
   try {
     const r = await llamarClaude(key, modelo, `Una persona quiere armar una lista de empresas o negocios ${multi ? 'en Latinoamérica' : `en ${pais}`} y escribió: "${rubro}".
-
+${contexto ? `
+${contexto}
+` : ''}
 Es una BÚSQUEDA LIBRE: buscá exactamente lo que pidió, tal cual. No supongas qué vende quien busca ni para qué quiere la lista (pueden ser clientes, proveedores, competidores, aliados o un relevamiento). No lo lleves a otras industrias ni lo reinterpretes: si escribió "restaurantes", son restaurantes. Si pidió varios rubros o "de todo" (ej.: "comercios, transportes, lo que sea"), repartí "incluir" y "buscar" entre rubros variados de negocios comunes.
 Las CONDICIONES que pida (ej.: "que no tengan página web", "con buenas reseñas", "chicos", "nuevos") no son tipos de negocio: no las pongas en "buscar" ni en "incluir" (ahí van sólo rubros, como se buscan en Google Maps); se filtran aparte. Sí mencionalas en "interpretacion".
 
@@ -586,7 +596,10 @@ export async function buscar(req: Request, h: Ayudas) {
   const { data: comercial } = await supabase.from('perfil_comercial').select('respuestas, estrategia').eq('owner_id', user.id).maybeSingle()
   // Búsqueda libre: cualquier rubro, sin atarla a «Mi negocio» ni a lo aprendido de la lista
   const libre = body.libre === true
-  const contexto = libre ? '' : sinLugares(contextoEmpresa(comercial), zona)
+  // B2C (vende a personas): la búsqueda es libre, pero sabe qué vende quien busca, para entender pedidos como
+  // «negocios que venden a mi mismo público» o «creadores de mi rubro». No cambia lo que se pide: lo aclara.
+  const b2c = body.b2c === true
+  const contexto = libre ? (b2c ? contextoB2C(comercial) : '') : sinLugares(contextoEmpresa(comercial), zona)
   const modeloRapido = (await claveServicio('modelo_resumen')) || 'claude-haiku-5-5'
 
   // Paso 1: entender qué quiere (y qué NO). Con modo "interpretar" sólo devuelve esto para que la persona lo ajuste.

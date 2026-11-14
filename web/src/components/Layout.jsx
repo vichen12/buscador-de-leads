@@ -79,11 +79,12 @@ export default function Layout({ children }) {
   const secciones = modo === 'b2c' ? [
     // B2C: igual de simple que B2B. Lo demás (asistente y configuración) está en «Más».
     ['', [
-      ['/', 'Inicio', LayoutDashboard, 0, true],
+      ['/buscar', 'Buscar', Search, 0, true],
+      ['/revisar', 'Por revisar', Inbox, porRevisar],
+      ['/inicio', 'Inicio', LayoutDashboard, 0, true],
       ['/clientes', 'Clientes', Heart, 0, true],
-      ['/interesados', 'Interesados', Flame],
       ['/campanas', 'Campañas', Send, 0, true],
-      ['/aliados', 'Aliados', Handshake, 0, true],
+      ['/aliados', 'Aliados', Handshake],
       ['/creadores', 'Creadores', Megaphone],
     ]],
   ] : [

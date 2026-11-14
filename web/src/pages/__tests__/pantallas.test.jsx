@@ -90,7 +90,8 @@ describe('modo B2C', () => {
     try {
       const { default: Layout } = await import('../../components/Layout.jsx')
       const html = renderToString(<MemoryRouter initialEntries={['/clientes']}><Layout><div /></Layout></MemoryRouter>)
-      for (const t of ['Inicio', 'Clientes', 'Interesados', 'Campañas', 'Aliados', 'Creadores', 'Más y configuración']) expect(html).toContain(t)
+      for (const t of ['Buscar', 'Por revisar', 'Inicio', 'Clientes', 'Campañas', 'Aliados', 'Creadores', 'Más y configuración']) expect(html).toContain(t)
+      expect(html).not.toContain('>Interesados<')
       expect(html).not.toContain('Mis clientes')
       expect(html).not.toContain('Crecer')
       const mas = await dibujar('/mas', () => import('../Mas.jsx'))
@@ -98,5 +99,26 @@ describe('modo B2C', () => {
       expect(mas).not.toContain('Secuencias')
       expect(mas).toContain('Asistente IA')
     } finally { app.perfil.modo = 'b2b' }
+  })
+})
+
+describe('Buscar en B2C', () => {
+  it('es la pantalla principal: busca aliados, sin el selector de «mi negocio», con atajos de B2C', async () => {
+    app.perfil.modo = 'b2c'
+    try {
+      const html = await dibujar('/buscar', () => import('../BuscarPlaces.jsx'))
+      expect(html).toContain('Encontrá aliados para crecer.')
+      expect(html).not.toContain('Clientes para mi negocio')
+      expect(html).toContain('Creadores de contenido de mi zona')
+    } finally { app.perfil.modo = 'b2b' }
+  })
+  it('la tarjeta de un resultado ofrece «Sumar como aliado»', async () => {
+    const { default: Tarjeta } = await import('../../components/TarjetaHallazgo.jsx')
+    const h = { id: 'h1', nombre: 'Café Central', estado: 'por_revisar', rubro: 'cafetería' }
+    const html = renderToString(<MemoryRouter><Tarjeta h={h} onAliado={() => {}} onDescartar={() => {}} /></MemoryRouter>)
+    expect(html).toContain('Sumar como aliado')
+    expect(html).not.toContain('Sumar a mi lista')
+    const hecho = renderToString(<MemoryRouter><Tarjeta h={{ ...h, estado: 'aprobado', aliado: true }} /></MemoryRouter>)
+    expect(hecho).toContain('En tus aliados')
   })
 })

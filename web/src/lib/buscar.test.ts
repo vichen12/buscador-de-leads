@@ -331,3 +331,14 @@ describe('cantidad libre', () => {
     expect(b.status).toBe(200);
   });
 });
+
+describe('Buscar en B2C', () => {
+  it('libre pero sabiendo qué vende quien busca (para «mi mismo público»)', async () => {
+    const red = redFalsa();
+    const datos = { perfil_comercial: [] };
+    const { status } = await correr({ fuente: 'claude', libre: true, b2c: true, brief: undefined, rubro: 'negocios que venden a mi mismo público' }, { datos });
+    expect(status).toBe(200);
+    // sin «Mi negocio» cargado no inventa contexto
+    expect(red.textos.join(' | ')).not.toContain('Quién busca: ');
+  });
+});
