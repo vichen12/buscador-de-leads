@@ -55,3 +55,13 @@ describe('las pantallas se dibujan', () => {
     expect(html.length).toBeGreaterThan(50)
   })
 })
+
+describe('el menú', () => {
+  it('es simple: las 7 secciones y «Más y configuración», sin la tarjeta de uso', async () => {
+    const { default: Layout } = await import('../../components/Layout.jsx')
+    const html = renderToString(<MemoryRouter initialEntries={['/buscar']}><Layout><div /></Layout></MemoryRouter>)
+    for (const t of ['Buscar', 'Por revisar', 'Tu lista', 'Seguimientos', 'Respuestas', 'Envíos', 'Informe', 'Más y configuración']) expect(html).toContain(t)
+    expect(html).not.toContain('Emails de hoy')
+    expect(html).not.toContain('Achicar menú')
+  })
+})

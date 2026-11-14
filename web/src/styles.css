@@ -2610,7 +2610,7 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 
 /* ---------- Menú lateral en gris tranquilo (compu) ---------- */
 @media (min-width: 921px) {
-  :root { --nav-fondo: #f3f2ef; --nav-borde: #e6e3dd; --nav-hover: #e9e7e2; }
+  :root { --nav-fondo: #e8e6e1; --nav-borde: #dbd8d1; --nav-hover: #dcd9d2; }
   html[data-tema="oscuro"] { --nav-fondo: #1b1a19; --nav-borde: #2c2a27; --nav-hover: #252321; }
   .lateral, .app.modo-b2c .lateral, html[data-tema="oscuro"] .lateral, html[data-tema="oscuro"] .app.modo-b2c .lateral { background: var(--nav-fondo); border-right-color: var(--nav-borde); }
   .lateral nav a { color: var(--ink-2); }
@@ -2621,4 +2621,13 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   .lateral .selector-modo { background: var(--nav-hover); }
   .lateral .cupo { background: var(--card); border-color: var(--nav-borde); }
   .lateral .nav-compacto { color: var(--mut); }
+}
+
+/* Menú simple: «Más y configuración» abajo de todo, separado por una línea */
+.nav-pie { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--nav-borde, var(--line)); display: flex; flex-direction: column; }
+.lateral nav.nav-pie a { color: var(--mut); }
+@media (max-width: 920px) { .nav-pie { display: none; } }
+@media (min-width: 921px) {
+  .lateral nav a { padding: 10px 12px; font-size: 14.5px; }
+  .lateral nav:not(.nav-pie) { margin-top: 6px; gap: 3px; }
 }

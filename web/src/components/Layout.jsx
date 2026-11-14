@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { leerIA } from '../lib/uso.js'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2, PanelLeftClose, PanelLeftOpen,
+  Plug, Store, Bot, LayoutDashboard, BarChart3, Users, CalendarClock, Upload, Search, UserCircle, Crown, LogOut, Sparkles, ChevronDown, Building2,
   Inbox, Ban, Mail, Send, MessageSquareReply, Workflow, Bell, Plus, ListTodo, UsersRound, MoreHorizontal, X, Flame, ShieldCheck, FileText, DoorOpen, Heart, UserPlus, ArrowLeftRight, Handshake, Megaphone, Sun, Target, MapPin, Package, AtSign, LifeBuoy, BookOpen, Moon,
 } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
@@ -23,9 +22,8 @@ export default function Layout({ children }) {
   // Menú: secciones plegables y modo "sólo íconos" (se recuerdan en este navegador)
   const leer = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
   const [plegadas, setPlegadas] = useState(() => leer('prospecta-nav-plegadas', []))
-  const [compacto, setCompacto] = useState(() => leer('prospecta-nav-compacto', false))
+  const compacto = false
   useEffect(() => { try { localStorage.setItem('prospecta-nav-plegadas', JSON.stringify(plegadas)) } catch { /* nada */ } }, [plegadas])
-  useEffect(() => { try { localStorage.setItem('prospecta-nav-compacto', JSON.stringify(compacto)) } catch { /* nada */ } }, [compacto])
   const plegar = t => setPlegadas(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])
   const navegar = useNavigate()
   useEffect(() => setMas(false), [loc.pathname])
@@ -80,7 +78,7 @@ export default function Layout({ children }) {
     config,
   ] : [
     // B2B: siete cosas, en el orden en que se trabaja. Lo demás (herramientas y configuración) está en «Más».
-    ['Prospecta', [
+    ['', [
       ['/buscar', 'Buscar', Search, 0, true],
       ['/revisar', 'Por revisar', Inbox, porRevisar, true],
       ['/prospectos', 'Tu lista', Users, 0, true],
@@ -89,10 +87,9 @@ export default function Layout({ children }) {
       ['/envios', 'Envíos', Send],
       ['/reportes', 'Informe', BarChart3],
     ]],
-    ['Ajustes', [
-      ['/mas', 'Más y configuración', MoreHorizontal],
-    ]],
   ]
+  // «Más» queda abajo de todo, separado: herramientas y configuración (en B2B)
+  const MAS = ['/mas', 'Más y configuración', MoreHorizontal]
   const enlace = ([to, label, Icono, badge]) => (
     <NavLink key={to} to={to} end={to === '/'} title={compacto ? label : undefined} className={({ isActive }) => {
       // Enlaces con "?tab=": activos sólo con esa pestaña (Por revisar vs Rechazadas)
@@ -108,7 +105,7 @@ export default function Layout({ children }) {
   )
   const todos = secciones.flatMap(([, items]) => items)
   const enBarra = todos.filter(x => x[4])
-  const enMas = todos.filter(x => !x[4])
+  const enMas = [...todos.filter(x => !x[4]), ...(modo === 'b2b' ? [MAS] : [])]
   const hayMas = enMas.some(x => x[3] > 0)
 
   return (
@@ -124,19 +121,17 @@ export default function Layout({ children }) {
             const visibles = cerrado && !compacto ? items.filter(it => it[3] > 0 || loc.pathname === it[0].split('?')[0]) : items
             const pendientes = items.reduce((a, it) => a + (it[3] || 0), 0)
             return (
-              <div key={titulo} className={'nav-grupo' + (cerrado ? ' plegado' : '')}>
-                <button type="button" className="nav-titulo" onClick={() => plegar(titulo)} aria-expanded={!cerrado} title={cerrado ? 'Mostrar' : 'Plegar'}>
+              <div key={titulo || 'principal'} className={'nav-grupo' + (cerrado ? ' plegado' : '')}>
+                {titulo && <button type="button" className="nav-titulo" onClick={() => plegar(titulo)} aria-expanded={!cerrado} title={cerrado ? 'Mostrar' : 'Plegar'}>
                   <span>{titulo}</span>{cerrado && pendientes > 0 && <span className="punto-titulo" />}<ChevronDown size={13} />
-                </button>
+                </button>}
                 {visibles.map(enlace)}
               </div>
             )
           })}
         </nav>
-        <button type="button" className="nav-compacto" onClick={() => setCompacto(c => !c)} title={compacto ? 'Mostrar el menú completo' : 'Achicar el menú a íconos'}>
-          {compacto ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}<span className="nav-texto">Achicar menú</span>
-        </button>
-        <TarjetaHoy />
+        {/* Menú simple: abajo sólo «Más y configuración». El uso está en Buscar y en Más → Uso y límites */}
+        {modo === 'b2b' && <nav className="nav-pie" aria-label="Más">{enlace(MAS)}</nav>}
       </aside>
 
       {/* Celular: barra de abajo con lo que más se usa en la calle + "Más" */}
@@ -151,7 +146,6 @@ export default function Layout({ children }) {
           <div className="hoja-mas-panel">
             <div className="hoja-mas-cab"><b>Más</b><button className="btn fantasma chico" onClick={() => setMas(false)} aria-label="Cerrar"><X size={16} /></button></div>
             <div className="hoja-mas-grilla">{enMas.map(enlace)}</div>
-            <TarjetaHoy compacta />
           </div>
         </div>
       )}
@@ -207,40 +201,6 @@ function SelectorModo({ perfil }) {
   )
 }
 
-/** Lo del día en una tarjeta: emails contra el límite de la casilla, uso de IA del mes y estado de Claude */
-function TarjetaHoy({ compacta }) {
-  const { tablero, perfil, servicios } = useApp()
-  const [ia, setIa] = useState(null)
-  useEffect(() => { supabase.rpc('mi_cupo_chat').then(({ data }) => setIa(data ?? null)) }, [tablero])
-  const lim = tablero?.email
-  const limite = lim ? lim.limite_hoy : perfil?.limite_diario ?? 15
-  const enviados = lim ? lim.enviados_hoy : tablero?.enviados_hoy ?? 0
-  const pct = Math.min(100, (enviados / Math.max(1, limite)) * 100)
-  const uso = leerIA(ia)
-  const iaMes = uso && !uso.sinTope ? uso.pct : null
-  return (
-    <div className={'cupo' + (compacta ? ' compacta' : '')}>
-      <div className="cupo-fila">
-        <div className="cupo-top"><span>{lim ? 'Emails de hoy' : 'WhatsApp de hoy'}</span><b>{tablero ? `${enviados} / ${limite}` : '…'}</b></div>
-        <div className="cupo-barra"><span style={{ width: pct + '%' }} /></div>
-        {lim?.calentando
-          ? <small className="cupo-nota"><Flame size={11} /> Casilla en calentamiento · semana {lim.etapa} de 3</small>
-          : <small className="cupo-nota">{lim ? `Límite de tu casilla: ${lim.elegido} por día` : 'Cada mensaje lo revisás y lo enviás vos.'}</small>}
-      </div>
-      {iaMes !== null && (
-        <div className="cupo-fila">
-          <div className="cupo-top"><span>{uso.porMes ? 'IA del plan' : 'IA de hoy'}</span><b>{uso.usadas.toLocaleString('es-AR')} / {uso.limite.toLocaleString('es-AR')}</b></div>
-          <div className={'cupo-barra' + (iaMes >= 80 ? ' alerta' : '')}><span style={{ width: iaMes + '%' }} /></div>
-          <small className={'cupo-nota' + (iaMes >= 80 ? ' alerta' : '')}>{uso.agotada ? `Se terminó: se renueva ${uso.renueva}` : `Quedan ${uso.quedan.toLocaleString('es-AR')} · se renueva ${uso.renueva}`}</small>
-        </div>
-      )}
-      <Link to="/uso" className="cupo-link">Uso y límites</Link>
-      {servicios.ia !== null && (
-        <span className={'ia-pill ' + (servicios.ia ? 'on' : 'off')}><Sparkles size={12} /> {servicios.ia ? 'Claude conectado' : 'Claude sin clave'}</span>
-      )}
-    </div>
-  )
-}
 
 function Topbar({ modo, nombre, perfil, session, empresa, onBuscar, onNuevo }) {
   const cambiarModo = useCambiarModo()
