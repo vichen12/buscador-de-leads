@@ -3032,3 +3032,15 @@ html[data-tema="oscuro"] .wa-aviso { background: #3a2a12; color: #f3c27a; }
   .wa-telefono { position: static; min-height: 0; }
   .wa-barra { bottom: calc(var(--bf-libre, 80px) + 12px); }
 }
+
+/* Ficha: tus mensajes de WhatsApp con botón directo */
+.elegir-wa { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.elegir-wa-cab { display: flex; align-items: center; justify-content: space-between; }
+.elegir-wa-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.elegir-wa-item { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.elegir-wa-item.sugerido { border-color: #8fdcae; background: linear-gradient(180deg, #f2fcf6, var(--card)); }
+html[data-tema="oscuro"] .elegir-wa-item.sugerido { border-color: #1f5a37; background: linear-gradient(180deg, #10251a, var(--card)); }
+.elegir-wa-titulo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
+.elegir-wa-texto { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.elegir-wa-acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.elegir-wa-acciones .btn.wa { flex: 1; justify-content: center; }

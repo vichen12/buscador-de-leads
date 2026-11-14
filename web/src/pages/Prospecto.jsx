@@ -131,8 +131,8 @@ export default function Prospecto() {
     setReescribiendo(false)
   }
 
-  async function guardarBorrador(silencioso) {
-    const fila = { prospecto_id: id, tipo: tab, asunto: actual.asunto, cuerpo: actual.cuerpo, editado: true, generado_por: msgs[tab]?.generado_por ?? 'manual' }
+  async function guardarBorrador(silencioso, cuerpo = actual.cuerpo) {
+    const fila = { prospecto_id: id, tipo: tab, asunto: actual.asunto, cuerpo, editado: true, generado_por: msgs[tab]?.generado_por ?? 'manual' }
     const { data, error } = await supabase.from('mensajes').upsert(fila, { onConflict: 'prospecto_id,tipo' }).select().single()
     if (error) { toast(mensajeError(error), 'error'); return null }
     setMsgs(m => ({ ...m, [tab]: data }))
@@ -141,13 +141,16 @@ export default function Prospecto() {
   }
 
   // Paso 1: validar y abrir la app con el texto. El envío lo hace la persona.
-  async function abrir(canal) {
+  // cuerpoDirecto: el texto de uno de tus mensajes de WhatsApp (se carga y se abre de una)
+  async function abrir(canal, cuerpoDirecto) {
     setAviso('')
     if (optOut) return
     if (canal === 'whatsapp' || canal === 'instagram' ? sinCupo : sinCupoEmail) { setAviso(mensajeError({ message: canal === 'whatsapp' || canal === 'instagram' ? 'LIMITE_DIARIO' : 'LIMITE_EMAIL' })); return }
     if ((canal === 'email' || canal === 'gmail') && emailBloqueado) { setAviso(emailBloqueado); return }
-    if (!actual.cuerpo.trim()) { setAviso('El mensaje está vacío.'); return }
-    const m = sucio || !msgs[tab] ? await guardarBorrador(true) : msgs[tab]
+    const cuerpo = cuerpoDirecto ?? actual.cuerpo
+    if (!cuerpo.trim()) { setAviso('El mensaje está vacío.'); return }
+    if (cuerpoDirecto != null) setBorrador(b => ({ ...b, [tab]: { ...actual, cuerpo } }))
+    const m = cuerpoDirecto != null || sucio || !msgs[tab] ? await guardarBorrador(true, cuerpo) : msgs[tab]
     if (!m) return
     const { data: iguales } = await supabase.from('mensajes').select('id').eq('cuerpo', m.cuerpo).not('enviado_at', 'is', null).neq('id', m.id).limit(1)
     if (iguales?.length) { setAviso(mensajeError({ message: 'TEXTO_REPETIDO' })); return }
@@ -349,7 +352,7 @@ export default function Prospecto() {
               {(tab === 'email' || tab === 'seguimiento') && (
                 <input className="asunto" placeholder="Asunto" value={actual.asunto} onChange={e => editar('asunto', e.target.value)} disabled={optOut} aria-label="Asunto" />
               )}
-              {tab === 'whatsapp' && <ElegirMensajeWa p={p} perfil={perfil} yo={quienSoy({ perfil, comercial, acceso, session })} actual={actual.cuerpo} disabled={optOut} onElegir={t => editar('cuerpo', t)} />}
+              {tab === 'whatsapp' && <ElegirMensajeWa p={p} perfil={perfil} yo={quienSoy({ perfil, comercial, acceso, session })} actual={actual.cuerpo} disabled={optOut} sinWhatsApp={!tieneWA ? 'Esta empresa no tiene un celular válido' : sinCupo ? 'Llegaste al límite de WhatsApp de hoy' : ''} onElegir={t => editar('cuerpo', t)} onMandar={t => abrir('whatsapp', t)} />}
               <textarea className="editor" rows={tab === 'email' ? 12 : 9} value={actual.cuerpo} disabled={optOut || reescribiendo} aria-label="Mensaje"
                 placeholder={generando ? 'Escribiendo…' : 'Escribí el mensaje o tocá "Generar borradores".'} onChange={e => editar('cuerpo', e.target.value)} />
               <div className="meta-editor">
@@ -540,26 +543,41 @@ function Resaltado({ texto, frases }) {
 }
 
 /** WhatsApp: tus mensajes (los de Más → Mensajes de WhatsApp). Tocás uno y queda cargado, listo para abrir WhatsApp. */
-function ElegirMensajeWa({ p, perfil, yo, actual, disabled, onElegir }) {
+function ElegirMensajeWa({ p, perfil, yo, actual, disabled, sinWhatsApp, onElegir, onMandar }) {
   const lista = mensajesWa(perfil).filter(m => m.texto?.trim())
   if (!lista.length) return (
-    <div className="elegir-wa vacio"><MessageCircle size={15} /><span>Escribí tus propios mensajes de WhatsApp y elegí acá cuál mandar.</span><Link to="/mensajes-whatsapp" className="btn chico">Escribir mis mensajes</Link></div>
+    <div className="elegir-wa vacio"><MessageCircle size={15} /><span>Escribí tus propios mensajes de WhatsApp y mandalos desde acá con un toque.</span><Link to="/mensajes-whatsapp" className="btn chico">Escribir mis mensajes</Link></div>
   )
   const sug = sugeridoWa(lista, p)
+  // El sugerido primero
+  const orden = lista.map((m, i) => ({ m, i })).sort((a, b) => (b.i === sug) - (a.i === sug))
   return (
     <div className="elegir-wa">
-      <small className="muted">Tus mensajes:</small>
-      {lista.map((m, i) => {
-        const texto = rellenarWa(m.texto, p, yo)
-        const on = actual.trim() === texto.trim()
-        return (
-          <button key={i} type="button" disabled={disabled} className={'filtro-chip' + (on ? ' on' : '')} onClick={() => onElegir(texto)}
-            title={i === sug ? (p.web_actual ? 'Sugerido: esta empresa tiene web' : 'Sugerido: esta empresa no tiene web') : ''}>
-            {on ? <CheckCircle2 size={12} /> : <MessageCircle size={12} />} {m.titulo}{i === sug && !on && <span className="elegir-wa-sug">sugerido</span>}
-          </button>
-        )
-      })}
-      <Link to="/mensajes-whatsapp" className="link chico">Editar</Link>
+      <div className="elegir-wa-cab"><small className="muted">Tus mensajes de WhatsApp</small><Link to="/mensajes-whatsapp" className="link chico">Editar</Link></div>
+      <div className="elegir-wa-lista">
+        {orden.map(({ m, i }) => {
+          const texto = rellenarWa(m.texto, p, yo)
+          const cargado = actual.trim() === texto.trim()
+          return (
+            <div key={i} className={'elegir-wa-item' + (i === sug ? ' sugerido' : '')}>
+              <div className="elegir-wa-titulo">
+                <b>{m.titulo}</b>
+                {i === sug && <span className="elegir-wa-sug">{p.web_actual ? 'va para esta: tiene web' : 'va para esta: sin web'}</span>}
+              </div>
+              <p className="elegir-wa-texto">{texto}</p>
+              <div className="elegir-wa-acciones">
+                <button type="button" className="btn wa chico" disabled={disabled || !!sinWhatsApp} title={sinWhatsApp || 'Abre WhatsApp con este mensaje'} onClick={() => onMandar(texto)}>
+                  <MessageCircle size={14} /> Mandar por WhatsApp
+                </button>
+                <button type="button" className="btn fantasma chico" disabled={disabled} onClick={() => onElegir(texto)}>
+                  {cargado ? <><CheckCircle2 size={13} /> Cargado</> : <><Pencil size={13} /> Retocar antes</>}
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {sinWhatsApp && <small className="muted">{sinWhatsApp}.</small>}
     </div>
   )
 }
