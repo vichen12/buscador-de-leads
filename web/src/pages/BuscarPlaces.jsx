@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Loader2, MapPin, Sparkles, Check, SlidersHorizontal, Store, ArrowRight, X, Download, Inbox } from 'lucide-react'
+import { Search, Loader2, MapPin, Sparkles, Check, SlidersHorizontal, Store, ArrowRight, X, Download, Inbox, Coins, Layers, Zap, MonitorSmartphone, Warehouse, TrendingUp, Clock } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
@@ -43,6 +43,12 @@ const CLAVE_CALIDAD = 'prospecta-calidad-busqueda'
 const calidadGuardada = () => { try { const c = localStorage.getItem(CLAVE_CALIDAD); return CALIDADES.some(x => x.id === c) ? c : 'rapida' } catch { return 'rapida' } }
 const CLAVE_MODO = 'prospecta-modo-busqueda'
 const modoGuardado = () => { try { return localStorage.getItem(CLAVE_MODO) === 'libre' ? 'libre' : 'negocio' } catch { return 'negocio' } }
+// «¿Por dónde empezamos?»: un toque arma la búsqueda. En «mi negocio» salen de tu estrategia.
+const ATAJOS_LIBRE = [
+  { texto: 'Comercios sin página web', icono: MonitorSmartphone, sinWeb: true },
+  { texto: 'Distribuidoras con depósito propio', icono: Warehouse },
+  { texto: 'Negocios que abrieron hace poco', icono: TrendingUp },
+]
 const PASOS = ['Buscando en Google Maps…', 'Mirando directorios y redes…', 'Recorriendo la zona…', 'Revisando que encajen con lo que pediste…']
 
 export default function BuscarPlaces() {
@@ -113,6 +119,13 @@ export default function BuscarPlaces() {
   useEffect(() => { cargarHistorial() }, [])
 
   const filtrosActivos = filtros.filter(f => activos.has(f.id))
+  // En «mi negocio» los atajos son tus rubros; en libre, ideas comunes
+  const atajos = libre ? ATAJOS_LIBRE : (est?.rubros ?? []).slice(0, 3).map((r, i) => ({ texto: r.nombre.charAt(0).toUpperCase() + r.nombre.slice(1), icono: [Warehouse, TrendingUp, Store][i] }))
+  const usarAtajo = a => {
+    setRubro(a.texto)
+    if (a.sinWeb && !activos.has('sin_web')) alternar('sin_web')
+    rubroRef.current?.focus()
+  }
   const alternar = id => setActivos(a => { const n = new Set(a); n.has(id) ? n.delete(id) : n.add(id); try { localStorage.setItem(claveFiltros, JSON.stringify([...n])) } catch { /* sin almacenamiento */ } return n })
 
   const sinTilde = z => z.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -178,21 +191,81 @@ export default function BuscarPlaces() {
 
   return (
     <>
-      <header className="cabecera">
-        <div>
-          <h1>Buscar</h1>
-          <p>{libre
-            ? 'Escribí lo que quieras encontrar y dónde. Busca exactamente eso en Google Maps, la web y redes.'
-            : 'Escribí qué empresas querés y dónde. Trae las que te pueden comprar, según lo que vendés.'}</p>
+      <section className="bh">
+        <div className="bh-cab">
+          <div className="bh-titulos">
+            <span className="bh-eyebrow">Buscador inteligente</span>
+            <h1>{libre ? 'Encontrá lo que necesites.' : 'Encontrá tu próximo cliente.'}</h1>
+            <p>{libre ? 'Escribí cualquier rubro o tipo de negocio: busca exactamente eso.' : 'Buscá empresas con el perfil ideal para tu negocio.'}</p>
+          </div>
+          {ia && (
+            <Link to="/uso" className={'bh-creditos' + (ia.agotada ? ' agotados' : '')} title="Ver uso y límites">
+              <Coins size={17} /> {ia.sinTope ? 'Créditos sin tope' : `${ia.quedan.toLocaleString('es-AR')} créditos disponibles`}
+            </Link>
+          )}
         </div>
-      </header>
 
-      <div className="modo-busqueda">
-        <div className="fuente-sel" role="radiogroup" aria-label="Tipo de búsqueda">
+        <div className="bh-modo" role="radiogroup" aria-label="Tipo de búsqueda">
           {MODOS.map(m => <button key={m.id} type="button" role="radio" aria-checked={modo === m.id} className={modo === m.id ? 'on' : ''} disabled={cargando} title={m.ayuda} onClick={() => elegirModo(m.id)}>
             {m.id === 'libre' ? <Search size={13} /> : <Store size={13} />}{m.nombre}</button>)}
         </div>
-      </div>
+
+        <form className="bh-barra" onSubmit={e => { e.preventDefault(); buscar() }}>
+          <Sparkles size={22} className="bh-chispa" aria-hidden="true" />
+          <Autocompletar ref={rubroRef} className="bh-input" opciones={todosRubros} value={rubro} onChange={setRubro} aria-label="Qué buscás"
+            placeholder={libre ? 'Describí qué negocios estás buscando…' : 'Describí qué empresas estás buscando…'} disabled={cargando} />
+          {rubro && !cargando && <button type="button" className="bh-limpiar" onClick={() => { setRubro(''); rubroRef.current?.focus() }} aria-label="Borrar"><X size={15} /></button>}
+          <button className="btn bh-boton" disabled={cargando || servicios.ia === false}>
+            {cargando ? <Loader2 size={19} className="spin" /> : <Search size={19} />} {cargando ? 'Buscando…' : 'Buscar'}
+          </button>
+        </form>
+
+        <div className="bh-opciones">
+          <div className="bh-opcion bh-donde">
+            <MapPin size={18} aria-hidden="true" />
+            <Desplegable className="bh-pais" ariaLabel="País" value={paisBusq} disabled={cargando} anchoMenu={230}
+              onChange={v => { zonaTocada.current = true; setPaisBusq(v); setZona('') }}
+              opciones={[...paisesCuenta.map(c => PAISES.find(x => x.code === c)).filter(Boolean), ...PAISES.filter(x => !paisesCuenta.includes(x.code))].map(x => ({ value: x.code, label: x.nombre, icono: <Bandera code={x.code} />, ayuda: paisesCuenta.includes(x.code) ? 'de tu cuenta' : '' }))} />
+            <SelectorZona soloPais={paisBusq} region={paisBusq === perfil?.pais ? perfil?.region : ''} value={zona} placeholder="Provincia, ciudad o zona" onChange={v => { zonaTocada.current = true; setZona(v) }} sugeridas={sugZonas.slice(0, 6)} disabled={cargando} />
+          </div>
+          <span className="bh-sep" aria-hidden="true" />
+          <div className="bh-opcion">
+            <Layers size={18} aria-hidden="true" />
+            <Desplegable className="bh-desplegable" ariaLabel="Cuántas empresas" value={cantidad} onChange={v => setCantidad(Number(v))} disabled={cargando} anchoMenu={200}
+              opciones={[10, 20, 30, 40].map(n => ({ value: n, label: `Cantidad: ${n}`, ayuda: n <= 10 ? 'menos de 1 minuto' : n <= 20 ? '≈ 1 minuto' : 'un par de minutos' }))} />
+          </div>
+          <span className="bh-sep" aria-hidden="true" />
+          <div className="bh-opcion">
+            <Zap size={18} aria-hidden="true" />
+            <Desplegable className="bh-desplegable" ariaLabel="Con qué buscar" value={calidad} onChange={elegirCalidad} disabled={cargando} anchoMenu={300}
+              opciones={CALIDADES.map(c => ({ value: c.id, label: `Modo: ${c.nombre} (≈${c.creditos} créditos)`, ayuda: c.ayuda }))} />
+          </div>
+          <span className="espacio" />
+          <button type="button" className={'bh-filtros' + (verFiltros ? ' abierto' : '') + (filtrosActivos.length || pedido ? ' con' : '')} onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros} disabled={cargando}>
+            <SlidersHorizontal size={17} /> Filtros{filtrosActivos.length + (pedido ? 1 : 0) > 0 && <span className="bh-filtros-num">{filtrosActivos.length + (pedido ? 1 : 0)}</span>}
+          </button>
+        </div>
+
+        {verFiltros && (
+          <div className="bh-panel">
+            <div className="filtros-rapidos" role="group" aria-label="Filtros">
+              {filtros.map(f => (
+                <button key={f.id} type="button" className={'filtro-chip' + (activos.has(f.id) ? ' on' : '')} aria-pressed={activos.has(f.id)} title={f.descripcion || f.titulo} onClick={() => alternar(f.id)} disabled={cargando}>
+                  {activos.has(f.id) && <Check size={12} />} {f.titulo}
+                </button>
+              ))}
+            </div>
+            <label className="bh-extra">Algo más que tenga en cuenta <span className="muted">(opcional)</span>
+              <input value={pedido} onChange={e => setPedido(e.target.value)} maxLength={400} placeholder="Ej.: que tengan buenas reseñas, que sean chicos o nuevos" />
+            </label>
+          </div>
+        )}
+        {!verFiltros && filtrosActivos.length > 0 && (
+          <div className="bh-activos">
+            {filtrosActivos.map(f => <button key={f.id} type="button" className="filtro-chip on" onClick={() => alternar(f.id)} disabled={cargando} title="Tocá para sacarlo"><Check size={12} /> {f.titulo} <X size={12} /></button>)}
+          </div>
+        )}
+      </section>
 
       {comercial === null && !libre && (
         <div className="aviso-negocio">
@@ -204,59 +277,16 @@ export default function BuscarPlaces() {
       {servicios.ia === false && <Aviso>Falta la clave de Claude. {perfil?.es_admin ? <Link to="/admin?tab=claves">Cargala acá</Link> : 'Pedile al administrador que la cargue.'}</Aviso>}
       {servicios.ia !== false && sinMaps && <Aviso tipo="info">Google Maps no está conectado: la búsqueda va sólo con Claude. {perfil?.es_admin ? <Link to="/admin?tab=claves">Conectar Google Maps</Link> : 'Para sumar las fichas de Maps, pedile al administrador que lo conecte.'}</Aviso>}
 
-      <section className="busqueda-hero">
-      <form className="barra-busqueda" onSubmit={e => { e.preventDefault(); buscar() }}>
-        <label className="bb-campo">
-          <span><Search size={14} /> Qué buscás</span>
-          <Autocompletar ref={rubroRef} opciones={todosRubros} value={rubro} onChange={setRubro} placeholder={libre ? 'Ej.: comercios sin página web, ferreterías, transportes' : 'Ej.: distribuidoras con depósito propio'} disabled={cargando} />
-          {rubro && !cargando && <button type="button" className="bb-limpiar" onClick={() => setRubro('')} aria-label="Borrar"><X size={13} /></button>}
-        </label>
-        <label className="bb-campo">
-          <span><MapPin size={14} /> Dónde</span>
-          <div className="donde-fila">
-            <Desplegable className="donde-pais" ariaLabel="País" value={paisBusq} disabled={cargando} anchoMenu={230}
-              onChange={v => { zonaTocada.current = true; setPaisBusq(v); setZona('') }}
-              opciones={[...paisesCuenta.map(c => PAISES.find(p => p.code === c)).filter(Boolean), ...PAISES.filter(p => !paisesCuenta.includes(p.code))].map(p => ({ value: p.code, label: p.nombre, icono: <Bandera code={p.code} />, ayuda: paisesCuenta.includes(p.code) ? 'de tu cuenta' : '' }))} />
-            <SelectorZona soloPais={paisBusq} region={paisBusq === perfil?.pais ? perfil?.region : ''} value={zona} placeholder="Provincia, ciudad o zona" onChange={v => { zonaTocada.current = true; setZona(v) }} sugeridas={sugZonas.slice(0, 6)} disabled={cargando} />
+      {!rubro.trim() && !res && !cargando && atajos.length > 0 && (
+        <section className="bh-empezar">
+          <h2>¿Por dónde empezamos?</h2>
+          <div className="bh-atajos">
+            {atajos.map(a => (
+              <button key={a.texto} type="button" className="bh-atajo" onClick={() => usarAtajo(a)}>
+                <a.icono size={22} aria-hidden="true" /><span>{a.texto}</span><ArrowRight size={17} className="bh-flecha" aria-hidden="true" />
+              </button>
+            ))}
           </div>
-        </label>
-        <label className="bb-campo bb-chico">
-          <span>Cuántos</span>
-          <Desplegable className="bb-desplegable" ariaLabel="Cuántas empresas" value={cantidad} onChange={v => setCantidad(Number(v))} disabled={cargando} anchoMenu={170} alinear="der"
-            opciones={[10, 20, 30, 40].map(n => ({ value: n, label: String(n), ayuda: n <= 10 ? 'menos de 1 minuto' : n <= 20 ? '≈ 1 minuto' : 'un par de minutos' }))} />
-        </label>
-        <button className="btn ia bb-boton" disabled={cargando || servicios.ia === false}>
-          {cargando ? <Loader2 size={18} className="spin" /> : <Search size={18} />} {cargando ? 'Buscando…' : 'Buscar'}
-        </button>
-      </form>
-
-      <div className="bb-pie">
-        <div className="filtros-rapidos" role="group" aria-label="Filtros">
-          {filtros.map(f => (
-            <button key={f.id} type="button" className={'filtro-chip' + (activos.has(f.id) ? ' on' : '')} aria-pressed={activos.has(f.id)} title={f.descripcion || f.titulo} onClick={() => alternar(f.id)} disabled={cargando}>
-              {activos.has(f.id) && <Check size={12} />} {f.titulo}
-            </button>
-          ))}
-          <button type="button" className={'filtro-chip' + (verFiltros || pedido ? ' on' : '')} onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros} disabled={cargando}>
-            <SlidersHorizontal size={12} /> {pedido ? 'Con un pedido extra' : 'Algo más'}
-          </button>
-        </div>
-      </div>
-      <div className="bb-pie">
-        <div className="fuente-sel" role="radiogroup" aria-label="Con qué buscar">
-          {CALIDADES.map(c => <button key={c.id} type="button" role="radio" aria-checked={calidad === c.id} className={calidad === c.id ? 'on' : ''} disabled={cargando} title={c.ayuda} onClick={() => elegirCalidad(c.id)}>
-            {c.nombre} <span className="calidad-creditos">≈{c.creditos}</span></button>)}
-        </div>
-        <span className="muted chico">{CALIDADES.find(c => c.id === calidad)?.ayuda}</span>
-        <span className="espacio" />
-        {ia && <Link to="/uso" className={'chico bb-costo ' + (ia.agotada ? 'texto-alerta' : 'muted')} title="Se descuenta lo que la búsqueda cuesta de verdad; esto es un estimado">{textoCosto(ia, creditos, true)}</Link>}
-      </div>
-      </section>
-      {verFiltros && (
-        <section className="tarjeta panel-filtros">
-          <label style={{ margin: 0 }}>Algo más que Claude tenga en cuenta <span className="muted">(opcional)</span>
-            <input value={pedido} onChange={e => setPedido(e.target.value)} maxLength={400} placeholder="Ej.: que tengan buenas reseñas, que sean chicos o nuevos" autoFocus />
-          </label>
         </section>
       )}
 
@@ -316,14 +346,18 @@ export default function BuscarPlaces() {
       )}
 
       {!cargando && historial.length > 0 && (
-        <div className="recientes">
-          <small className="muted">Búsquedas recientes</small>
+        <section className="bh-recientes">
+          <h2>Búsquedas recientes</h2>
           {historial.map(b => (
-            <button key={b.id} type="button" className="reciente" onClick={() => nav(`/revisar?busqueda=${b.id}`)} title="Ver lo que trajo">
-              {b.requisitos?.libre && <span className="etiqueta-libre">Libre</span>}{b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · {b.zona} <span className="muted">({b.guardados})</span>
+            <button key={b.id} type="button" className="bh-reciente" onClick={() => nav(`/revisar?busqueda=${b.id}`)} title="Ver lo que trajo">
+              <Clock size={17} aria-hidden="true" />
+              <span className="bh-reciente-texto">{b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} <span className="muted">· {b.zona}</span></span>
+              {b.requisitos?.libre && <span className="etiqueta-libre">Libre</span>}
+              <span className="muted chico">{b.guardados ?? 0}</span>
+              <ArrowRight size={17} className="bh-flecha" aria-hidden="true" />
             </button>
           ))}
-        </div>
+        </section>
       )}
     </>
   )

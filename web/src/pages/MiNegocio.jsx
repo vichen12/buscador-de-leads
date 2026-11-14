@@ -116,10 +116,12 @@ function Formulario({ inicial, volver, onListo }) {
 function Estrategia({ comercial, onRehacer, onGuardado }) {
   const toast = useToast()
   const nav = useNavigate()
-  const [e, setE] = useState(comercial.estrategia)
+  // Una estrategia vieja o incompleta puede no traer alguna lista: se completan vacías (si no, la pantalla se rompe)
+  const completa = est => ({ resumen: '', cliente_ideal: '', angulo: '', tono: '', presentacion: '', ...est, rubros: est?.rubros ?? [], zonas: est?.zonas ?? [], filtros: est?.filtros ?? [], criterios: est?.criterios ?? [], descartar: est?.descartar ?? [], propuesta: est?.propuesta ?? [] })
+  const [e, setE] = useState(() => completa(comercial.estrategia))
   const [cambios, setCambios] = useState(false)
   const [guardando, setGuardando] = useState(false)
-  useEffect(() => { setE(comercial.estrategia); setCambios(false) }, [comercial])
+  useEffect(() => { setE(completa(comercial.estrategia)); setCambios(false) }, [comercial])
   const set = (k, v) => { setE(x => ({ ...x, [k]: v })); setCambios(true) }
 
   async function guardar() {
@@ -224,7 +226,7 @@ function Estrategia({ comercial, onRehacer, onGuardado }) {
       {cambios && (
         <div className="barra-guardar">
           <span>Tenés cambios sin guardar</span>
-          <button className="btn fantasma" onClick={() => { setE(comercial.estrategia); setCambios(false) }}>Descartar</button>
+          <button className="btn fantasma" onClick={() => { setE(completa(comercial.estrategia)); setCambios(false) }}>Descartar</button>
           <button className="btn primario" onClick={guardar} disabled={guardando}>{guardando && <Loader2 size={15} className="spin" />} Guardar estrategia</button>
         </div>
       )}
