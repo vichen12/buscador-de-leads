@@ -851,7 +851,12 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
   let avisoGuardado = ''
   let salida: Dic[] = resultados.map(({ es_prospecto, no_cumple, segmento, evaluado, ...r }) => ({ ...r, id: null, estado: 'no_guardado' }))
   if (guardar && resultados.length) {
-    const { data: b } = await db.from('busquedas').insert({ owner_id: user.id, rubro, zona, pedido, requisitos: { filtros: [...ids], brief, ...(libre ? { libre: true } : {}) }, cantidad, encontrados: resultados.length }).select('id').single()
+    const datosBusqueda = { rubro, zona, pedido, requisitos: { filtros: [...ids], brief, ...(libre ? { libre: true } : {}) }, cantidad, encontrados: resultados.length }
+    // En segundo plano la fila ya existe (se creó al empezar): se completa esa, no se crea otra
+    const existente = typeof body.busqueda_existente === 'string' ? body.busqueda_existente : ''
+    const { data: b } = existente
+      ? await db.from('busquedas').update(datosBusqueda).eq('id', existente).eq('owner_id', user.id).select('id').single()
+      : await db.from('busquedas').insert({ owner_id: user.id, ...datosBusqueda }).select('id').single()
     busquedaId = b?.id ?? null
     const filas = resultados.map(({ es_prospecto, no_cumple, segmento, evaluado, web_actual, ...r }) => ({ ...r, web: web_actual, busqueda_id: busquedaId, owner_id: user.id,
       google_maps_url: r.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([r.nombre, r.direccion, zona].filter(Boolean).join(' '))}` }))

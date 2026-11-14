@@ -11,6 +11,7 @@ import Logo from './Logo.jsx'
 import AsistenteFlotante from './AsistenteFlotante.jsx'
 import Paleta from './Paleta.jsx'
 import NuevoProspecto from './NuevoProspecto.jsx'
+import { leerEnCurso, limpiarEnCurso, estadoBusqueda } from '../lib/busquedaEnCurso.js'
 
 export default function Layout({ children }) {
   const { perfil, tablero, session, servicios, acceso, correo, refrescar, porRevisar, contadores } = useApp()
@@ -40,6 +41,26 @@ export default function Layout({ children }) {
       if (r.rebotes?.length) { toastRevision(`Rebotaron los mails a: ${r.rebotes.join(', ')}. Marcamos esos emails como inválidos.`, 'info'); refrescar() }
     }).catch(() => {}).finally(() => setTimeout(() => sessionStorage.removeItem('revisando'), 15 * 60000))
   }, [correo?.owner_id])
+  // Búsqueda en segundo plano: si termina mientras estás en otra pantalla, te avisa (en Buscar la muestra la propia pantalla)
+  useEffect(() => {
+    const revisar = async () => {
+      const e = leerEnCurso()
+      if (!e || window.location.pathname.startsWith('/buscar')) return
+      const r = await estadoBusqueda(e.id, e.desde)
+      if (!r || r.estado === 'buscando' || leerEnCurso()?.id !== e.id) return
+      limpiarEnCurso(e.id)
+      if (r.estado === 'error' || r.resultado?.error) toastRevision(`La búsqueda «${e.rubro || 'de empresas'}» no terminó: ${r.resultado?.error || 'falló'}`, 'error')
+      else {
+        const n = r.resultado?.resultados?.length ?? 0
+        toastRevision(n ? `Terminó tu búsqueda «${e.rubro || ''}»: ${n} empresas nuevas` : `Tu búsqueda «${e.rubro || ''}» terminó sin empresas nuevas`, n ? 'ok' : 'info',
+          n ? { accion: { label: 'Ver en Por revisar', onClick: () => navegar(`/revisar?busqueda=${e.id}`) } } : {})
+        refrescar()
+      }
+    }
+    revisar()
+    const t = setInterval(revisar, 5000)
+    return () => clearInterval(t)
+  }, [loc.pathname])
   // Contadores al día cada 2 minutos (respuestas nuevas, tareas)
   useEffect(() => { const t = setInterval(refrescar, 120000); return () => clearInterval(t) }, [refrescar])
   // Ctrl/Cmd + K: búsqueda global

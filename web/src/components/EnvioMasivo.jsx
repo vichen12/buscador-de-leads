@@ -65,9 +65,11 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
       const yaEnviados = new Set((previos ?? []).filter(m => m.enviado_at).map(m => m.prospecto_id))
       const aEscribir = ids.filter(id => !yaEnviados.has(id))
       // Cada email se escribe de nuevo con tu configuración actual (tono, estructura, firma, archivos); los que editaste a mano se respetan
+      // Si un lote falla (se cortó la red, la pestaña quedó en segundo plano en el celular), se reintenta una vez
+      const conReintento = async b => { try { return await llamarFuncion('generar-mensajes', b) } catch { await new Promise(r => setTimeout(r, 1500)); return llamarFuncion('generar-mensajes', b) } }
       for (let i = 0; i < aEscribir.length; i += 4) {
-        setProgreso(`Claude está escribiendo ${Math.min(i + 4, aEscribir.length)} de ${aEscribir.length} emails personalizados…`)
-        await llamarFuncion('generar-mensajes', { prospecto_ids: aEscribir.slice(i, i + 4), solo_email: true })
+        setProgreso(`Claude está escribiendo ${Math.min(i + 4, aEscribir.length)} de ${aEscribir.length} emails personalizados… (no cierres la pestaña; podés cambiar de pantalla)`)
+        await conReintento({ prospecto_ids: aEscribir.slice(i, i + 4), solo_email: true })
       }
       // A las que ya les salió el primer mail les toca el de seguimiento (antes quedaban como «Ya enviado» y no se podía mandar nada)
       const sinSeguimiento = async () => {
@@ -78,7 +80,7 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
       const faltan = yaEnviados.size ? await sinSeguimiento() : []
       for (let i = 0; i < faltan.length; i += 4) {
         setProgreso(`Claude está escribiendo ${Math.min(i + 4, faltan.length)} de ${faltan.length} seguimientos…`)
-        await llamarFuncion('generar-mensajes', { prospecto_ids: faltan.slice(i, i + 4) })
+        await conReintento({ prospecto_ids: faltan.slice(i, i + 4) })
       }
       const { data: ms } = await supabase.from('mensajes').select('*').in('prospecto_id', ids).in('tipo', ['email', 'seguimiento'])
       const conTexto = (ms ?? []).filter(m => m.cuerpo?.trim())
@@ -95,6 +97,14 @@ export default function EnvioMasivo({ prospectos, onCerrar, onListo }) {
     setProgreso('')
   }
   useEffect(() => { preparar() }, [])
+  // Mientras Claude escribe los borradores (eso corre en esta pestaña), avisar antes de cerrarla.
+  // El envío en sí no: corre en el servidor y sigue aunque cierres todo.
+  useEffect(() => {
+    if (!progreso) return
+    const aviso = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', aviso)
+    return () => window.removeEventListener('beforeunload', aviso)
+  }, [!!progreso])
 
   const cambiar = (id, cambio) => setItems(l => l.map(x => x.p.id === id ? { ...x, ...cambio } : x))
   const elegidos = items.filter(x => x.incluir && x.estado === 'listo')

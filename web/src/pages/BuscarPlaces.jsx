@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Loader2, MapPin, Sparkles, Check, SlidersHorizontal, Store, ArrowRight, X, Download, Inbox, Coins, Layers, Zap, MonitorSmartphone, Warehouse, TrendingUp, Clock } from 'lucide-react'
+import { Search, Loader2, MapPin, Sparkles, Check, SlidersHorizontal, Store, ArrowRight, X, Download, Inbox, Coins, Layers, Zap, Globe, MonitorSmartphone, Warehouse, TrendingUp, Clock } from 'lucide-react'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
@@ -14,6 +14,7 @@ import Autocompletar from '../components/Autocompletar.jsx'
 import SelectorZona from '../components/SelectorZona.jsx'
 import { useApp } from '../App.jsx'
 import { leerIA, textoCosto } from '../lib/uso.js'
+import { guardarEnCurso, leerEnCurso, limpiarEnCurso, esperarBusqueda } from '../lib/busquedaEnCurso.js'
 
 const FILTROS_DEFECTO = [
   { id: 'con_telefono', titulo: 'Con teléfono o WhatsApp', descripcion: 'Que tenga un número para escribirle.', activo: false },
@@ -23,9 +24,9 @@ const FILTROS_DEFECTO = [
 ]
 // De dónde sale la búsqueda: Claude (web), Google Maps (fichas reales evaluadas por Claude) o los dos
 const FUENTES = [
-  { id: 'claude', nombre: 'Claude', ayuda: 'Busca en la web, redes y directorios' },
-  { id: 'maps', nombre: 'Google Maps', ayuda: 'Fichas reales de Maps, evaluadas por Claude' },
-  { id: 'ambas', nombre: 'Los dos', ayuda: 'Más resultados: Maps y la web juntos' },
+  { id: 'ambas', nombre: 'Maps + web', ayuda: 'Más resultados: fichas de Google Maps y la web juntas' },
+  { id: 'maps', nombre: 'Sólo Google Maps', ayuda: 'Fichas reales de Maps, evaluadas por Claude. Más rápido' },
+  { id: 'claude', nombre: 'Sólo web', ayuda: 'Claude busca en la web, redes y directorios' },
 ]
 // Para qué es la búsqueda: atada a «Mi negocio» (Claude piensa a quién le podés vender) o libre
 // (cualquier rubro, tal cual lo escribís, sin usar tu negocio ni lo que aprendió de tu lista)
@@ -44,6 +45,8 @@ const CANTIDAD_MIN = 5, CANTIDAD_MAX = 100
 const estimar = (creditos, cantidad) => Math.max(1, Math.ceil(creditos * Math.max(1, cantidad / 20)))
 const CLAVE_CALIDAD = 'prospecta-calidad-busqueda'
 const calidadGuardada = () => { try { const c = localStorage.getItem(CLAVE_CALIDAD); return CALIDADES.some(x => x.id === c) ? c : 'rapida' } catch { return 'rapida' } }
+const CLAVE_FUENTE = 'prospecta-fuente-busqueda'
+const fuenteGuardada = () => { try { const f = localStorage.getItem(CLAVE_FUENTE); return FUENTES.some(x => x.id === f) ? f : 'ambas' } catch { return 'ambas' } }
 const CLAVE_MODO = 'prospecta-modo-busqueda'
 const modoGuardado = () => { try { return localStorage.getItem(CLAVE_MODO) === 'libre' ? 'libre' : 'negocio' } catch { return 'negocio' } }
 // «¿Por dónde empezamos?»: un toque arma la búsqueda. En «mi negocio» salen de tu estrategia.
@@ -109,10 +112,11 @@ export default function BuscarPlaces() {
   // Si viene de la home con algo escrito (?q=), arranca con eso puesto
   const [params] = useSearchParams()
   const [rubro, setRubro] = useState(() => params.get('q') ?? '')
-  const [, setFuente] = useState('ambas')
+  const [fuente, setFuente] = useState(fuenteGuardada)
+  const elegirFuente = f => { setFuente(f); try { localStorage.setItem(CLAVE_FUENTE, f) } catch { /* sin almacenamiento */ } }
   // Sin clave de Google Places, Maps no se puede elegir: se busca con Claude
   const sinMaps = servicios.places === false
-  const fuenteUsada = sinMaps ? 'claude' : 'ambas'
+  const fuenteUsada = sinMaps ? 'claude' : fuente
   const [zona, setZona] = useState(sugZonas[0])
   // Cualquier número: se escribe libre y al salir del campo se ajusta entre 5 y 100
   const [cantidadTexto, setCantidadTexto] = useState('20')
@@ -149,32 +153,69 @@ export default function BuscarPlaces() {
   const zonaNormal = z => todasZonas.find(o => sinTilde(o) === sinTilde(z)) ?? z.trim()
 
   // Buscar: el servidor entiende el pedido y busca de una
+  // La pantalla está abierta (si se cierra, la espera se corta sin error y el aviso llega desde el menú)
+  const abierta = useRef(true)
+  useEffect(() => { abierta.current = true; return () => { abierta.current = false } }, [])
+  const timerRef = useRef(null)
+  const empezarReloj = desde => {
+    clearInterval(timerRef.current)
+    setSeg(Math.round((Date.now() - desde) / 1000))
+    timerRef.current = setInterval(() => setSeg(Math.round((Date.now() - desde) / 1000)), 500)
+  }
+  useEffect(() => () => clearInterval(timerRef.current), [])
+  /** Muestra el resultado de una búsqueda (la directa o la que terminó en segundo plano) */
+  function mostrarResultado(r) {
+    setRes(r); setSinLibre(libre && r.libre === false)
+    toast(r.resultados?.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar${r.creditos ? ` · usó ${r.creditos} crédito${r.creditos === 1 ? '' : 's'}` : ''}` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados?.length ? '' : 'info',
+      r.resultados?.length ? { accion: { label: 'Ver en Por revisar', onClick: () => nav(`/revisar?busqueda=${r.busqueda_id ?? ''}`) } } : {})
+    refrescar(); cargarHistorial()
+    setTimeout(() => resultadosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+  }
+  // Volviste a Buscar con una búsqueda todavía en curso: se sigue esperando acá
+  useEffect(() => {
+    const e = leerEnCurso()
+    if (!e) return
+    if (e.rubro) setRubro(e.rubro)
+    setCargando(true); empezarReloj(e.desde)
+    esperarBusqueda(e.id, { desde: e.desde, sigue: () => abierta.current })
+      .then(r => { if (r && abierta.current) { limpiarEnCurso(e.id); mostrarResultado(r) } })
+      .catch(err => { limpiarEnCurso(e.id); if (abierta.current) setError(mensajeError(err)) })
+      .finally(() => { if (abierta.current) { clearInterval(timerRef.current); setCargando(false) } })
+  }, [])
+
   async function buscar() {
     if (!rubro.trim()) { rubroRef.current?.focus(); return }
     if (!zona?.trim()) { setError(`Elegí una provincia, ciudad o zona de ${nombrePais(paisBusq)}: si buscás en todo el país, los resultados se dispersan.`); return }
     setZona(zonaNormal(zona))
-    setCargando(true); setError(''); setRes(null); setSeg(0)
+    setCargando(true); setError(''); setRes(null)
     const t0 = Date.now()
-    const timer = setInterval(() => setSeg(Math.round((Date.now() - t0) / 1000)), 500)
+    empezarReloj(t0)
+    let enCurso = null
     try {
       // Sin paso previo: el servidor entiende el pedido y busca de una
-      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, calidad, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f, libre })
+      const pedirA = f => llamarFuncion('buscar-negocios', { rubro: rubro.trim(), zona: zonaConPais(zonaNormal(zona), paisBusq), cantidad, calidad, filtros: filtrosActivos.map(({ id, titulo, descripcion }) => ({ id, titulo, descripcion })), pedido, fuente: f, libre, segundo_plano: true })
+      // En segundo plano: el servidor contesta enseguida con el id y la búsqueda sigue aunque te vayas
+      const esperar = async r0 => {
+        if (!r0?.en_curso) return r0 // función vieja: ya trae el resultado
+        enCurso = r0.busqueda_id
+        guardarEnCurso(enCurso, { desde: t0, rubro: rubro.trim() })
+        const r1 = await esperarBusqueda(enCurso, { desde: t0, sigue: () => abierta.current })
+        if (r1) limpiarEnCurso(enCurso)
+        return r1
+      }
       let r
-      try { r = await pedirA(fuenteUsada) } catch (err) {
+      try { r = await esperar(await pedirA(fuenteUsada)) } catch (err) {
         // Maps sin clave (se quitó recién): se avisa y se busca con Claude, sin perder el pedido
         if (fuenteUsada === 'claude' || !/google places/i.test(err.message)) throw err
         toast('Google Maps no está conectado: busco sólo con Claude.', 'info')
         setFuente('claude')
-        r = await pedirA('claude')
+        if (enCurso) limpiarEnCurso(enCurso)
+        r = await esperar(await pedirA('claude'))
       }
-      setRes(r); setSinLibre(libre && r.libre !== true)
-      toast(r.resultados.length ? `Encontró ${r.resultados.length} empresas nuevas para revisar${r.creditos ? ` · usó ${r.creditos} crédito${r.creditos === 1 ? '' : 's'}` : ''}` : 'No encontró empresas nuevas. Probá con otra zona o ampliá lo que entra.', r.resultados.length ? '' : 'info',
-        r.resultados.length ? { accion: { label: 'Ver en Por revisar', onClick: () => nav(`/revisar?busqueda=${r.busqueda_id ?? ''}`) } } : {})
-      refrescar(); cargarHistorial()
-      setTimeout(() => resultadosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-    } catch (err) { setError(mensajeError(err)) }
-    clearInterval(timer)
-    setCargando(false)
+      if (!r) return // te fuiste de la pantalla: la búsqueda sigue y el aviso llega desde el menú
+      mostrarResultado(r)
+    } catch (err) { if (enCurso) limpiarEnCurso(enCurso); if (abierta.current) setError(mensajeError(err)) }
+    if (abierta.current) { clearInterval(timerRef.current); setCargando(false) }
   }
 
   const conOcupado = async (ids, fn) => {
@@ -262,6 +303,12 @@ export default function BuscarPlaces() {
             <Desplegable className="bh-desplegable" ariaLabel="Con qué buscar" value={calidad} onChange={elegirCalidad} disabled={cargando} anchoMenu={300}
               opciones={CALIDADES.map(c => ({ value: c.id, label: `Modo: ${c.nombre} (≈${estimar(c.creditos, cantidad)} créditos)`, ayuda: c.ayuda }))} />
           </div>
+          <span className="bh-sep" aria-hidden="true" />
+          <div className="bh-opcion">
+            <Globe size={18} aria-hidden="true" />
+            <Desplegable className="bh-desplegable" ariaLabel="Dónde buscar" value={fuenteUsada} onChange={elegirFuente} disabled={cargando || sinMaps} anchoMenu={290}
+              opciones={FUENTES.map(f => ({ value: f.id, label: f.nombre, ayuda: f.ayuda }))} />
+          </div>
           <span className="espacio" />
           <button type="button" className={'bh-filtros' + (verFiltros ? ' abierto' : '') + (filtrosActivos.length || pedido ? ' con' : '')} onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros} disabled={cargando}>
             <SlidersHorizontal size={17} /> Filtros{filtrosActivos.length + (pedido ? 1 : 0) > 0 && <span className="bh-filtros-num">{filtrosActivos.length + (pedido ? 1 : 0)}</span>}
@@ -320,7 +367,7 @@ export default function BuscarPlaces() {
           <div style={{ flex: 1 }}>
             {(() => { const pasos = fuenteUsada === 'claude' ? PASOS.slice(1) : fuenteUsada === 'maps' ? [PASOS[0], 'Leyendo cada ficha…', PASOS[3]] : PASOS; return <b>{pasos[Math.min(pasos.length - 1, Math.floor((seg / estimado) * pasos.length))]}</b> })()}
             <div className="barra-progreso"><span style={{ width: Math.min(95, (seg / estimado) * 100) + '%' }} /></div>
-            <small className="muted">{seg} s · suele tardar {cantidad <= 10 ? 'menos de un minuto' : cantidad <= 20 ? 'alrededor de un minuto' : 'un par de minutos'}</small>
+            <small className="muted">{seg} s · suele tardar {cantidad <= 10 ? 'menos de un minuto' : cantidad <= 20 ? 'alrededor de un minuto' : 'un par de minutos'}. <b>Podés cambiar de pantalla o cerrar la pestaña:</b> la búsqueda sigue y te avisamos cuando termine.</small>
           </div>
         </section>
       )}
