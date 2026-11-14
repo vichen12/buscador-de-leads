@@ -33,6 +33,7 @@ import DirectorioMiEmpresa from './pages/DirectorioMiEmpresa.jsx'
 import Landing from './pages/Landing.jsx'
 import Interesados from './pages/Interesados.jsx'
 import Plantillas from './pages/Plantillas.jsx'
+import MensajesWhatsapp from './pages/MensajesWhatsapp.jsx'
 import ElegirPais from './components/ElegirPais.jsx'
 import Respuestas from './pages/Respuestas.jsx'
 import Secuencias from './pages/Secuencias.jsx'
@@ -156,6 +157,7 @@ function Privada() {
           <Route path="/directorio/mi-empresa" element={<DirectorioMiEmpresa />} />
           <Route path="/interesados" element={<Interesados />} />
           <Route path="/plantillas" element={<Plantillas />} />
+          <Route path="/mensajes-whatsapp" element={<MensajesWhatsapp />} />
           <Route path="/metas" element={<Metas />} />
           <Route path="/catalogo" element={<Catalogo />} />
           <Route path="/visitas" element={<Visitas />} />

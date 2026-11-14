@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Sun, Flame, Ban, Workflow, BookOpen, MapPin, Target, Upload, Bot,
-  Store, Package, Mail, UsersRound, Plug, Gauge, UserCircle, Crown, LifeBuoy, ChevronRight, Smartphone, Download,
+  Store, Package, Mail, UsersRound, Plug, Gauge, UserCircle, Crown, LifeBuoy, ChevronRight, Smartphone, Download, MessageCircle,
 } from 'lucide-react'
 import { useApp } from '../App.jsx'
 import { useInstalar } from '../lib/instalar.js'
@@ -23,6 +23,7 @@ export default function Mas() {
     ]],
     ['Configuración', 'Se arma una vez', [
       ['/directorio/mi-empresa', 'Tu empresa en el directorio', 'Para que otras empresas te encuentren', Building2],
+      ['/mensajes-whatsapp', 'Mensajes de WhatsApp', 'Los escribís vos y elegís cuál mandar', MessageCircle],
       ['/negocio', 'Mi negocio', 'Qué vendés y a quién', Store],
       ['/catalogo', 'Catálogo', 'Tus productos y precios', Package],
       ['/email', 'Email', 'Tu casilla para mandar y recibir', Mail],
@@ -48,6 +49,7 @@ export default function Mas() {
     ]],
     ['Configuración', 'Se arma una vez', [
       ['/directorio/mi-empresa', 'Tu empresa en el directorio', 'Para que otras empresas te encuentren', Building2],
+      ['/mensajes-whatsapp', 'Mensajes de WhatsApp', 'Los escribís vos y elegís cuál mandar', MessageCircle],
       ['/negocio', 'Mi negocio', 'Qué vendés y a quién: guía las búsquedas', Store],
       ['/catalogo', 'Catálogo', 'Tus productos y precios', Package],
       ['/email', 'Email', 'Tu casilla para mandar y recibir', Mail],

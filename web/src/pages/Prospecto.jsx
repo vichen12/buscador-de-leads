@@ -17,6 +17,7 @@ import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEmpresa } from '../components/FichaExtras.jsx'
 import { HerramientasIA, Etiquetas, Comentarios, Propuestas, VisitasDeEmpresa, ArchivosEmpresa } from '../components/FichaParte2.jsx'
 import { useApp } from '../App.jsx'
+import { mensajesWa, rellenarWa, sugeridoWa } from '../lib/mensajesWa.js'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
 const TIPO_INT = {
@@ -32,7 +33,7 @@ export default function Prospecto() {
   const [params] = useSearchParams()
   const toast = useToast()
   const confirmar = useConfirmar()
-  const { perfil, enviadosHoy, refrescar, servicios, correo, session, tablero } = useApp()
+  const { perfil, enviadosHoy, refrescar, servicios, correo, session, tablero, comercial } = useApp()
   const arch = useArchivos(session?.user?.id)
   const cambiarEstadoGlobal = useCambiarEstado()
   const [responsable, setResponsable] = useState('')
@@ -348,6 +349,7 @@ export default function Prospecto() {
               {(tab === 'email' || tab === 'seguimiento') && (
                 <input className="asunto" placeholder="Asunto" value={actual.asunto} onChange={e => editar('asunto', e.target.value)} disabled={optOut} aria-label="Asunto" />
               )}
+              {tab === 'whatsapp' && <ElegirMensajeWa p={p} perfil={perfil} comercial={comercial} actual={actual.cuerpo} disabled={optOut} onElegir={t => editar('cuerpo', t)} />}
               <textarea className="editor" rows={tab === 'email' ? 12 : 9} value={actual.cuerpo} disabled={optOut || reescribiendo} aria-label="Mensaje"
                 placeholder={generando ? 'Escribiendo…' : 'Escribí el mensaje o tocá "Generar borradores".'} onChange={e => editar('cuerpo', e.target.value)} />
               <div className="meta-editor">
@@ -535,4 +537,29 @@ function Resaltado({ texto, frases }) {
     resto = resto.slice(hit.i + hit.f.frase.length)
   }
   return <>{partes}</>
+}
+
+/** WhatsApp: tus mensajes (los de Más → Mensajes de WhatsApp). Tocás uno y queda cargado, listo para abrir WhatsApp. */
+function ElegirMensajeWa({ p, perfil, comercial, actual, disabled, onElegir }) {
+  const lista = mensajesWa(perfil).filter(m => m.texto?.trim())
+  if (!lista.length) return (
+    <div className="elegir-wa vacio"><MessageCircle size={15} /><span>Escribí tus propios mensajes de WhatsApp y elegí acá cuál mandar.</span><Link to="/mensajes-whatsapp" className="btn chico">Escribir mis mensajes</Link></div>
+  )
+  const sug = sugeridoWa(lista, p)
+  return (
+    <div className="elegir-wa">
+      <small className="muted">Tus mensajes:</small>
+      {lista.map((m, i) => {
+        const texto = rellenarWa(m.texto, p, perfil, comercial)
+        const on = actual.trim() === texto.trim()
+        return (
+          <button key={i} type="button" disabled={disabled} className={'filtro-chip' + (on ? ' on' : '')} onClick={() => onElegir(texto)}
+            title={i === sug ? (p.web_actual ? 'Sugerido: esta empresa tiene web' : 'Sugerido: esta empresa no tiene web') : ''}>
+            {on ? <CheckCircle2 size={12} /> : <MessageCircle size={12} />} {m.titulo}{i === sug && !on && <span className="elegir-wa-sug">sugerido</span>}
+          </button>
+        )
+      })}
+      <Link to="/mensajes-whatsapp" className="link chico">Editar</Link>
+    </div>
+  )
 }

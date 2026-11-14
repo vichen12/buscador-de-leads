@@ -142,3 +142,16 @@ describe('Directorio', () => {
     }
   })
 })
+
+describe('Mensajes de WhatsApp', () => {
+  it('rellena las variables y sugiere según tenga web o no', async () => {
+    const { rellenarWa, sugeridoWa, mensajesWa } = await import('../../lib/mensajesWa.js')
+    const p = { nombre: 'La Espiga', zona: 'Godoy Cruz, Mendoza', web_actual: 'https://www.laespiga.com/' }
+    expect(rellenarWa('Hola {{empresa}} de {{zona}}, vi {{web}}. Soy {{mi_nombre}}', p, { nombre: 'Vicente' }, null)).toBe('Hola La Espiga de Godoy Cruz, vi laespiga.com. Soy Vicente')
+    const lista = [{ titulo: 'A', para: 'con_web', texto: 'x' }, { titulo: 'B', para: 'sin_web', texto: 'y' }]
+    expect(sugeridoWa(lista, p)).toBe(0)
+    expect(sugeridoWa(lista, { nombre: 'Otra' })).toBe(1)
+    expect(mensajesWa({}).length).toBe(2)
+    expect(mensajesWa({ config_email: { whatsapp_mensajes: [{ titulo: 'Mío', texto: 'hola' }] } })[0].titulo).toBe('Mío')
+  })
+})

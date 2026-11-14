@@ -2952,3 +2952,28 @@ html[data-tema="oscuro"] .burbuja.yo { background: #f2efe9; color: #16161a; }
 /* Los menús de Buscar (cantidad, modo, fuente) quedan por encima de lo que viene abajo:
    cada bloque de la página anima su entrada y arma su propia capa, y el siguiente tapaba el menú. */
 .bh { position: relative; z-index: 5; }
+
+/* Tus mensajes de WhatsApp */
+.mis-wa-cab { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+.mis-wa-cab h2 { margin: 0 0 4px; font-size: 1.1rem; }
+.mis-wa-cab p { margin: 0; max-width: 680px; }
+.mis-wa-icono { flex: 0 0 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: #dcf8e6; color: #128c4a; }
+.mis-wa-grilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.mis-wa-item { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); }
+.mis-wa-fila { display: flex; gap: 6px; align-items: center; }
+.mis-wa-fila input { flex: 1; font-weight: 600; }
+.mis-wa-para { display: flex; flex-wrap: wrap; gap: 4px; }
+.mis-wa-para button { border: 1px solid var(--line); background: var(--card); color: var(--ink-2); border-radius: 99px; padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.mis-wa-para button.on { background: #128c4a; border-color: #128c4a; color: #fff; }
+.mis-wa-item textarea { resize: vertical; min-height: 120px; }
+.mis-wa-vars { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.mis-wa-vars .chip { cursor: pointer; border: 0; font: inherit; font-size: 11.5px; }
+.mis-wa-previa .burbuja { margin-top: 4px; white-space: pre-wrap; background: #dcf8c6; color: #111; border-radius: 12px 12px 12px 4px; padding: 8px 10px; font-size: 13.5px; line-height: 1.4; }
+html[data-tema="oscuro"] .mis-wa-previa .burbuja { background: #144d37; color: #e9edef; }
+.mis-wa .acciones { margin-top: 14px; display: flex; align-items: center; gap: 8px; }
+.elegir-wa { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.elegir-wa.vacio { padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: 12px; font-size: 13px; color: var(--ink-2); }
+.elegir-wa.vacio span { flex: 1; min-width: 180px; }
+.elegir-wa-sug { margin-left: 4px; padding: 0 6px; border-radius: 99px; background: #dcf8e6; color: #128c4a; font-size: 10.5px; font-weight: 700; }
+.mis-wa-aviso { padding: 7px 10px; border-radius: 10px; background: #fff4e5; color: #8a4b00; font-size: 12px; line-height: 1.4; }
+html[data-tema="oscuro"] .mis-wa-aviso { background: #3a2a12; color: #f3c27a; }
