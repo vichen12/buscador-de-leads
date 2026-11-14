@@ -73,30 +73,19 @@ export default function Layout({ children }) {
   const vencidos = (tablero?.seguimientos_vencidos ?? 0) + (contadores?.tareas_hoy ?? 0)
   const sinLeer = contadores?.respuestas_sin_leer ?? 0
   const nombre = perfil?.nombre || session.user.email
-  const esAdminEquipo = perfil?.rol === 'admin' || perfil?.es_admin
   const modo = perfil?.modo === 'b2c' ? 'b2c' : 'b2b'
 
   // [ruta, texto, ícono, contador, en el celular va en la barra de abajo]
-  const config = ['Configuración', [
-    ['/negocio', 'Mi negocio', Store],
-    ['/email', 'Email', Mail],
-    ...(esAdminEquipo && perfil?.empresa_id ? [['/equipo', 'Equipo', UsersRound]] : []),
-    ['/conexiones', 'Conexiones', Plug],
-    ...(perfil?.es_admin ? [['/admin', 'Super admin', Crown]] : []),
-  ]]
   const secciones = modo === 'b2c' ? [
-    ['Inicio', [['/', 'Tablero', LayoutDashboard, 0, true]]],
-    ['Mis clientes', [
+    // B2C: igual de simple que B2B. Lo demás (asistente y configuración) está en «Más».
+    ['', [
+      ['/', 'Inicio', LayoutDashboard, 0, true],
       ['/clientes', 'Clientes', Heart, 0, true],
       ['/interesados', 'Interesados', Flame],
       ['/campanas', 'Campañas', Send, 0, true],
-    ]],
-    ['Crecer', [
       ['/aliados', 'Aliados', Handshake, 0, true],
       ['/creadores', 'Creadores', Megaphone],
-      ['/asistente', 'Asistente IA', Bot],
     ]],
-    config,
   ] : [
     // B2B: siete cosas, en el orden en que se trabaja. Lo demás (herramientas y configuración) está en «Más».
     ['', [
@@ -126,7 +115,7 @@ export default function Layout({ children }) {
   )
   const todos = secciones.flatMap(([, items]) => items)
   const enBarra = todos.filter(x => x[4])
-  const enMas = [...todos.filter(x => !x[4]), ...(modo === 'b2b' ? [MAS] : [])]
+  const enMas = [...todos.filter(x => !x[4]), MAS]
   const hayMas = enMas.some(x => x[3] > 0)
 
   return (
@@ -152,7 +141,7 @@ export default function Layout({ children }) {
           })}
         </nav>
         {/* Menú simple: abajo sólo «Más y configuración». El uso está en Buscar y en Más → Uso y límites */}
-        {modo === 'b2b' && <nav className="nav-pie" aria-label="Más">{enlace(MAS)}</nav>}
+        <nav className="nav-pie" aria-label="Más">{enlace(MAS)}</nav>
       </aside>
 
       {/* Celular: barra de abajo con lo que más se usa en la calle + "Más" */}

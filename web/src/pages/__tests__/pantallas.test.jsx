@@ -66,3 +66,37 @@ describe('el menú', () => {
     expect(html).not.toContain('Achicar menú')
   })
 })
+
+describe('modo B2C', () => {
+  it.each([
+    ['/', () => import('../TableroB2C.jsx')],
+    ['/clientes', () => import('../Clientes.jsx')],
+    ['/interesados', () => import('../Interesados.jsx')],
+    ['/campanas', () => import('../Campanas.jsx')],
+    ['/mas', () => import('../Mas.jsx')],
+  ])('%s se dibuja', async (ruta, cargar) => {
+    app.perfil.modo = 'b2c'
+    try { expect((await dibujar(ruta, cargar)).length).toBeGreaterThan(50) } finally { app.perfil.modo = 'b2b' }
+  })
+  it('Aliados y Creadores se dibujan', async () => {
+    app.perfil.modo = 'b2c'
+    try {
+      const m = await import('../AliadosCreadores.jsx')
+      for (const P of [m.Aliados, m.Creadores]) expect(renderToString(<MemoryRouter><P /></MemoryRouter>).length).toBeGreaterThan(50)
+    } finally { app.perfil.modo = 'b2b' }
+  })
+  it('el menú B2C es simple, igual que el B2B, y Más no trae cosas de empresas', async () => {
+    app.perfil.modo = 'b2c'
+    try {
+      const { default: Layout } = await import('../../components/Layout.jsx')
+      const html = renderToString(<MemoryRouter initialEntries={['/clientes']}><Layout><div /></Layout></MemoryRouter>)
+      for (const t of ['Inicio', 'Clientes', 'Interesados', 'Campañas', 'Aliados', 'Creadores', 'Más y configuración']) expect(html).toContain(t)
+      expect(html).not.toContain('Mis clientes')
+      expect(html).not.toContain('Crecer')
+      const mas = await dibujar('/mas', () => import('../Mas.jsx'))
+      expect(mas).not.toContain('Rechazadas')
+      expect(mas).not.toContain('Secuencias')
+      expect(mas).toContain('Asistente IA')
+    } finally { app.perfil.modo = 'b2b' }
+  })
+})

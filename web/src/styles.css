@@ -2638,3 +2638,22 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .bh-cantidad input { width: 58px; border: 1px solid transparent; background: transparent; font: inherit; font-weight: 600; padding: 4px 6px; border-radius: 8px; color: var(--ink); box-shadow: none; -moz-appearance: textfield; }
 .bh-cantidad input:focus { outline: 0; border-color: var(--acc); background: var(--card); }
 .bh-cantidad input::-webkit-outer-spin-button, .bh-cantidad input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.bh-cantidad { position: relative; }
+.bh-cantidad > span { cursor: pointer; }
+.bh-cantidad input { width: 52px; }
+.bh-cantidad-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 248px; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh-lg); animation: desplegar .16s var(--ease); }
+.bh-cantidad-grilla { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.bh-cantidad-grilla button { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 0; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .1s; }
+.bh-cantidad-grilla button:hover { border-color: var(--acc); background: var(--acc-soft); }
+.bh-cantidad-grilla button:active { transform: scale(.95); }
+.bh-cantidad-grilla button.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+.bh-cantidad-menu small { display: block; margin-top: 10px; color: var(--mut); font-size: 12px; line-height: 1.35; }
+
+/* Fila de opciones de Buscar: que entren las cuatro y Filtros en una sola línea */
+.bh-opciones { gap: 2px; }
+.bh-sep { margin: 0 6px; }
+.bh-opcion .desplegable, .bh-cantidad { font-size: 14px; }
+.bh-donde .selector-zona { min-width: 150px; }
+.bh-filtros { padding: 9px 15px; font-size: 14px; }
+.buscando-panel small .fuerte { color: var(--ink-2); font-weight: 600; }

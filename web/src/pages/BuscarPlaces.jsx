@@ -47,6 +47,8 @@ const CLAVE_CALIDAD = 'prospecta-calidad-busqueda'
 const calidadGuardada = () => { try { const c = localStorage.getItem(CLAVE_CALIDAD); return CALIDADES.some(x => x.id === c) ? c : 'rapida' } catch { return 'rapida' } }
 const CLAVE_FUENTE = 'prospecta-fuente-busqueda'
 const fuenteGuardada = () => { try { const f = localStorage.getItem(CLAVE_FUENTE); return FUENTES.some(x => x.id === f) ? f : 'ambas' } catch { return 'ambas' } }
+const CLAVE_BORRADOR = 'prospecta-buscar-borrador'
+const leerBorrador = () => { try { return JSON.parse(sessionStorage.getItem(CLAVE_BORRADOR) || '{}') || {} } catch { return {} } }
 const CLAVE_MODO = 'prospecta-modo-busqueda'
 const modoGuardado = () => { try { return localStorage.getItem(CLAVE_MODO) === 'libre' ? 'libre' : 'negocio' } catch { return 'negocio' } }
 // «¿Por dónde empezamos?»: un toque arma la búsqueda. En «mi negocio» salen de tu estrategia.
@@ -80,7 +82,8 @@ export default function BuscarPlaces() {
   const libre = modo === 'libre'
   const [sinLibre, setSinLibre] = useState(false) // el servidor todavía no conoce la búsqueda libre
   // Van antes de elegirModo y del efecto del cupo, que los usan (si no, la pantalla se rompe al abrir)
-  const [res, setRes] = useState(null)
+  const borrador = useRef(leerBorrador()).current
+  const [res, setRes] = useState(() => borrador.res ?? null)
   const [error, setError] = useState('')
   function elegirModo(m) {
     setModo(m); setRes(null); setError('')
@@ -95,9 +98,9 @@ export default function BuscarPlaces() {
   // En la búsqueda libre no se usa la estrategia: ni sus rubros ni sus filtros
   const est = libre ? null : estNegocio
   const sugRubros = useMemo(() => est ? est.rubros.map(r => r.nombre) : ['barbería', 'centro de estética', 'veterinaria', 'gimnasio', 'estudio contable', 'inmobiliaria', 'restaurante', 'taller mecánico'], [est])
-  const zonaTocada = useRef(false)
+  const zonaTocada = useRef(!!borrador.zona)
   // Dónde: UN país a la vez y un lugar concreto (provincia, ciudad o zona). Si es muy amplio, la búsqueda se dispersa.
-  const [paisBusq, setPaisBusq] = useState(perfil?.pais || 'AR')
+  const [paisBusq, setPaisBusq] = useState(borrador.paisBusq || perfil?.pais || 'AR')
   useEffect(() => { if (perfil?.pais && !zonaTocada.current) setPaisBusq(perfil.pais) }, [perfil?.pais])
   const paisesCuenta = useMemo(() => [...new Set([perfil?.pais, ...(perfil?.paises ?? [])].filter(Boolean))], [perfil?.pais, perfil?.paises])
   const sugZonas = useMemo(() => {
@@ -111,21 +114,21 @@ export default function BuscarPlaces() {
 
   // Si viene de la home con algo escrito (?q=), arranca con eso puesto
   const [params] = useSearchParams()
-  const [rubro, setRubro] = useState(() => params.get('q') ?? '')
+  const [rubro, setRubro] = useState(() => params.get('q') ?? borrador.rubro ?? '')
   const [fuente, setFuente] = useState(fuenteGuardada)
   const elegirFuente = f => { setFuente(f); try { localStorage.setItem(CLAVE_FUENTE, f) } catch { /* sin almacenamiento */ } }
   // Sin clave de Google Places, Maps no se puede elegir: se busca con Claude
   const sinMaps = servicios.places === false
   const fuenteUsada = sinMaps ? 'claude' : fuente
-  const [zona, setZona] = useState(sugZonas[0])
+  const [zona, setZona] = useState(borrador.zona || sugZonas[0])
   // Cualquier número: se escribe libre y al salir del campo se ajusta entre 5 y 100
-  const [cantidadTexto, setCantidadTexto] = useState('20')
+  const [cantidadTexto, setCantidadTexto] = useState(borrador.cantidadTexto || '20')
   const cantidad = Math.min(CANTIDAD_MAX, Math.max(CANTIDAD_MIN, Number(cantidadTexto) || 20))
   // Los filtros arrancan apagados (prendidos de fábrica descartaban de más) y se recuerda lo que elijas, por modo
   const claveFiltros = 'prospecta-filtros-' + modo
   const filtrosGuardados = () => { try { return new Set(JSON.parse(localStorage.getItem(claveFiltros)) ?? []) } catch { return new Set() } }
   const [activos, setActivos] = useState(filtrosGuardados)
-  const [pedido, setPedido] = useState('')
+  const [pedido, setPedido] = useState(borrador.pedido || '')
   const [verFiltros, setVerFiltros] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [seg, setSeg] = useState(0)
@@ -136,6 +139,10 @@ export default function BuscarPlaces() {
   useEffect(() => { setActivos(filtrosGuardados()) }, [modo])
   // La zona por defecto sigue a la configuración de la cuenta hasta que la persona elige otra
   useEffect(() => { if ((!zonaTocada.current || !zona) && sugZonas[0]) setZona(sugZonas[0]) }, [sugZonas])
+  // Guardar lo escrito y el último resultado (sólo en esta pestaña): si cambiás de pantalla y volvés, está todo igual
+  useEffect(() => {
+    try { sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify({ rubro, zona, paisBusq, cantidadTexto, pedido, res })) } catch { /* sin almacenamiento o resultado muy grande */ }
+  }, [rubro, zona, paisBusq, cantidadTexto, pedido, res])
   const cargarHistorial = () => supabase.from('busquedas').select('*').order('created_at', { ascending: false }).limit(6).then(({ data }) => setHistorial(data ?? []))
   useEffect(() => { cargarHistorial() }, [])
 
@@ -176,6 +183,11 @@ export default function BuscarPlaces() {
     const e = leerEnCurso()
     if (!e) return
     if (e.rubro) setRubro(e.rubro)
+    if (e.zona) { zonaTocada.current = true; setZona(e.zona) }
+    if (e.paisBusq) setPaisBusq(e.paisBusq)
+    if (e.cantidadTexto) setCantidadTexto(e.cantidadTexto)
+    if (e.pedido != null) setPedido(e.pedido)
+    if (e.modo && e.modo !== modo) setModo(e.modo)
     setCargando(true); empezarReloj(e.desde)
     esperarBusqueda(e.id, { desde: e.desde, sigue: () => abierta.current })
       .then(r => { if (r && abierta.current) { limpiarEnCurso(e.id); mostrarResultado(r) } })
@@ -198,7 +210,7 @@ export default function BuscarPlaces() {
       const esperar = async r0 => {
         if (!r0?.en_curso) return r0 // función vieja: ya trae el resultado
         enCurso = r0.busqueda_id
-        guardarEnCurso(enCurso, { desde: t0, rubro: rubro.trim() })
+        guardarEnCurso(enCurso, { desde: t0, rubro: rubro.trim(), zona, paisBusq, cantidadTexto, pedido, modo })
         const r1 = await esperarBusqueda(enCurso, { desde: t0, sigue: () => abierta.current })
         if (r1) limpiarEnCurso(enCurso)
         return r1
@@ -289,13 +301,7 @@ export default function BuscarPlaces() {
           <span className="bh-sep" aria-hidden="true" />
           <div className="bh-opcion">
             <Layers size={18} aria-hidden="true" />
-            <label className="bh-cantidad" title={cantidad <= 10 ? 'Tarda menos de 1 minuto' : cantidad <= 20 ? 'Tarda ≈ 1 minuto' : cantidad <= 40 ? 'Tarda un par de minutos' : 'Tarda unos minutos; con muchas, puede traer algo menos'}>
-              <span>Cantidad:</span>
-              <input type="number" inputMode="numeric" min={CANTIDAD_MIN} max={CANTIDAD_MAX} step={1} value={cantidadTexto} disabled={cargando} aria-label="Cuántas empresas"
-                onChange={e => setCantidadTexto(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
-                onBlur={() => setCantidadTexto(String(cantidad))}
-                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} />
-            </label>
+            <CampoCantidad valor={cantidadTexto} cantidad={cantidad} onCambiar={setCantidadTexto} disabled={cargando} />
           </div>
           <span className="bh-sep" aria-hidden="true" />
           <div className="bh-opcion">
@@ -367,7 +373,7 @@ export default function BuscarPlaces() {
           <div style={{ flex: 1 }}>
             {(() => { const pasos = fuenteUsada === 'claude' ? PASOS.slice(1) : fuenteUsada === 'maps' ? [PASOS[0], 'Leyendo cada ficha…', PASOS[3]] : PASOS; return <b>{pasos[Math.min(pasos.length - 1, Math.floor((seg / estimado) * pasos.length))]}</b> })()}
             <div className="barra-progreso"><span style={{ width: Math.min(95, (seg / estimado) * 100) + '%' }} /></div>
-            <small className="muted">{seg} s · suele tardar {cantidad <= 10 ? 'menos de un minuto' : cantidad <= 20 ? 'alrededor de un minuto' : 'un par de minutos'}. <b>Podés cambiar de pantalla o cerrar la pestaña:</b> la búsqueda sigue y te avisamos cuando termine.</small>
+            <small className="muted">{seg} s · suele tardar {cantidad <= 10 ? 'menos de un minuto' : cantidad <= 20 ? 'alrededor de un minuto' : 'un par de minutos'}. <span className="fuerte">Podés cambiar de pantalla o cerrar la pestaña:</span> la búsqueda sigue y te avisamos cuando termine.</small>
           </div>
         </section>
       )}
@@ -435,5 +441,39 @@ export default function BuscarPlaces() {
         </section>
       )}
     </>
+  )
+}
+
+/** Cantidad: opciones rápidas (5, 10, 15, 20…) y también un número libre, en el mismo campo */
+const OPCIONES_CANTIDAD = [5, 10, 15, 20, 30, 40, 50, 100]
+function CampoCantidad({ valor, cantidad, onCambiar, disabled }) {
+  const [abierto, setAbierto] = useState(false)
+  const caja = useRef(null)
+  useEffect(() => {
+    if (!abierto) return
+    const fuera = e => { if (!caja.current?.contains(e.target)) { setAbierto(false); onCambiar(String(cantidad)) } }
+    document.addEventListener('mousedown', fuera)
+    return () => document.removeEventListener('mousedown', fuera)
+  }, [abierto, cantidad])
+  const tarda = n => n <= 10 ? 'menos de 1 minuto' : n <= 20 ? '≈ 1 minuto' : n <= 40 ? 'un par de minutos' : 'unos minutos'
+  return (
+    <div className="bh-cantidad" ref={caja} title={`Tarda ${tarda(cantidad)}`}>
+      <span onClick={() => !disabled && setAbierto(true)}>Cantidad:</span>
+      <input type="text" inputMode="numeric" value={valor} disabled={disabled} aria-label="Cuántas empresas" aria-expanded={abierto}
+        onFocus={e => { setAbierto(true); e.target.select() }}
+        onChange={e => onCambiar(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setAbierto(false); onCambiar(String(cantidad)); e.currentTarget.blur() } }} />
+      {abierto && (
+        <div className="bh-cantidad-menu" role="listbox" aria-label="Cantidades rápidas">
+          <div className="bh-cantidad-grilla">
+            {OPCIONES_CANTIDAD.map(n => (
+              <button key={n} type="button" role="option" aria-selected={n === cantidad} className={n === cantidad ? 'on' : ''}
+                onMouseDown={e => e.preventDefault()} onClick={() => { onCambiar(String(n)); setAbierto(false) }}>{n}</button>
+            ))}
+          </div>
+          <small>O escribí cualquier número entre 5 y 100 · tarda {tarda(cantidad)}</small>
+        </div>
+      )}
+    </div>
   )
 }

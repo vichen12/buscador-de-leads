@@ -14,7 +14,25 @@ export default function Mas() {
   const { perfil } = useApp()
   const app = useInstalar()
   const esAdminEquipo = perfil?.rol === 'admin' || perfil?.es_admin
-  const grupos = [
+  const b2c = perfil?.modo === 'b2c'
+  const grupos = b2c ? [
+    ['Herramientas', 'Para cuando las necesites', [
+      ['/asistente', 'Asistente IA', 'Preguntale a Claude sobre tus clientes', Bot],
+      ['/plantillas', 'Plantillas', 'Mensajes listos para reusar', BookOpen],
+      ['/importar', 'Importar', 'Subir una lista de clientes de Excel o CSV', Upload],
+    ]],
+    ['Configuración', 'Se arma una vez', [
+      ['/negocio', 'Mi negocio', 'Qué vendés y a quién', Store],
+      ['/catalogo', 'Catálogo', 'Tus productos y precios', Package],
+      ['/email', 'Email', 'Tu casilla para mandar y recibir', Mail],
+      ...(esAdminEquipo && perfil?.empresa_id ? [['/equipo', 'Equipo', 'Quiénes usan la cuenta', UsersRound]] : []),
+      ['/conexiones', 'Conexiones', 'Formulario web, WhatsApp y Claude', Plug],
+      ['/uso', 'Uso y límites', 'Cuánto te queda y cuándo se renueva', Gauge],
+      ['/cuenta', 'Tu cuenta', 'Datos, contraseña y país', UserCircle],
+      ['/ayuda', 'Ayuda', 'Cómo se usa cada cosa', LifeBuoy],
+      ...(perfil?.es_admin ? [['/admin', 'Super admin', 'Claves, cuentas y planes', Crown]] : []),
+    ]],
+  ] : [
     ['Herramientas', 'Para cuando las necesites', [
       ['/tablero', 'Tablero', 'El resumen de tu actividad', LayoutDashboard],
       ['/hoy', 'Tu día', 'Lo que te toca hoy, en orden', Sun],
