@@ -1,6 +1,6 @@
 // Celular: barra de navegación flotante con «Buscar» elevado en el medio y la hoja «Más».
 // Animaciones con framer-motion (respeta «reducir movimiento» del sistema).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion'
 import { MoreHorizontal, Search, X } from 'lucide-react'
@@ -44,26 +44,8 @@ export default function BarraMovil({ items, enMas, hayMas, enlace }) {
   const navegar = useNavigate()
   const quieto = useReducedMotion()
   const [mas, setMas] = useState(false)
-  const [oculta, setOculta] = useState(false)
-  const ultimoY = useRef(0)
 
-  useEffect(() => { setMas(false); setOculta(false) }, [loc.pathname])
-  // El botón del asistente baja cuando la barra se esconde
-  useEffect(() => { document.body.classList.toggle('barra-oculta', oculta && !mas); return () => document.body.classList.remove('barra-oculta') }, [oculta, mas])
-  // Se esconde al bajar leyendo y vuelve al subir (o al llegar arriba / abajo de todo)
-  useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY
-      const fondo = window.innerHeight + y >= document.documentElement.scrollHeight - 40
-      const d = y - ultimoY.current
-      if (y < 60 || fondo) setOculta(false)
-      else if (d > 8) setOculta(true)
-      else if (d < -8) setOculta(false)
-      ultimoY.current = y
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  useEffect(() => { setMas(false) }, [loc.pathname])
   useEffect(() => {
     if (!mas) return
     const esc = e => e.key === 'Escape' && setMas(false)
@@ -90,16 +72,15 @@ export default function BarraMovil({ items, enMas, hayMas, enlace }) {
     <>
       <motion.nav className={'barra-flotante' + (mas ? ' con-hoja' : '')} aria-label="Secciones principales"
         initial={quieto ? false : { y: 120, opacity: 0 }}
-        animate={{ y: oculta && !mas ? 'calc(100% + 40px)' : 0, opacity: 1 }}
+        animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 380, damping: 36 }}>
         <LayoutGroup id="barra-flotante">
           <div className="bf-lado">{izq.map(it => <Item key={it[0]} item={it} loc={loc} />)}</div>
           <div className="bf-centro">
             <motion.button type="button" className={'bf-buscar' + (enBuscar ? ' activo' : '')} onClick={irABuscar}
               aria-label={buscar?.[1] || 'Buscar'} aria-current={enBuscar ? 'page' : undefined}
-              whileTap={{ scale: 0.9 }} whileHover={{ y: -2 }} transition={resorte}>
-              {!quieto && <span className="bf-buscar-halo" aria-hidden="true" />}
-              <Search size={25} strokeWidth={2.5} aria-hidden="true" />
+              whileTap={{ scale: 0.92 }} transition={resorte}>
+              <Search size={21} strokeWidth={2.4} aria-hidden="true" />
             </motion.button>
             <span className={'bf-texto bf-texto-centro' + (enBuscar ? ' activo' : '')}>{buscar?.[1] || 'Buscar'}</span>
           </div>

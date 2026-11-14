@@ -2688,7 +2688,7 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 
 @media (max-width: 920px) {
   :root {
-    --bf-alto: 66px; --bf-margen: 12px;
+    --bf-alto: 62px; --bf-margen: 10px;
     --bf-fondo: rgba(255,255,255,.80); --bf-borde: rgba(255,255,255,.95); --bf-anillo: #fff;
     --bf-sombra: 0 22px 44px -18px rgba(40,30,20,.34), 0 6px 16px -6px rgba(40,30,20,.12), inset 0 1px 0 rgba(255,255,255,.7);
     --bf-libre: calc(var(--bf-alto) + var(--bf-margen) + env(safe-area-inset-bottom));
@@ -2702,9 +2702,9 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 
   /* --- La barra --- */
   .barra-flotante {
-    display: grid; grid-template-columns: minmax(0, 1fr) 82px minmax(0, 1fr); align-items: stretch;
+    display: grid; grid-template-columns: minmax(0, 1fr) 70px minmax(0, 1fr); align-items: stretch;
     position: fixed; z-index: 40; left: var(--bf-margen); right: var(--bf-margen); bottom: calc(var(--bf-margen) + env(safe-area-inset-bottom));
-    max-width: 520px; margin: 0 auto; height: var(--bf-alto); padding: 0 4px; border-radius: 26px;
+    max-width: 520px; margin: 0 auto; height: var(--bf-alto); padding: 0 4px; border-radius: 22px;
     background: var(--bf-fondo); border: 1px solid var(--bf-borde); box-shadow: var(--bf-sombra);
     backdrop-filter: saturate(180%) blur(22px); -webkit-backdrop-filter: saturate(180%) blur(22px);
   }
@@ -2730,17 +2730,15 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   .bf-insignia.punto { min-width: 0; width: 11px; height: 11px; padding: 0; top: 1px; right: 11px; }
 
   /* --- Buscar: el botón del medio, elevado --- */
-  .bf-centro { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; }
+  .bf-centro { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 9px; }
   .bf-buscar {
-    position: absolute; top: -27px; left: 50%; margin-left: -32px; width: 64px; height: 64px; border-radius: 50%; border: 0; padding: 0;
+    position: absolute; top: -14px; left: 50%; margin-left: -25px; width: 50px; height: 50px; border-radius: 50%; border: 0; padding: 0;
     display: grid; place-items: center; color: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent;
-    background: radial-gradient(circle at 32% 24%, rgba(255,255,255,.38), rgba(255,255,255,0) 46%), var(--grad);
-    box-shadow: 0 0 0 5px var(--bf-anillo), 0 14px 26px -6px color-mix(in srgb, var(--acc) 60%, transparent), 0 4px 10px -2px color-mix(in srgb, var(--acc) 35%, transparent);
+    background: var(--grad);
+    box-shadow: 0 0 0 4px var(--bf-anillo), 0 8px 16px -6px color-mix(in srgb, var(--acc) 55%, transparent);
   }
-  .bf-buscar svg { position: relative; z-index: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.18)); }
-  .bf-buscar-halo { position: absolute; inset: 0; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--acc) 55%, transparent); animation: bf-halo 2.8s cubic-bezier(.2,.7,.3,1) infinite; pointer-events: none; }
-  .bf-buscar.activo .bf-buscar-halo { display: none; }
-  .bf-buscar.activo { box-shadow: 0 0 0 5px var(--bf-anillo), 0 0 0 7px color-mix(in srgb, var(--acc) 22%, transparent), 0 14px 26px -6px color-mix(in srgb, var(--acc) 60%, transparent); }
+  .bf-buscar svg { position: relative; z-index: 1; }
+  .bf-buscar.activo { box-shadow: 0 0 0 4px var(--bf-anillo), 0 0 0 6px color-mix(in srgb, var(--acc) 20%, transparent), 0 8px 16px -6px color-mix(in srgb, var(--acc) 55%, transparent); }
   .bf-buscar:focus-visible { outline: 2px solid var(--acc-2); outline-offset: 8px; }
 
   /* --- Hoja «Más»: tarjeta flotante sobre la barra --- */
@@ -2768,14 +2766,15 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   .hoja-flotante-grilla .cuenta { position: absolute; top: 8px; right: 8px; min-width: 20px; padding: 1px 6px; border-radius: 99px; background: var(--acc); color: #fff; font-size: 10.5px; font-weight: 700; }
 
   /* --- Barra de arriba: vidrio y botones redondos --- */
-  .topbar { padding: calc(8px + env(safe-area-inset-top)) 14px 8px; gap: 8px; background: color-mix(in srgb, var(--bg) 72%, transparent); }
-  .topbar.sombra { border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); box-shadow: 0 6px 20px -16px rgba(40,30,20,.4); }
-  .topbar-acciones { gap: 6px; }
-  .buscador-boton, .boton-icono { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--ink-2); box-shadow: var(--sh); }
-  .topbar .boton-nuevo { width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 50%; border: 0; background: var(--grad); box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--acc) 55%, transparent); }
-  .menu-usuario > button { padding: 0; border: 0; }
-  .menu-usuario .avatar { width: 40px; height: 40px; }
-  .campana-num { border-color: var(--card); top: -3px; right: -3px; }
+  /* Arriba: se va con el scroll (no queda fija) y es liviana: sin vidrio ni sombras */
+  .topbar, .topbar.sombra { position: relative; padding: calc(10px + env(safe-area-inset-top)) 16px 6px; gap: 8px; background: transparent; border-bottom: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .topbar-acciones { gap: 4px; }
+  .buscador-boton, .boton-icono { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; border: 0; background: transparent; color: var(--ink-2); box-shadow: none; }
+  .buscador-boton:active, .boton-icono:active { background: var(--hover); }
+  .topbar .boton-nuevo { width: 38px; height: 38px; min-height: 38px; padding: 0; border-radius: 50%; border: 0; background: var(--acc-soft); color: var(--acc); box-shadow: none; }
+  .menu-usuario > button { padding: 0; border: 0; margin-left: 4px; }
+  .menu-usuario .avatar { width: 34px; height: 34px; }
+  .campana-num { border-color: var(--bg); top: 0; right: 0; }
 
   /* --- Fondo y páginas como la landing --- */
   .app { background: radial-gradient(150% 420px at 50% -160px, color-mix(in srgb, var(--acc) 11%, transparent), transparent 72%) no-repeat, var(--bg); }
@@ -2863,12 +2862,10 @@ html[data-tema="oscuro"] .landing-card.b2c > svg:first-child { background: #0f2e
   .tabs > button, .segmentado > button, .rep-pastillas > button { flex: 1 0 auto; white-space: nowrap; }
   body:has(.modal-fondo) .flotante-boton { opacity: 0; pointer-events: none; }
   .flotante-boton { transition: bottom .35s cubic-bezier(.2,.8,.2,1), opacity .2s, transform .15s; }
-  body.barra-oculta .flotante-boton { bottom: calc(16px + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 920px) and (prefers-reduced-motion: reduce) { .modal-fondo > .modal { animation: none; } }
 @media (max-width: 920px) {
   .barra-armar, .barra-guardar, .barra-envio { transition: bottom .35s cubic-bezier(.2,.8,.2,1); }
-  body.barra-oculta :is(.barra-armar, .barra-guardar, .barra-envio) { bottom: calc(12px + env(safe-area-inset-bottom)); }
 }
 html[data-tema="oscuro"] .tabs-revisar { background: #262421; }
 html[data-tema="oscuro"] .tabs-revisar button.activo { background: #34312d; color: var(--ink); }
