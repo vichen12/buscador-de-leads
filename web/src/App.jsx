@@ -28,6 +28,8 @@ import Visitas from './pages/Visitas.jsx'
 import Ayuda from './pages/Ayuda.jsx'
 import Uso from './pages/Uso.jsx'
 import Mas from './pages/Mas.jsx'
+import Directorio from './pages/Directorio.jsx'
+import DirectorioMiEmpresa from './pages/DirectorioMiEmpresa.jsx'
 import Landing from './pages/Landing.jsx'
 import Interesados from './pages/Interesados.jsx'
 import Plantillas from './pages/Plantillas.jsx'
@@ -150,6 +152,8 @@ function Privada() {
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="/uso" element={<Uso />} />
           <Route path="/mas" element={<Mas />} />
+          <Route path="/directorio" element={<Directorio />} />
+          <Route path="/directorio/mi-empresa" element={<DirectorioMiEmpresa />} />
           <Route path="/interesados" element={<Interesados />} />
           <Route path="/plantillas" element={<Plantillas />} />
           <Route path="/metas" element={<Metas />} />

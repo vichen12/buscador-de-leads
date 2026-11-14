@@ -2657,3 +2657,24 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .bh-donde .selector-zona { min-width: 150px; }
 .bh-filtros { padding: 9px 15px; font-size: 14px; }
 .buscando-panel small .fuerte { color: var(--ink-2); font-weight: 600; }
+
+/* ---------- Directorio ---------- */
+.dir-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.dir-ficha { display: flex; flex-direction: column; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: var(--sh); transition: transform .18s var(--ease), box-shadow .2s, border-color .2s; animation: subir .3s var(--ease) both; }
+.dir-ficha:hover { transform: translateY(-2px); box-shadow: var(--sh-md); border-color: color-mix(in srgb, var(--acc) 25%, var(--line)); }
+.dir-cab { display: flex; align-items: center; gap: 12px; }
+.dir-logo { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; background: var(--acc-soft); color: var(--acc); font-family: Archivo, Inter, sans-serif; font-weight: 800; font-size: 19px; }
+.dir-cab h3 { font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dir-cab small { color: var(--mut); font-size: 12.5px; }
+.dir-texto { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.dir-porque { margin: 0; display: flex; gap: 6px; align-items: flex-start; font-size: 13px; color: var(--acc-ink); background: var(--acc-soft); border-radius: 10px; padding: 8px 10px; }
+.dir-porque svg { flex-shrink: 0; margin-top: 2px; }
+.dir-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dir-chips .chip { display: inline-flex; align-items: center; gap: 5px; }
+.dir-pie { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: auto; padding-top: 4px; }
+.form-directorio { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.form-directorio label { margin: 0; }
+.form-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.check-publicar { display: flex !important; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.check-publicar input { width: auto; margin: 0; }
+@media (max-width: 640px) { .form-fila { grid-template-columns: 1fr; } .dir-grid { grid-template-columns: 1fr; } }

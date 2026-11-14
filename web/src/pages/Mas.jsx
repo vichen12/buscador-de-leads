@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import {
-  LayoutDashboard, Sun, Flame, Ban, Workflow, BookOpen, MapPin, Target, Upload, Bot,
+  LayoutDashboard, Building2, Sun, Flame, Ban, Workflow, BookOpen, MapPin, Target, Upload, Bot,
   Store, Package, Mail, UsersRound, Plug, Gauge, UserCircle, Crown, LifeBuoy, ChevronRight, Smartphone, Download,
 } from 'lucide-react'
 import { useApp } from '../App.jsx'
@@ -22,6 +22,7 @@ export default function Mas() {
       ['/importar', 'Importar', 'Subir una lista de clientes de Excel o CSV', Upload],
     ]],
     ['Configuración', 'Se arma una vez', [
+      ['/directorio/mi-empresa', 'Tu empresa en el directorio', 'Para que otras empresas te encuentren', Building2],
       ['/negocio', 'Mi negocio', 'Qué vendés y a quién', Store],
       ['/catalogo', 'Catálogo', 'Tus productos y precios', Package],
       ['/email', 'Email', 'Tu casilla para mandar y recibir', Mail],
@@ -46,6 +47,7 @@ export default function Mas() {
       ['/asistente', 'Asistente IA', 'Preguntale a Claude sobre tu lista', Bot],
     ]],
     ['Configuración', 'Se arma una vez', [
+      ['/directorio/mi-empresa', 'Tu empresa en el directorio', 'Para que otras empresas te encuentren', Building2],
       ['/negocio', 'Mi negocio', 'Qué vendés y a quién: guía las búsquedas', Store],
       ['/catalogo', 'Catálogo', 'Tus productos y precios', Package],
       ['/email', 'Email', 'Tu casilla para mandar y recibir', Mail],

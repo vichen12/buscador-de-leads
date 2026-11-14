@@ -86,6 +86,7 @@ export default function Layout({ children }) {
       ['/campanas', 'Campañas', Send, 0, true],
       ['/aliados', 'Aliados', Handshake],
       ['/creadores', 'Creadores', Megaphone],
+      ['/directorio', 'Directorio', Building2],
     ]],
   ] : [
     // B2B: siete cosas, en el orden en que se trabaja. Lo demás (herramientas y configuración) está en «Más».
@@ -97,6 +98,7 @@ export default function Layout({ children }) {
       ['/respuestas', 'Respuestas', MessageSquareReply, sinLeer],
       ['/envios', 'Envíos', Send],
       ['/reportes', 'Informe', BarChart3],
+      ['/directorio', 'Directorio', Building2],
     ]],
   ]
   // «Más» queda abajo de todo, separado: herramientas y configuración (en B2B)

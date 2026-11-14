@@ -122,3 +122,23 @@ describe('Buscar en B2C', () => {
     expect(hecho).toContain('En tus aliados')
   })
 })
+
+describe('Directorio', () => {
+  it('se dibuja con el filtro inteligente y el acceso a publicar tu empresa', async () => {
+    const html = await dibujar('/directorio', () => import('../Directorio.jsx'))
+    expect(html).toContain('Directorio de empresas.')
+    expect(html).toContain('Filtro inteligente')
+  })
+  it('tu ficha se dibuja (B2B y B2C)', async () => {
+    expect(await dibujar('/directorio/mi-empresa', () => import('../DirectorioMiEmpresa.jsx'))).toBeTruthy()
+    app.perfil.modo = 'b2c'
+    try { expect(await dibujar('/directorio/mi-empresa', () => import('../DirectorioMiEmpresa.jsx'))).toBeTruthy() } finally { app.perfil.modo = 'b2b' }
+  })
+  it('está en el menú de los dos modos', async () => {
+    const { default: Layout } = await import('../../components/Layout.jsx')
+    for (const modo of ['b2b', 'b2c']) {
+      app.perfil.modo = modo
+      try { expect(renderToString(<MemoryRouter initialEntries={['/buscar']}><Layout><div /></Layout></MemoryRouter>)).toContain('Directorio') } finally { app.perfil.modo = 'b2b' }
+    }
+  })
+})
