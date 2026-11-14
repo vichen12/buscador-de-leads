@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Sparkles, Send, X, Loader2, Maximize2, RotateCcw } from 'lucide-react'
+import { Sparkles, Send, X, Loader2, Maximize2, History, SquarePen, ChevronLeft, MessageSquare } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { aHTML } from '../pages/Asistente.jsx'
 import { useApp } from '../App.jsx'
@@ -33,29 +34,83 @@ Borradores: ${(ms ?? []).map(m => `[${m.tipo}] ${m.asunto ? m.asunto + ' — ' :
 Historial: ${(ints ?? []).map(i => `${i.created_at.slice(0, 10)} ${i.tipo}${i.detalle ? ' ' + i.detalle : ''}`).join('; ') || 'sin actividad'}`
 }
 
+const CLAVE_CHAT = 'prospecta-chat-actual'
+const leerChat = () => { try { return localStorage.getItem(CLAVE_CHAT) || null } catch { return null } }
+const guardarChat = id => { try { id ? localStorage.setItem(CLAVE_CHAT, id) : localStorage.removeItem(CLAVE_CHAT) } catch { /* sin almacenamiento */ } }
+// En el celular no se abre el teclado solo: primero se lee, después se escribe
+const esTactil = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+const esCelular = () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 920px)').matches
+const cuando = f => {
+  const d = new Date(f), hoy = new Date()
+  if (d.toDateString() === hoy.toDateString()) return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  const ayer = new Date(); ayer.setDate(hoy.getDate() - 1)
+  if (d.toDateString() === ayer.toDateString()) return 'Ayer'
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+}
+
 export default function AsistenteFlotante() {
   const { servicios } = useApp()
   const loc = useLocation()
+  const quieto = useReducedMotion()
   const [abierto, setAbierto] = useState(false)
-  const [conv, setConv] = useState(null)
+  const [conv, setConvEstado] = useState(leerChat)
   const [mensajes, setMensajes] = useState([])
+  const [cargandoChat, setCargandoChat] = useState(false)
+  const [vista, setVista] = useState('chat') // chat | lista
+  const [chats, setChats] = useState(null)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
   const fin = useRef(null)
   const caja = useRef(null)
+  const panel = useRef(null)
+  const setConv = id => { setConvEstado(id); guardarChat(id) }
 
-  useEffect(() => { fin.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [mensajes, enviando, abierto])
-  useEffect(() => { if (abierto) setTimeout(() => caja.current?.focus(), 50) }, [abierto])
+  // La conversación queda guardada: al volver (o al recargar) sigue donde la dejaste
+  const cargado = useRef(null)
+  useEffect(() => {
+    if (!abierto || !conv || cargado.current === conv) return
+    cargado.current = conv
+    setCargandoChat(true)
+    supabase.from('chat_mensajes').select('rol, contenido, adjunto').eq('conversacion_id', conv).order('created_at').limit(200)
+      .then(({ data, error }) => {
+        if (error || !data?.length) { if (!error) setConv(null); setMensajes([]) }
+        else setMensajes(data.map(m => ({ rol: m.rol, contenido: m.adjunto ? `📎 ${m.adjunto}\n${m.contenido}` : m.contenido })))
+      }).finally(() => setCargandoChat(false))
+  }, [abierto, conv])
+  useEffect(() => {
+    if (!abierto || vista !== 'lista') return
+    supabase.from('chat_conversaciones').select('id, titulo, updated_at').order('updated_at', { ascending: false }).limit(40).then(({ data }) => setChats(data ?? []))
+  }, [abierto, vista])
+
+  useEffect(() => { if (vista === 'chat') fin.current?.scrollIntoView({ behavior: quieto ? 'auto' : 'smooth', block: 'end' }) }, [mensajes, enviando, abierto, vista])
+  useEffect(() => { if (abierto && vista === 'chat' && !esTactil()) setTimeout(() => caja.current?.focus(), 60) }, [abierto, vista])
   useEffect(() => {
     const k = e => { if (e.key === 'Escape') setAbierto(false) }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   }, [])
+  // Celular: pantalla completa que se achica cuando aparece el teclado (así se sigue leyendo la charla)
+  useEffect(() => {
+    if (!abierto || !esCelular()) return
+    document.body.classList.add('sin-scroll', 'chat-abierto')
+    const vv = window.visualViewport
+    const ajustar = () => {
+      if (!panel.current || !vv) return
+      panel.current.style.setProperty('--chat-alto', `${vv.height}px`)
+      panel.current.style.setProperty('--chat-arriba', `${vv.offsetTop}px`)
+      fin.current?.scrollIntoView({ block: 'end' })
+    }
+    ajustar()
+    vv?.addEventListener('resize', ajustar); vv?.addEventListener('scroll', ajustar)
+    return () => { document.body.classList.remove('sin-scroll', 'chat-abierto'); vv?.removeEventListener('resize', ajustar); vv?.removeEventListener('scroll', ajustar) }
+  }, [abierto])
+  // Al cambiar de pantalla en el celular se cierra (la conversación queda guardada)
+  useEffect(() => { if (esCelular()) setAbierto(false) }, [loc.pathname])
 
   // Otras pantallas pueden pedirle algo a Claude: window.dispatchEvent(new CustomEvent('preguntar-a-claude', { detail: 'texto' }))
   const enviarRef = useRef(null)
   useEffect(() => {
-    const f = e => { setAbierto(true); setTimeout(() => enviarRef.current?.(String(e.detail ?? '')), 80) }
+    const f = e => { setAbierto(true); setVista('chat'); setTimeout(() => enviarRef.current?.(String(e.detail ?? '')), 80) }
     window.addEventListener('preguntar-a-claude', f); return () => window.removeEventListener('preguntar-a-claude', f)
   }, [])
 
@@ -69,6 +124,7 @@ export default function AsistenteFlotante() {
     try {
       const pagina = await contextoPagina(loc.pathname).catch(() => '')
       const r = await llamarFuncion('asistente', { conversacion_id: conv, mensaje: t, pagina })
+      cargado.current = r.conversacion_id
       setConv(r.conversacion_id)
       setMensajes(m => [...m, { rol: 'assistant', contenido: r.respuesta }])
     } catch (e) {
@@ -76,42 +132,76 @@ export default function AsistenteFlotante() {
     }
     setEnviando(false)
   }
+  function nuevoChat() { cargado.current = null; setConv(null); setMensajes([]); setError(''); setVista('chat') }
+  function abrirChat(id) { if (id !== conv) { cargado.current = null; setMensajes([]); setConv(id) } setError(''); setVista('chat') }
 
   enviarRef.current = enviar
+  const actual = chats?.find(c => c.id === conv)
   return (
     <>
-      {abierto && (
-        <section className="flotante-panel" role="dialog" aria-label="Asistente IA">
-          <header>
-            <span className="flotante-avatar"><Sparkles size={15} /></span>
-            <div><b>Asistente IA</b><small>{PANTALLAS[loc.pathname] ? `Viendo: ${PANTALLAS[loc.pathname]}` : /^\/prospectos\//.test(loc.pathname) ? 'Viendo este prospecto' : 'Conoce tus datos'}</small></div>
-            <span className="espacio" />
-            {mensajes.length > 0 && <button className="btn chico fantasma" title="Nueva conversación" onClick={() => { setConv(null); setMensajes([]) }}><RotateCcw size={14} /></button>}
-            <Link className="btn chico fantasma" title="Abrir en pantalla completa" to={conv ? `/asistente?c=${conv}` : '/asistente'} onClick={() => setAbierto(false)}><Maximize2 size={14} /></Link>
-            <button className="btn chico fantasma" title="Cerrar" onClick={() => setAbierto(false)}><X size={15} /></button>
-          </header>
-          <div className="flotante-cuerpo">
-            {mensajes.length === 0 && (
-              <div className="flotante-vacio">
-                <p>Preguntame lo que quieras sobre tus prospectos, tus mensajes o cómo conseguir clientes.</p>
-                {sugerencias(loc.pathname).map(s => <button key={s} className="chip-sel" onClick={() => enviar(s)} disabled={servicios.ia === false}>{s}</button>)}
+      <AnimatePresence>
+        {abierto && (
+          <motion.section ref={panel} className="flotante-panel" role="dialog" aria-label="Asistente IA"
+            initial={quieto ? false : { opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 36 }}>
+            <header>
+              {vista === 'lista'
+                ? <button className="btn chico fantasma" title="Volver" aria-label="Volver al chat" onClick={() => setVista('chat')}><ChevronLeft size={18} /></button>
+                : <span className="flotante-avatar"><Sparkles size={15} /></span>}
+              <div className="flotante-titulo">
+                <b>{vista === 'lista' ? 'Tus chats' : 'Asistente IA'}</b>
+                <small>{vista === 'lista' ? 'Cada chat recuerda lo que hablaron' : conv ? 'Recuerda esta conversación' : PANTALLAS[loc.pathname] ? `Viendo: ${PANTALLAS[loc.pathname]}` : /^\/prospectos\//.test(loc.pathname) ? 'Viendo este prospecto' : 'Conoce tus datos'}</small>
+              </div>
+              <span className="espacio" />
+              {vista === 'chat' && <button className="btn chico fantasma" title="Tus chats" aria-label="Tus chats" onClick={() => setVista('lista')}><History size={16} /></button>}
+              <button className="btn chico fantasma" title="Nuevo chat" aria-label="Nuevo chat" onClick={nuevoChat}><SquarePen size={15} /></button>
+              <Link className="btn chico fantasma solo-escritorio" title="Abrir en pantalla completa" to={conv ? `/asistente?c=${conv}` : '/asistente'} onClick={() => setAbierto(false)}><Maximize2 size={14} /></Link>
+              <button className="btn chico fantasma" title="Cerrar" aria-label="Cerrar" onClick={() => setAbierto(false)}><X size={17} /></button>
+            </header>
+
+            {vista === 'lista' ? (
+              <div className="flotante-cuerpo flotante-lista">
+                <button className="flotante-chat nuevo" onClick={nuevoChat}><SquarePen size={16} /><span><b>Nuevo chat</b><small>Empezá una conversación de cero</small></span></button>
+                {chats === null ? <div className="pensando centrado"><i /><i /><i /></div>
+                  : !chats.length ? <p className="muted chico centrado">Todavía no tenés chats guardados.</p>
+                  : chats.map(c => (
+                    <button key={c.id} className={'flotante-chat' + (c.id === conv ? ' activo' : '')} onClick={() => abrirChat(c.id)}>
+                      <MessageSquare size={16} /><span><b>{c.titulo || 'Conversación'}</b><small>{cuando(c.updated_at)}</small></span>
+                    </button>
+                  ))}
+                <Link className="flotante-ver-todos" to="/asistente" onClick={() => setAbierto(false)}>Ver todo en el Asistente <Maximize2 size={13} /></Link>
+              </div>
+            ) : (
+              <div className="flotante-cuerpo">
+                {cargandoChat && !mensajes.length && <div className="pensando centrado"><i /><i /><i /></div>}
+                {!cargandoChat && mensajes.length === 0 && (
+                  <div className="flotante-vacio">
+                    <span className="flotante-vacio-icono"><Sparkles size={20} /></span>
+                    <p><b>¿En qué te ayudo?</b><br />Preguntame sobre tus prospectos, tus mensajes o cómo conseguir clientes. Tus chats quedan guardados.</p>
+                    {sugerencias(loc.pathname).map(s => <button key={s} className="chip-sel" onClick={() => enviar(s)} disabled={servicios.ia === false}>{s}</button>)}
+                  </div>
+                )}
+                {actual && mensajes.length > 0 && <div className="flotante-chat-titulo">{actual.titulo}</div>}
+                {mensajes.map((m, i) => m.rol === 'user'
+                  ? <motion.div key={i} className="burbuja yo" initial={quieto ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>{m.contenido}</motion.div>
+                  : <motion.div key={i} className="burbuja ia md" initial={quieto ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} dangerouslySetInnerHTML={{ __html: aHTML(m.contenido) }} />)}
+                {enviando && <div className="burbuja ia"><div className="pensando"><i /><i /><i /></div></div>}
+                {error && <div className="burbuja error">{error}</div>}
+                <div ref={fin} />
               </div>
             )}
-            {mensajes.map((m, i) => m.rol === 'user'
-              ? <div key={i} className="burbuja yo">{m.contenido}</div>
-              : <div key={i} className="burbuja ia md" dangerouslySetInnerHTML={{ __html: aHTML(m.contenido) }} />)}
-            {enviando && <div className="burbuja ia"><div className="pensando"><i /><i /><i /></div></div>}
-            {error && <div className="burbuja error">{error}</div>}
-            <div ref={fin} />
-          </div>
-          <form className="flotante-caja" onSubmit={e => { e.preventDefault(); enviar() }}>
-            <textarea ref={caja} rows={1} value={texto} placeholder={servicios.ia === false ? 'Falta la clave de Claude' : 'Escribí tu pregunta…'} disabled={servicios.ia === false}
-              onChange={e => setTexto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }} />
-            <button className="btn ia" disabled={!texto.trim() || enviando} aria-label="Enviar">{enviando ? <Loader2 size={16} className="spin" /> : <Send size={16} />}</button>
-          </form>
-        </section>
-      )}
-      <button className={'flotante-boton' + (abierto ? ' abierto' : '')} onClick={() => setAbierto(a => !a)} aria-label="Asistente IA">
+
+            {vista === 'chat' && (
+              <form className="flotante-caja" onSubmit={e => { e.preventDefault(); enviar() }}>
+                <textarea ref={caja} rows={1} value={texto} placeholder={servicios.ia === false ? 'Falta la clave de Claude' : 'Escribí tu pregunta…'} disabled={servicios.ia === false}
+                  enterKeyHint="send" onChange={e => setTexto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !esTactil()) { e.preventDefault(); enviar() } }} />
+                <button className="btn ia" disabled={!texto.trim() || enviando} aria-label="Enviar">{enviando ? <Loader2 size={16} className="spin" /> : <Send size={16} />}</button>
+              </form>
+            )}
+          </motion.section>
+        )}
+      </AnimatePresence>
+      <button className={'flotante-boton' + (abierto ? ' abierto' : '')} onClick={() => setAbierto(a => !a)} aria-label="Asistente IA" aria-expanded={abierto}>
         {abierto ? <X size={22} /> : <><Sparkles size={20} /><span>Preguntale a Claude</span></>}
       </button>
     </>

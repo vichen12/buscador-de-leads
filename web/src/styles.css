@@ -2874,3 +2874,66 @@ html[data-tema="oscuro"] .tabs-revisar { background: #262421; }
 html[data-tema="oscuro"] .tabs-revisar button.activo { background: #34312d; color: var(--ink); }
 html[data-tema="oscuro"] .tabs-revisar .num { background: #34312d; color: var(--ink-2); }
 html[data-tema="oscuro"] .tabs-revisar button.activo .num { background: var(--acc); color: #fff; }
+
+/* ---------- Asistente flotante: chats guardados, lista y celular a pantalla completa ---------- */
+.flotante-titulo { min-width: 0; }
+.flotante-titulo b, .flotante-titulo small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flotante-panel > header { gap: 4px; }
+.flotante-panel > header .flotante-titulo { margin-left: 6px; }
+.flotante-vacio-icono { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; background: var(--grad); color: #fff; box-shadow: 0 8px 18px -6px color-mix(in srgb, var(--acc) 60%, transparent); margin-bottom: 4px; }
+.flotante-vacio .chip-sel { text-align: left; }
+.flotante-chat-titulo { align-self: center; max-width: 90%; font-size: 11.5px; color: var(--mut); background: var(--hover); border-radius: 99px; padding: 3px 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flotante-lista { gap: 6px; }
+.flotante-chat { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, background .15s, transform .12s; }
+.flotante-chat:hover { border-color: var(--line-2); background: var(--hover); }
+.flotante-chat:active { transform: scale(.985); }
+.flotante-chat > svg { color: var(--mut); flex-shrink: 0; }
+.flotante-chat > span { display: flex; flex-direction: column; min-width: 0; }
+.flotante-chat b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flotante-chat small { color: var(--mut); font-size: 12px; }
+.flotante-chat.activo { border-color: color-mix(in srgb, var(--acc) 45%, var(--line)); background: var(--acc-soft); }
+.flotante-chat.activo > svg, .flotante-chat.nuevo > svg { color: var(--acc); }
+.flotante-chat.nuevo { border-style: dashed; }
+.flotante-ver-todos { display: inline-flex; align-items: center; gap: 6px; align-self: center; margin-top: 6px; font-size: 13px; font-weight: 500; }
+.pensando.centrado { align-self: center; margin: 24px auto; }
+html[data-tema="oscuro"] :is(.flotante-panel, .flotante-caja, .burbuja.ia, .chip-sel) { background: var(--card); border-color: var(--line); color: var(--ink); }
+html[data-tema="oscuro"] .flotante-cuerpo { background: #181715; }
+html[data-tema="oscuro"] .burbuja.yo { background: #f2efe9; color: #16161a; }
+
+@media (max-width: 920px) {
+  .solo-escritorio { display: none !important; }
+  /* Pantalla completa; el alto sigue al teclado (lo calcula el componente con visualViewport) */
+  .flotante-panel, body:has(.barra-guardar, .barra-armar) .flotante-panel {
+    left: 0; right: 0; top: var(--chat-arriba, 0px); bottom: auto; width: auto; height: var(--chat-alto, 100dvh); max-height: none;
+    border-radius: 0; border: 0; z-index: 70; box-shadow: none;
+  }
+  .flotante-panel > header { padding: calc(10px + env(safe-area-inset-top)) 8px 10px 12px; }
+  .flotante-panel > header .btn.chico { width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 50%; }
+  .flotante-cuerpo { padding: 16px 14px 20px; gap: 12px; }
+  .burbuja { max-width: 90%; font-size: 15px; line-height: 1.55; padding: 11px 14px; border-radius: 18px; }
+  .burbuja.ia.md h1, .burbuja.ia.md h2, .burbuja.ia.md h3 { font-size: 15.5px; }
+  .burbuja.ia.md table { display: block; overflow-x: auto; }
+  .flotante-vacio p { font-size: 15px; }
+  .flotante-vacio .chip-sel { font-size: 14px; padding: 9px 14px; }
+  .flotante-caja { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); align-items: flex-end; }
+  .flotante-caja textarea { min-height: 44px; border-radius: 22px; padding: 11px 16px; }
+  .flotante-caja .btn { width: 44px; height: 44px; border-radius: 50%; }
+  /* Con el chat abierto no se ve la barra ni el botón redondo (el chat tiene su X) */
+  body.chat-abierto .barra-flotante, body.chat-abierto .flotante-boton { visibility: hidden; pointer-events: none; }
+}
+
+/* Buscar: el país no se corta y los títulos con un espaciado más natural */
+.bh-pais { flex-shrink: 0; }
+.bh-pais .desplegable-valor { overflow: visible; }
+@media (max-width: 920px) {
+  h1 { letter-spacing: -.022em; line-height: 1.12; }
+  .bf-texto { line-height: 1.2; }
+  .bf-centro { padding-bottom: 9px; }
+  .bh-opcion .desplegable, .bh-cantidad, .bh-donde .sz-input input { font-size: 15px; }
+  .bh h1 { font-size: 1.95rem; letter-spacing: -.025em; line-height: 1.1; }
+  .bh-eyebrow { font-size: 11.5px; letter-spacing: .12em; }
+}
+/* Las burbujas del chat comparten nombre con la vista previa de WhatsApp: acá el texto de Claude no conserva saltos crudos */
+.flotante-cuerpo .burbuja.ia { white-space: normal; }
+.flotante-cuerpo .burbuja.ia.md ol, .flotante-cuerpo .burbuja.ia.md ul { padding-left: 20px; }
+.flotante-cuerpo .burbuja.ia.md li { margin: 4px 0; }

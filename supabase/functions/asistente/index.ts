@@ -9,6 +9,7 @@ import { anotarChatUso, nuevoUso, sumarUso } from '../_shared/uso.ts'
 type Dic = Record<string, any>
 const MAX_PDF_BYTES = 8 * 1024 * 1024
 const HISTORIAL = 20
+const MEMORIA = 30 // mensajes del usuario en otros chats que el asistente recuerda
 
 const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
 
@@ -83,7 +84,7 @@ ${filas.join('\n') || '(todavía no cargó prospectos)'}
 ${actividad.join('\n') || '(sin actividad)'}`
 }
 
-const SISTEMA = (ctx: string, hoy: string, pagina: string) => `Sos el asistente de Prospecta, un sistema para conseguir clientes para cualquier tipo de empresa: busca negocios que encajan con lo que vende el usuario y los contacta de a uno, con mensajes revisados por una persona.
+const SISTEMA = (ctx: string, hoy: string, pagina: string, memoria = '') => `Sos el asistente de Prospecta, un sistema para conseguir clientes para cualquier tipo de empresa: busca negocios que encajan con lo que vende el usuario y los contacta de a uno, con mensajes revisados por una persona.
 Hoy es ${hoy} (hora de Argentina). Respondé en español rioplatense, claro y directo, con tuteo/voseo natural.
 
 Podés ayudar con cualquier cosa: dudas generales, estrategia comercial, redactar mensajes, precios, objeciones, analizar sus datos, armar planes o reportes, leer PDFs que te adjunten (por ejemplo, el perfil de la empresa) y lo que te pidan.
@@ -93,7 +94,8 @@ Podés ayudar con cualquier cosa: dudas generales, estrategia comercial, redacta
 - Sé breve si la pregunta es breve.
 
 ${ctx}
-${pagina ? `\n## Lo que el usuario está mirando ahora en la app\n${pagina}` : ''}`
+${pagina ? `\n## Lo que el usuario está mirando ahora en la app\n${pagina}` : ''}
+${memoria ? `\n## Memoria: lo que el usuario te dijo o preguntó en otros chats (de más nuevo a más viejo)\nUsalo para recordar sus preferencias, datos y temas pendientes sin que tenga que repetirlos. Si te pregunta qué recordás, contáselo. No lo menciones si no viene al caso.\n${memoria}` : ''}`
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -133,10 +135,13 @@ Deno.serve(async req => {
     convId = data.id
   }
 
-  const [{ data: previos }, { data: perfil }] = await Promise.all([
+  const [{ data: previos }, { data: perfil }, { data: otros }] = await Promise.all([
     supabase.from('chat_mensajes').select('rol, contenido, adjunto').eq('conversacion_id', convId).order('created_at', { ascending: false }).limit(HISTORIAL),
     supabase.from('perfiles').select('*').eq('id', user.id).single(),
+    // Memoria entre chats: lo que el usuario contó o preguntó en sus otras conversaciones recientes
+    supabase.from('chat_mensajes').select('contenido, created_at').eq('rol', 'user').neq('conversacion_id', convId).order('created_at', { ascending: false }).limit(MEMORIA),
   ])
+  const memoria = (otros ?? []).map((m: Dic) => `- ${String(m.created_at).slice(0, 10)}: ${String(m.contenido).replace(/\s+/g, ' ').slice(0, 280)}`).join('\n')
   const historial = (previos ?? []).reverse().map((m: Dic) => ({
     role: m.rol,
     content: m.adjunto ? `[Había adjuntado el PDF "${m.adjunto}"]\n${m.contenido}` : m.contenido,
@@ -151,7 +156,7 @@ Deno.serve(async req => {
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
       model: modelo, max_tokens: 4000,
-      system: SISTEMA(await contexto(supabase, perfil ?? {}, user.id), hoy, pagina),
+      system: SISTEMA(await contexto(supabase, perfil ?? {}, user.id), hoy, pagina, memoria),
       messages: [...historial, { role: 'user', content: contenido }],
     }),
   })
