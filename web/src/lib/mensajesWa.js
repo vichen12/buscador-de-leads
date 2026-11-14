@@ -56,6 +56,12 @@ export function quienSoy({ perfil, comercial, acceso, session } = {}) {
   const deWeb = String(r.web ?? '').replace(/^https?:\/\/(www\.)?/i, '').split(/[./]/)[0]
   const mail = String(session?.user?.email ?? '').split('@')[0].split(/[._-]/)[0]
   const nombre = String(perfil?.nombre || mail || '').trim().split(/\s+/)[0]
+  // Lo que escribiste en «Quién escribe» (pantalla de Mensajes de WhatsApp) manda
+  const propio = perfil?.config_email?.whatsapp_yo ?? {}
+  if (propio.mi_nombre?.trim() || propio.mi_empresa?.trim()) {
+    const auto = quienSoy({ perfil: { ...perfil, config_email: {} }, comercial, acceso, session })
+    return { mi_nombre: propio.mi_nombre?.trim() || auto.mi_nombre, mi_empresa: propio.mi_empresa?.trim() || auto.mi_empresa }
+  }
   return {
     mi_nombre: nombre ? nombre.charAt(0).toUpperCase() + nombre.slice(1) : '',
     mi_empresa: String(perfil?.estudio || r.empresa || acceso?.empresa || (deWeb ? deWeb.charAt(0).toUpperCase() + deWeb.slice(1) : '')).trim(),
