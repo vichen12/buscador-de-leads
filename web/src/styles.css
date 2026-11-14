@@ -2610,8 +2610,8 @@ a.kpi-link:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 
 /* ---------- Menú lateral en gris tranquilo (compu) ---------- */
 @media (min-width: 921px) {
-  :root { --nav-fondo: #e8e6e1; --nav-borde: #dbd8d1; --nav-hover: #dcd9d2; }
-  html[data-tema="oscuro"] { --nav-fondo: #1b1a19; --nav-borde: #2c2a27; --nav-hover: #252321; }
+  :root { --nav-fondo: #eef0f3; --nav-borde: #e1e4e9; --nav-hover: #e2e5ea; }
+  html[data-tema="oscuro"] { --nav-fondo: #18191b; --nav-borde: #2a2c30; --nav-hover: #24262a; }
   .lateral, .app.modo-b2c .lateral, html[data-tema="oscuro"] .lateral, html[data-tema="oscuro"] .app.modo-b2c .lateral { background: var(--nav-fondo); border-right-color: var(--nav-borde); }
   .lateral nav a { color: var(--ink-2); }
   .lateral nav a:hover { background: var(--nav-hover); }
