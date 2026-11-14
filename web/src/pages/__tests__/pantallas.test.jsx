@@ -155,3 +155,15 @@ describe('Mensajes de WhatsApp', () => {
     expect(mensajesWa({ config_email: { whatsapp_mensajes: [{ titulo: 'Mío', texto: 'hola' }] } })[0].titulo).toBe('Mío')
   })
 })
+
+describe('Nombre de la empresa en el mensaje', () => {
+  it('saca S.R.L. y baja las mayúsculas', async () => {
+    const { nombreParaMensaje, mensajesWa, rellenarWa } = await import('../../lib/mensajesWa.js')
+    expect(nombreParaMensaje('PANADERIA LA ESPIGA S.R.L.')).toBe('Panaderia la Espiga')
+    expect(nombreParaMensaje('Bombas Cuyo SA')).toBe('Bombas Cuyo')
+    expect(nombreParaMensaje('Café Martínez - Sucursal Centro')).toBe('Café Martínez')
+    const [conWeb, sinWeb] = mensajesWa({})
+    expect(conWeb.texto).toContain('{{empresa}}')
+    expect(rellenarWa(sinWeb.texto, { nombre: 'TALLER RUIZ' }, { nombre: 'Vicente' }, { respuestas: { empresa: 'Prospecta' } })).toContain('Busqué Taller Ruiz en Google')
+  })
+})
