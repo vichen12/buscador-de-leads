@@ -163,6 +163,13 @@ export default function Prospecto() {
     setConfirmarEnvio({ canal: canal === 'gmail' ? 'email' : canal, mensaje: m })
   }
 
+  // Se abrió WhatsApp con uno de tus mensajes (link directo): se guarda el texto y se pregunta si lo mandó
+  async function trasAbrirWa(texto) {
+    setBorrador(b => ({ ...b, whatsapp: { asunto: '', cuerpo: texto } }))
+    const m = await guardarBorrador(true, texto)
+    if (m) setConfirmarEnvio({ canal: 'whatsapp', mensaje: m })
+  }
+
   // Paso 2: la persona confirma → se registra (la base valida límite, opt-out y texto repetido)
   async function registrarEnvio() {
     const { canal, mensaje } = confirmarEnvio
@@ -352,7 +359,7 @@ export default function Prospecto() {
               {(tab === 'email' || tab === 'seguimiento') && (
                 <input className="asunto" placeholder="Asunto" value={actual.asunto} onChange={e => editar('asunto', e.target.value)} disabled={optOut} aria-label="Asunto" />
               )}
-              {tab === 'whatsapp' && <ElegirMensajeWa p={p} perfil={perfil} yo={quienSoy({ perfil, comercial, acceso, session })} actual={actual.cuerpo} disabled={optOut} sinWhatsApp={!tieneWA ? 'Esta empresa no tiene un celular válido' : sinCupo ? 'Llegaste al límite de WhatsApp de hoy' : ''} onElegir={t => editar('cuerpo', t)} onMandar={t => abrir('whatsapp', t)} />}
+              {tab === 'whatsapp' && <ElegirMensajeWa p={p} perfil={perfil} yo={quienSoy({ perfil, comercial, acceso, session })} actual={actual.cuerpo} disabled={optOut} sinWhatsApp={!tieneWA ? 'Esta empresa no tiene un celular válido' : sinCupo ? 'Llegaste al límite de WhatsApp de hoy' : ''} onElegir={t => editar('cuerpo', t)} telefono={p.telefono} onAbierto={trasAbrirWa} />}
               <textarea className="editor" rows={tab === 'email' ? 12 : 9} value={actual.cuerpo} disabled={optOut || reescribiendo} aria-label="Mensaje"
                 placeholder={generando ? 'Escribiendo…' : 'Escribí el mensaje o tocá "Generar borradores".'} onChange={e => editar('cuerpo', e.target.value)} />
               <div className="meta-editor">
@@ -543,7 +550,7 @@ function Resaltado({ texto, frases }) {
 }
 
 /** WhatsApp: tus mensajes (los de Más → Mensajes de WhatsApp). Tocás uno y queda cargado, listo para abrir WhatsApp. */
-function ElegirMensajeWa({ p, perfil, yo, actual, disabled, sinWhatsApp, onElegir, onMandar }) {
+function ElegirMensajeWa({ p, perfil, yo, actual, disabled, sinWhatsApp, telefono, onElegir, onAbierto }) {
   const lista = mensajesWa(perfil).filter(m => m.texto?.trim())
   if (!lista.length) return (
     <div className="elegir-wa vacio"><MessageCircle size={15} /><span>Escribí tus propios mensajes de WhatsApp y mandalos desde acá con un toque.</span><Link to="/mensajes-whatsapp" className="btn chico">Escribir mis mensajes</Link></div>
@@ -566,9 +573,11 @@ function ElegirMensajeWa({ p, perfil, yo, actual, disabled, sinWhatsApp, onElegi
               </div>
               <p className="elegir-wa-texto">{texto}</p>
               <div className="elegir-wa-acciones">
-                <button type="button" className="btn wa chico" disabled={disabled || !!sinWhatsApp} title={sinWhatsApp || 'Abre WhatsApp con este mensaje'} onClick={() => onMandar(texto)}>
-                  <MessageCircle size={14} /> Mandar por WhatsApp
-                </button>
+                {disabled || sinWhatsApp
+                  ? <button type="button" className="btn wa chico" disabled title={sinWhatsApp}><MessageCircle size={14} /> Mandar por WhatsApp</button>
+                  : <a className="btn wa chico" href={linkWhatsApp(telefono, texto)} target="_blank" rel="noreferrer" onClick={() => onAbierto(texto)} title="Abre el chat de esta empresa con este mensaje">
+                      <MessageCircle size={14} /> Mandar por WhatsApp
+                    </a>}
                 <button type="button" className="btn fantasma chico" disabled={disabled} onClick={() => onElegir(texto)}>
                   {cargado ? <><CheckCircle2 size={13} /> Cargado</> : <><Pencil size={13} /> Retocar antes</>}
                 </button>

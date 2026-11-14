@@ -16,6 +16,7 @@ import PorQue from '../components/PorQue.jsx'
 import Duplicados from '../components/Duplicados.jsx'
 import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { useApp } from '../App.jsx'
+import BotonWhatsApp from '../components/BotonWhatsApp.jsx'
 
 import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
 export default function Prospectos() {
@@ -359,6 +360,7 @@ export default function Prospectos() {
                       {p.telefono ? <a href={`tel:${p.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={12} /> {p.telefono}</a> : null}
                       {p.email ? <a href={`mailto:${p.email}`}><Mail size={12} /> {p.email} <EstadoEmail estado={p.email_estado} motivo={p.email_motivo} /></a> : null}
                       {!p.telefono && !p.email && <span className="muted">—</span>}
+                      <BotonWhatsApp p={p} onRegistrado={cargar} />
                     </td>
                     <td><Enlaces e={p} fuente={false} /></td>
                     <td><Desplegable compacto className="estado-celda" ariaLabel={'Estado de ' + p.nombre} value={p.estado} onChange={v => moverA(p, v)} anchoMenu={200} opciones={opcionesEstado} /></td>
