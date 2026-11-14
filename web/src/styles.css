@@ -2977,3 +2977,4 @@ html[data-tema="oscuro"] .mis-wa-previa .burbuja { background: #144d37; color: #
 .elegir-wa-sug { margin-left: 4px; padding: 0 6px; border-radius: 99px; background: #dcf8e6; color: #128c4a; font-size: 10.5px; font-weight: 700; }
 .mis-wa-aviso { padding: 7px 10px; border-radius: 10px; background: #fff4e5; color: #8a4b00; font-size: 12px; line-height: 1.4; }
 html[data-tema="oscuro"] .mis-wa-aviso { background: #3a2a12; color: #f3c27a; }
+.mis-wa-yo { margin: -4px 0 14px; padding: 8px 12px; border-radius: 12px; background: var(--hover); font-size: 13px; }

@@ -47,17 +47,33 @@ export function nombreParaMensaje(nombre) {
   return n
 }
 
-/** Completa las {{variables}} con los datos de la empresa y los tuyos */
-export function rellenarWa(texto, p, perfil, comercial) {
+/**
+ * Quién escribe, sacado solo de tu cuenta: tu nombre (el primero) y tu empresa (la de Mi cuenta,
+ * Mi negocio, tu equipo o, si no hay nada, el nombre de tu web).
+ */
+export function quienSoy({ perfil, comercial, acceso, session } = {}) {
+  const r = comercial?.respuestas ?? {}
+  const deWeb = String(r.web ?? '').replace(/^https?:\/\/(www\.)?/i, '').split(/[./]/)[0]
+  const mail = String(session?.user?.email ?? '').split('@')[0].split(/[._-]/)[0]
+  const nombre = String(perfil?.nombre || mail || '').trim().split(/\s+/)[0]
+  return {
+    mi_nombre: nombre ? nombre.charAt(0).toUpperCase() + nombre.slice(1) : '',
+    mi_empresa: String(perfil?.estudio || r.empresa || acceso?.empresa || (deWeb ? deWeb.charAt(0).toUpperCase() + deWeb.slice(1) : '')).trim(),
+  }
+}
+
+/** Completa las {{variables}} con los datos de la empresa (p) y los tuyos (yo = quienSoy(...)) */
+export function rellenarWa(texto, p, yo = {}) {
   const web = String(p?.web_actual ?? '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
   const v = {
     empresa: nombreParaMensaje(p?.nombre), rubro: p?.rubro ?? '', zona: String(p?.zona ?? '').split(',')[0].trim(), web,
-    mi_nombre: perfil?.nombre ?? '', mi_empresa: comercial?.respuestas?.empresa || perfil?.estudio || '',
+    mi_nombre: yo.mi_nombre ?? '', mi_empresa: yo.mi_empresa ?? '',
   }
   return String(texto ?? '')
     .replace(/\s*\(\{\{\s*web\s*\}\}\)/g, web ? ` (${web})` : '') // «(su web)» se saca si no tiene
+    .replace(/\s+de \{\{\s*mi_empresa\s*\}\}/g, v.mi_empresa ? ` de ${v.mi_empresa}` : '') // «Soy Vicente de» sin empresa
     .replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => v[k] ?? '')
-    .replace(/ de ([.,])/g, '$1').replace(/[ 	]{2,}/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
 }
 
 /** El que corresponde a esta empresa según tenga web o no (índice, o -1 si no hay uno marcado) */

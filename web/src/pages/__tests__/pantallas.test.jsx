@@ -147,7 +147,7 @@ describe('Mensajes de WhatsApp', () => {
   it('rellena las variables y sugiere según tenga web o no', async () => {
     const { rellenarWa, sugeridoWa, mensajesWa } = await import('../../lib/mensajesWa.js')
     const p = { nombre: 'La Espiga', zona: 'Godoy Cruz, Mendoza', web_actual: 'https://www.laespiga.com/' }
-    expect(rellenarWa('Hola {{empresa}} de {{zona}}, vi {{web}}. Soy {{mi_nombre}}', p, { nombre: 'Vicente' }, null)).toBe('Hola La Espiga de Godoy Cruz, vi laespiga.com. Soy Vicente')
+    expect(rellenarWa('Hola {{empresa}} de {{zona}}, vi {{web}}. Soy {{mi_nombre}}', p, { mi_nombre: 'Vicente' })).toBe('Hola La Espiga de Godoy Cruz, vi laespiga.com. Soy Vicente')
     const lista = [{ titulo: 'A', para: 'con_web', texto: 'x' }, { titulo: 'B', para: 'sin_web', texto: 'y' }]
     expect(sugeridoWa(lista, p)).toBe(0)
     expect(sugeridoWa(lista, { nombre: 'Otra' })).toBe(1)
@@ -158,12 +158,16 @@ describe('Mensajes de WhatsApp', () => {
 
 describe('Nombre de la empresa en el mensaje', () => {
   it('saca S.R.L. y baja las mayúsculas', async () => {
-    const { nombreParaMensaje, mensajesWa, rellenarWa } = await import('../../lib/mensajesWa.js')
+    const { nombreParaMensaje, mensajesWa, rellenarWa, quienSoy } = await import('../../lib/mensajesWa.js')
     expect(nombreParaMensaje('PANADERIA LA ESPIGA S.R.L.')).toBe('Panaderia la Espiga')
     expect(nombreParaMensaje('Bombas Cuyo SA')).toBe('Bombas Cuyo')
     expect(nombreParaMensaje('Café Martínez - Sucursal Centro')).toBe('Café Martínez')
     const [conWeb, sinWeb] = mensajesWa({})
     expect(conWeb.texto).toContain('{{empresa}}')
-    expect(rellenarWa(sinWeb.texto, { nombre: 'TALLER RUIZ' }, { nombre: 'Vicente' }, { respuestas: { empresa: 'Prospecta' } })).toContain('Busqué Taller Ruiz en Google')
+    const yo = quienSoy({ perfil: { nombre: 'Vicente Dalla' }, comercial: { respuestas: { empresa: 'Estudio Web' } } })
+    expect(yo).toEqual({ mi_nombre: 'Vicente', mi_empresa: 'Estudio Web' })
+    expect(rellenarWa(sinWeb.texto, { nombre: 'TALLER RUIZ' }, yo)).toContain('Soy Vicente de Estudio Web. Busqué Taller Ruiz en Google')
+    expect(quienSoy({ perfil: {}, comercial: { respuestas: { web: 'https://www.bombascuyo.com' } } }).mi_empresa).toBe('Bombascuyo')
+    expect(rellenarWa('Soy {{mi_nombre}} de {{mi_empresa}}. Hola', {}, { mi_nombre: 'Ana' })).toBe('Soy Ana. Hola')
   })
 })

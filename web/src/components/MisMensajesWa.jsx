@@ -4,15 +4,31 @@ import { supabase } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { useToast } from './ui.jsx'
 import { useApp } from '../App.jsx'
-import { MAX_MENSAJES_WA, VARIABLES_WA, mensajesWa, rellenarWa } from '../lib/mensajesWa.js'
+import { Link } from 'react-router-dom'
+import { MAX_MENSAJES_WA, VARIABLES_WA, mensajesWa, quienSoy, rellenarWa } from '../lib/mensajesWa.js'
 
 const PARA = [['con_web', 'Empresas con web'], ['sin_web', 'Empresas sin web'], ['', 'Cualquiera']]
-const EJEMPLO = { nombre: 'Panadería La Espiga', rubro: 'panadería', zona: 'Godoy Cruz, Mendoza', web_actual: 'https://laespiga.com.ar' }
+// Si todavía no tenés empresas en tu lista, la vista previa usa estas
+const EJEMPLOS = {
+  con_web: { nombre: 'Panadería La Espiga', rubro: 'panadería', zona: 'Godoy Cruz', web_actual: 'https://laespiga.com.ar' },
+  sin_web: { nombre: 'Taller Ruiz', rubro: 'taller mecánico', zona: 'Godoy Cruz', web_actual: '' },
+}
 
 /** Donde escribís tus mensajes de WhatsApp. Después, en cada empresa, elegís cuál mandar. */
 export default function MisMensajesWa() {
   const toast = useToast()
-  const { perfil, comercial, refrescar } = useApp()
+  const app = useApp()
+  const { perfil, refrescar } = app
+  const yo = quienSoy(app)
+  // Para la vista previa: empresas reales de tu lista (una con web y una sin web)
+  const [reales, setReales] = useState({})
+  useEffect(() => {
+    const campos = 'nombre, rubro, zona, web_actual'
+    Promise.all([
+      supabase.from('prospectos').select(campos).not('web_actual', 'is', null).neq('web_actual', '').order('created_at', { ascending: false }).limit(1),
+      supabase.from('prospectos').select(campos).or('web_actual.is.null,web_actual.eq.').order('created_at', { ascending: false }).limit(1),
+    ]).then(([a, b]) => setReales({ con_web: a.data?.[0], sin_web: b.data?.[0] }), () => {})
+  }, [])
   const [lista, setLista] = useState(() => mensajesWa(perfil))
   const [guardando, setGuardando] = useState(false)
   const [sucio, setSucio] = useState(false)
@@ -47,6 +63,12 @@ export default function MisMensajesWa() {
         </div>
       </div>
 
+      <p className="mis-wa-yo">
+        <small className="muted">Se completa solo:</small> vos sos <b>{yo.mi_nombre || 'sin nombre'}</b>{' '}
+        de <b>{yo.mi_empresa || 'sin empresa cargada'}</b> · la empresa a la que le escribís sale de cada ficha.
+        {(!yo.mi_nombre || !yo.mi_empresa) && <> <Link to="/cuenta">Completalo en Mi cuenta</Link>.</>}
+      </p>
+
       <div className="mis-wa-grilla">
         {lista.map((m, i) => (
           <div key={i} className="mis-wa-item">
@@ -66,7 +88,7 @@ export default function MisMensajesWa() {
               {VARIABLES_WA.map(([k, l]) => <button key={k} type="button" className="chip" onClick={() => insertar(i, k)}>{l}</button>)}
             </div>
             {m.texto.trim() && !/\{\{\s*empresa\s*\}\}/.test(m.texto) && <small className="mis-wa-aviso">Sumá el <b>nombre de la empresa</b>: así cada mensaje sale distinto. La app no deja mandar el mismo texto exacto a dos empresas (para que WhatsApp no te marque como spam).</small>}
-            {m.texto.trim() && <div className="mis-wa-previa"><small className="muted">Así le llega a «{EJEMPLO.nombre}»:</small><div className="burbuja">{rellenarWa(m.texto, EJEMPLO, perfil, comercial)}</div></div>}
+            {m.texto.trim() && <Previa m={m} reales={reales} yo={yo} />}
           </div>
         ))}
       </div>
@@ -77,5 +99,16 @@ export default function MisMensajesWa() {
         <button type="button" className="btn primario" onClick={guardar} disabled={!sucio || guardando}>{guardando ? <Loader2 size={15} className="spin" /> : <Save size={15} />} Guardar</button>
       </div>
     </section>
+  )
+}
+
+function Previa({ m, reales, yo }) {
+  const clave = m.para === 'sin_web' ? 'sin_web' : 'con_web'
+  const p = reales[clave] ?? EJEMPLOS[clave]
+  return (
+    <div className="mis-wa-previa">
+      <small className="muted">Así le llega a «{p.nombre}»{reales[clave] ? ' (de tu lista)' : ' (ejemplo)'}:</small>
+      <div className="burbuja">{rellenarWa(m.texto, p, yo)}</div>
+    </div>
   )
 }
