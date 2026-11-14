@@ -2948,3 +2948,7 @@ html[data-tema="oscuro"] .burbuja.yo { background: #f2efe9; color: #16161a; }
 .burbuja-meta, .msj-gasto { font-size: 11.5px; color: var(--mut); padding-left: 4px; }
 .msj-gasto { display: inline-flex; align-items: center; margin-left: 4px; }
 @media (max-width: 920px) { .burbuja-ia-envoltura { max-width: 92%; } .flotante-modo { padding: 8px 12px 0; } }
+
+/* Los menús de Buscar (cantidad, modo, fuente) quedan por encima de lo que viene abajo:
+   cada bloque de la página anima su entrada y arma su propia capa, y el siguiente tapaba el menú. */
+.bh { position: relative; z-index: 5; }
