@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { aHTML } from '../pages/Asistente.jsx'
 import { useApp } from '../App.jsx'
+import { SelectorModelo, useCalidadChat, nombreCalidad, creditosTexto } from './ModeloIA.jsx'
 
 const PANTALLAS = {
   '/': 'Tablero (resumen de la cuenta)', '/prospectos': 'Lista de prospectos', '/seguimientos': 'Seguimientos pendientes',
@@ -61,6 +62,8 @@ export default function AsistenteFlotante() {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
+  const [calidad, elegirCalidad] = useCalidadChat()
+  const [cupo, setCupo] = useState(null)
   const fin = useRef(null)
   const caja = useRef(null)
   const panel = useRef(null)
@@ -78,6 +81,7 @@ export default function AsistenteFlotante() {
         else setMensajes(data.map(m => ({ rol: m.rol, contenido: m.adjunto ? `📎 ${m.adjunto}\n${m.contenido}` : m.contenido })))
       }).finally(() => setCargandoChat(false))
   }, [abierto, conv])
+  useEffect(() => { if (abierto && !cupo) llamarFuncion('asistente', { modo: 'cupo' }).then(r => setCupo(r.cupo ?? null)).catch(() => {}) }, [abierto])
   useEffect(() => {
     if (!abierto || vista !== 'lista') return
     supabase.from('chat_conversaciones').select('id, titulo, updated_at').order('updated_at', { ascending: false }).limit(40).then(({ data }) => setChats(data ?? []))
@@ -123,10 +127,11 @@ export default function AsistenteFlotante() {
     setMensajes(m => [...m, { rol: 'user', contenido: t }])
     try {
       const pagina = await contextoPagina(loc.pathname).catch(() => '')
-      const r = await llamarFuncion('asistente', { conversacion_id: conv, mensaje: t, pagina })
+      const r = await llamarFuncion('asistente', { conversacion_id: conv, mensaje: t, pagina, calidad })
       cargado.current = r.conversacion_id
       setConv(r.conversacion_id)
-      setMensajes(m => [...m, { rol: 'assistant', contenido: r.respuesta }])
+      if (r.cupo) setCupo(r.cupo)
+      setMensajes(m => [...m, { rol: 'assistant', contenido: r.respuesta, creditos: r.creditos, calidad: r.calidad }])
     } catch (e) {
       setError(e.message); setMensajes(m => m.slice(0, -1)); setTexto(t)
     }
@@ -184,13 +189,19 @@ export default function AsistenteFlotante() {
                 {actual && mensajes.length > 0 && <div className="flotante-chat-titulo">{actual.titulo}</div>}
                 {mensajes.map((m, i) => m.rol === 'user'
                   ? <motion.div key={i} className="burbuja yo" initial={quieto ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>{m.contenido}</motion.div>
-                  : <motion.div key={i} className="burbuja ia md" initial={quieto ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} dangerouslySetInnerHTML={{ __html: aHTML(m.contenido) }} />)}
+                  : <motion.div key={i} className="burbuja-ia-envoltura" initial={quieto ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                      <div className="burbuja ia md" dangerouslySetInnerHTML={{ __html: aHTML(m.contenido) }} />
+                      {m.creditos > 0 && <small className="burbuja-meta">{nombreCalidad(m.calidad)} · usó {creditosTexto(m.creditos)}</small>}
+                    </motion.div>)}
                 {enviando && <div className="burbuja ia"><div className="pensando"><i /><i /><i /></div></div>}
                 {error && <div className="burbuja error">{error}</div>}
                 <div ref={fin} />
               </div>
             )}
 
+            {vista === 'chat' && (
+              <div className="flotante-modo"><SelectorModelo calidad={calidad} onChange={elegirCalidad} disabled={enviando} cupo={cupo} /></div>
+            )}
             {vista === 'chat' && (
               <form className="flotante-caja" onSubmit={e => { e.preventDefault(); enviar() }}>
                 <textarea ref={caja} rows={1} value={texto} placeholder={servicios.ia === false ? 'Falta la clave de Claude' : 'Escribí tu pregunta…'} disabled={servicios.ia === false}

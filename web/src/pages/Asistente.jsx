@@ -8,6 +8,7 @@ import { supabase, llamarFuncion } from '../lib/supabase.js'
 import { fechaHora } from '../lib/util.js'
 import { Aviso, useConfirmar, useToast } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
+import { SelectorModelo, useCalidadChat, nombreCalidad, creditosTexto } from '../components/ModeloIA.jsx'
 
 marked.setOptions({ gfm: true, breaks: true })
 export const aHTML = md => DOMPurify.sanitize(marked.parse(md ?? ''))
@@ -79,6 +80,8 @@ export default function Asistente() {
   const [pdf, setPdf] = useState(null)
   const [enviando, setEnviando] = useState(false)
   const [cupo, setCupo] = useState(null)
+  const [calidad, elegirCalidad] = useCalidadChat()
+  const [gastos, setGastos] = useState({}) // créditos de cada respuesta de esta sesión
   const [lista, setLista] = useState(false)
   const fin = useRef(null)
   const archivoRef = useRef(null)
@@ -98,7 +101,7 @@ export default function Asistente() {
   }, [activa])
   useEffect(() => { fin.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [mensajes, enviando])
 
-  const sinCupo = cupo && cupo.usados >= cupo.limite
+  const sinCupo = cupo && !cupo.sin_tope && cupo.usados >= cupo.limite
   const sinIA = servicios.ia === false
   const tituloActiva = useMemo(() => convs.find(c => c.id === activa)?.titulo ?? 'Nueva conversación', [convs, activa])
 
@@ -109,8 +112,9 @@ export default function Asistente() {
     setTexto(''); setPdf(null); setEnviando(true)
     setMensajes(m => [...m, { id: 'tmp' + Date.now(), rol: 'user', contenido: t || '(PDF adjunto)', adjunto: adjunto?.nombre, created_at: new Date().toISOString() }])
     try {
-      const r = await llamarFuncion('asistente', { conversacion_id: activa, mensaje: t, pdf: adjunto ? { nombre: adjunto.nombre, base64: adjunto.base64 } : undefined })
+      const r = await llamarFuncion('asistente', { conversacion_id: activa, mensaje: t, calidad, pdf: adjunto ? { nombre: adjunto.nombre, base64: adjunto.base64 } : undefined })
       setCupo(r.cupo)
+      setGastos(g => ({ ...g, [r.respuesta]: { creditos: r.creditos, calidad: r.calidad } }))
       setMensajes(m => [...m, { id: 'r' + Date.now(), rol: 'assistant', contenido: r.respuesta, created_at: new Date().toISOString() }])
       cargarConvs()
       if (r.conversacion_id !== activa) setActiva(r.conversacion_id) // recarga desde la base: ya están guardados
@@ -134,7 +138,7 @@ export default function Asistente() {
   }
 
   async function borrar(c) {
-    if (!(await confirmar({ titulo: '¿Borrar esta conversación?', texto: `"${c.titulo}" se borra para siempre. El cupo usado hoy no se devuelve.`, peligro: true, aceptar: 'Borrar' }))) return
+    if (!(await confirmar({ titulo: '¿Borrar esta conversación?', texto: `"${c.titulo}" se borra para siempre. Los créditos usados no se devuelven.`, peligro: true, aceptar: 'Borrar' }))) return
     const { error } = await supabase.from('chat_conversaciones').delete().eq('id', c.id)
     if (error) return toast(error.message, 'error')
     if (activa === c.id) setActiva(null)
@@ -162,9 +166,9 @@ export default function Asistente() {
         </div>
         {cupo && (
           <div className="cupo" style={{ marginTop: 'auto' }}>
-            <div className="cupo-top"><span>{cupo.periodo === 'mes' ? 'IA de tu empresa este mes' : 'Consultas de hoy'}</span><b>{cupo.sin_tope ? `${cupo.usados} · sin tope` : `${cupo.usados} / ${cupo.limite}`}</b></div>
+            <div className="cupo-top"><span>{cupo.periodo === 'mes' ? 'Créditos de IA este mes' : 'Créditos de IA de hoy'}</span><b>{cupo.sin_tope ? `${cupo.usados} · sin tope` : `${cupo.usados} / ${cupo.limite}`}</b></div>
             <div className="cupo-barra"><span style={{ width: Math.min(100, cupo.usados / Math.max(1, cupo.limite) * 100) + '%' }} /></div>
-            <small>{cupo.sin_tope ? 'Tu plan no tiene tope.' : cupo.periodo === 'mes' ? `Cada mensaje usa 1 consulta. Se renuevan ${renuevaMes()}.` : 'Cada mensaje usa 1 consulta. Se renuevan mañana.'} <Link to="/uso">Ver límites</Link></small>
+            <small>{cupo.sin_tope ? 'Tu plan no tiene tope.' : cupo.periodo === 'mes' ? `Cada mensaje usa créditos según lo largo y el modelo. Se renuevan ${renuevaMes()}.` : 'Cada mensaje usa créditos según lo largo y el modelo. Se renuevan mañana.'} <Link to="/uso">Ver límites</Link></small>
           </div>
         )}
       </aside>
@@ -207,6 +211,7 @@ export default function Asistente() {
                     <div className="msj-acciones">
                       <button onClick={() => copiar(m.contenido)}><Copy size={13} /> Copiar</button>
                       <button onClick={() => pdfDe(mensajes[i - 1]?.contenido?.slice(0, 70) || tituloActiva, [m])}><FileDown size={13} /> PDF</button>
+                      {gastos[m.contenido]?.creditos > 0 && <span className="msj-gasto">{nombreCalidad(gastos[m.contenido].calidad)} · usó {creditosTexto(gastos[m.contenido].creditos)}</span>}
                     </div>
                   </div>
                 </div>
@@ -220,7 +225,8 @@ export default function Asistente() {
         </div>
 
         <form className="chat-input" onSubmit={e => { e.preventDefault(); enviar() }}>
-          {sinCupo && <Aviso>{cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de hoy. Mañana se renueva.`}</Aviso>}
+          {sinCupo && <Aviso>{cupo.mensaje || 'No te quedan créditos de IA. Ampliá el plan o esperá a que se renueve.'}</Aviso>}
+          <SelectorModelo calidad={calidad} onChange={elegirCalidad} disabled={enviando} cupo={cupo} />
           {pdf && <span className="adjunto">
             <FileText size={14} /> {pdf.nombre} <small className="muted">({Math.round(pdf.tamano / 1024)} KB)</small>
             <button type="button" onClick={() => setPdf(null)} aria-label="Quitar PDF"><X size={13} /></button>

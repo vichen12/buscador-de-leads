@@ -44,7 +44,7 @@ export function textoCosto(ia, consultas = 1, aprox = false) {
 /** Qué gasta cada cosa. Lo muestran «Uso y límites» y la Ayuda: tiene que ser una sola lista. */
 export const COSTOS_IA = [
   ['Una búsqueda de empresas', 'unos 5, 15 o 30 créditos', 'Según con qué busques (Rápida, Mejor o Máxima) y cuánto trabajo le lleve. Se descuenta el costo real; si no encuentra nada, como mucho 1.'],
-  ['Un mensaje al Asistente', '1 consulta', ''],
+  ['Un mensaje al Asistente', 'unos 1, 2 o 3 créditos', 'Según el modelo que elijas (Rápida, Mejor o Máxima) y lo largo de la charla y la respuesta. Se descuenta el costo real; si Claude falla, no se cobra.'],
   ['Armar o rehacer «Mi negocio»', '1 consulta', ''],
   ['Guion de llamada o brief de reunión', '1 consulta', ''],
   ['Texto de una campaña', '1 consulta', ''],

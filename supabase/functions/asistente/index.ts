@@ -1,15 +1,25 @@
 // Asistente IA: chat con Claude que conoce los datos de la cuenta (prospectos, envíos, seguimientos).
-// - Cada consulta descuenta del cupo diario del usuario (lo fija el super admin).
+// - Cada mensaje cobra créditos según lo que usó de verdad y el modelo elegido (Rápida, Mejor o Máxima).
 // - Puede leer un PDF adjunto en la consulta.
 // - Los mensajes y el uso los escribe sólo esta función (con service role); el navegador sólo lee.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { clienteDelUsuario, claveServicio, cors, json } from '../_shared/supabase.ts'
-import { anotarChatUso, nuevoUso, sumarUso } from '../_shared/uso.ts'
+import { filaChatUso, nuevoUso, sumarUso } from '../_shared/uso.ts'
+import { costoUsd, creditosPorCosto, leerPrecios } from '../_shared/precios.ts'
 
 type Dic = Record<string, any>
 const MAX_PDF_BYTES = 8 * 1024 * 1024
 const HISTORIAL = 20
 const MEMORIA = 30 // mensajes del usuario en otros chats que el asistente recuerda
+
+// Con qué modelo responde. Cada mensaje cobra según lo que usó de verdad (tokens × precio del modelo,
+// el doble del costo, como Buscar). `reserva` es lo que se aparta antes de preguntar; al final se ajusta.
+// «rapida» usa el modelo que configuró el administrador (por defecto, el más económico).
+const CALIDADES: Record<string, { modelo: string, reserva: number }> = {
+  rapida: { modelo: '', reserva: 1 },
+  mejor: { modelo: 'claude-sonnet-5-5', reserva: 2 },
+  maxima: { modelo: 'claude-opus-5-5', reserva: 3 },
+}
 
 const admin = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
 
@@ -97,6 +107,28 @@ ${ctx}
 ${pagina ? `\n## Lo que el usuario está mirando ahora en la app\n${pagina}` : ''}
 ${memoria ? `\n## Memoria: lo que el usuario te dijo o preguntó en otros chats (de más nuevo a más viejo)\nUsalo para recordar sus preferencias, datos y temas pendientes sin que tenga que repetirlos. Si te pregunta qué recordás, contáselo. No lo menciones si no viene al caso.\n${memoria}` : ''}`
 
+/** Deja cobrados `n` créditos: la primera fila lleva el uso real; lo reservado de más se devuelve. */
+async function cobrar(db: any, usuario: string, reserva: number[] | null, n: number, fila: Dic) {
+  const extra = (k: number) => Array.from({ length: k }, () => ({ owner_id: usuario, funcion: 'prospecta_asistente_extra', tokens_in: 0, tokens_out: 0 }))
+  try {
+    if (reserva?.length) {
+      const quedan = reserva.slice(0, n), sobran = reserva.slice(n)
+      if (sobran.length) await db.from('chat_uso').delete().in('id', sobran)
+      const { owner_id: _o, ...datos } = fila
+      await db.from('chat_uso').update(datos).eq('id', quedan[0])
+      if (quedan.length > 1) await db.from('chat_uso').update({ funcion: 'prospecta_asistente_extra' }).in('id', quedan.slice(1))
+      if (n > reserva.length) await db.from('chat_uso').insert(extra(n - reserva.length))
+    } else {
+      const { error } = await db.from('chat_uso').insert(fila)
+      if (error) await db.from('chat_uso').insert({ owner_id: usuario, tokens_in: fila.tokens_in, tokens_out: fila.tokens_out })
+      if (n > 1) {
+        const { error: e2 } = await db.from('chat_uso').insert(extra(n - 1))
+        if (e2) await db.from('chat_uso').insert(extra(n - 1).map(({ funcion: _f, ...r }) => r))
+      }
+    }
+  } catch (e) { console.error('cobrar', e) }
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   let usuario
@@ -116,22 +148,39 @@ Deno.serve(async req => {
   if (!mensaje && !pdf?.base64) return json({ error: 'Escribí una pregunta' }, 400)
   if (mensaje.length > 8000) return json({ error: 'El mensaje es muy largo (máximo 8.000 caracteres)' }, 400)
   if (pdf?.base64 && pdf.base64.length * 0.75 > MAX_PDF_BYTES) return json({ error: 'El PDF es muy pesado (máximo 8 MB)' }, 400)
-  if (cupo && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || `Llegaste al límite de ${cupo.limite} consultas de hoy. Mañana se renueva.`, codigo: 'LIMITE_CHAT', cupo }, 429)
+  if (cupo && !cupo.sin_tope && cupo.usados >= cupo.limite) return json({ error: cupo.mensaje || 'No te quedan créditos de IA. Ampliá el plan o esperá a que se renueve.', codigo: 'LIMITE_CHAT', cupo }, 429)
 
   const key = await claveServicio('anthropic')
   if (!key) return json({ error: 'Falta la clave de Claude: la carga el super admin en Super admin → Claves.', codigo: 'SIN_CLAVE' }, 503)
-  const modelo = (await claveServicio('modelo_ia')) || 'claude-haiku-5-5'
+  const calidad = CALIDADES[String(body.calidad)] ? String(body.calidad) : 'rapida'
+  const modelo = CALIDADES[calidad].modelo || (await claveServicio('modelo_ia')) || 'claude-haiku-5-5'
   const pagina = String(body.pagina ?? '').slice(0, 3000)
+
+  // Reserva: se apartan los créditos estimados ANTES de preguntar (con candado, como Buscar), así varios
+  // mensajes a la vez no pasan el plan. Si la base todavía no tiene la función, se cobra al final igual.
+  const estimado = CALIDADES[calidad].reserva + (pdf?.base64 ? 3 : 0)
+  let reserva: number[] | null = null
+  {
+    const { data: rsv, error: eRsv } = await db.rpc('reservar_creditos', { p_usuario: user.id, p_creditos: estimado, p_funcion: 'prospecta_buscar_reserva' })
+    if (!eRsv && rsv?.ok === false) {
+      const quedan = Math.max(0, (rsv.cupo?.limite ?? 0) - (rsv.cupo?.usados ?? 0))
+      return json({ error: quedan > 0 && calidad !== 'rapida'
+        ? `Con el modo ${calidad === 'maxima' ? 'Máxima' : 'Mejor'} un mensaje usa unos ${estimado} créditos y te quedan ${quedan}. Probá con el modo Rápida.`
+        : rsv.cupo?.mensaje || 'No te quedan créditos de IA. Ampliá el plan o esperá a que se renueve.', codigo: 'LIMITE_CHAT', cupo: rsv.cupo }, 429)
+    }
+    if (!eRsv && Array.isArray(rsv?.ids)) reserva = rsv.ids
+  }
+  const devolverReserva = async () => { if (reserva?.length) await db.from('chat_uso').delete().in('id', reserva).then(() => {}, () => {}) }
 
   // Conversación (nueva o existente y propia)
   let convId: string | null = body.conversacion_id ?? null
   if (convId) {
     const { data } = await supabase.from('chat_conversaciones').select('id').eq('id', convId).maybeSingle()
-    if (!data) return json({ error: 'Conversación no encontrada' }, 404)
+    if (!data) { await devolverReserva(); return json({ error: 'Conversación no encontrada' }, 404) }
   } else {
     const titulo = (mensaje || `PDF: ${pdf?.nombre ?? 'documento'}`).replace(/\s+/g, ' ').slice(0, 60)
     const { data, error } = await supabase.from('chat_conversaciones').insert({ titulo }).select('id').single()
-    if (error) return json({ error: error.message }, 400)
+    if (error) { await devolverReserva(); return json({ error: error.message }, 400) }
     convId = data.id
   }
 
@@ -168,6 +217,7 @@ Deno.serve(async req => {
       : r.status === 400 && /credit/i.test(detalle) ? 'La cuenta de Anthropic se quedó sin crédito.'
       : `Claude respondió con un error (${r.status}).`
     if (!body.conversacion_id) await db.from('chat_conversaciones').delete().eq('id', convId)
+    await devolverReserva() // si Claude falla no se cobra nada
     return json({ error: msg }, 502)
   }
   const data = await r.json()
@@ -179,8 +229,12 @@ Deno.serve(async req => {
   ])
   const uso = nuevoUso()
   sumarUso(uso, modelo, data.usage)
-  await anotarChatUso(db, user.id, 'prospecta_asistente', uso, modelo)
+  // Se cobra lo que costó de verdad: tokens × precio del modelo elegido, el doble, en créditos de USD 0,10
+  const precios = await leerPrecios(db)
+  const costo = costoUsd(uso, 0, precios)
+  const creditos = creditosPorCosto(costo, precios)
+  await cobrar(db, user.id, reserva, creditos, filaChatUso(user.id, 'prospecta_asistente', uso, modelo))
   await db.from('chat_conversaciones').update({ updated_at: new Date().toISOString() }).eq('id', convId)
   const { data: cupoNuevo } = await db.rpc('cupo_chat', { p_usuario: user.id })
-  return json({ conversacion_id: convId, respuesta, cupo: cupoNuevo })
+  return json({ conversacion_id: convId, respuesta, cupo: cupoNuevo, creditos, calidad, modelo })
 })

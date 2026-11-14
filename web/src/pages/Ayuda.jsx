@@ -13,7 +13,7 @@ const PREGUNTAS = [
   ]],
   ['Uso y límites', [
     ['¿Qué límites hay?', 'Tres, y cada uno cuida algo distinto: la IA del plan (consultas a Claude de toda tu empresa, por mes), los emails de tu casilla (por día, para no caer en spam) y los mensajes por WhatsApp e Instagram que mandás a mano (por día, para cuidar tu número). En "Uso y límites" ves cuánto te queda de cada uno.'],
-    ['¿Qué es una "consulta de IA"?', 'Un pedido a Claude: una búsqueda, un mensaje al Asistente, un borrador. No importa cuánto escriba: cada pedido cuenta uno. Una búsqueda usa 1, pidas 10 o 40 empresas. En "Uso y límites" está la lista completa de qué gasta cada cosa.'],
+    ['¿Qué es un "crédito de IA"?', 'Lo que se descuenta cada vez que usás a Claude. Las búsquedas y los mensajes al Asistente cobran según lo que costaron de verdad y el modelo que elijas (Rápida, Mejor o Máxima): el más capaz usa más créditos. En "Uso y límites" está la lista completa de qué gasta cada cosa.'],
     ['¿Cuándo se renueva la IA?', 'El día 1 de cada mes vuelve a cero. Es de toda la empresa: lo que usa una persona se le descuenta a todo el equipo.'],
     ['¿Qué pasa si se termina la IA?', 'No se puede buscar ni pedirle textos a Claude hasta que se renueve. Tu lista, los mails que ya están escritos, los seguimientos y las respuestas siguen andando. Para tener más, el admin de tu empresa puede pedir que amplíen el plan.'],
     ['¿Puedo buscar algo que no tenga que ver con mi negocio?', 'Sí. En "Buscar clientes" elegí "Búsqueda libre": Claude busca exactamente lo que escribís, sin usar "Mi negocio" ni lo que aprendió de tu lista. Sirve para otro rubro, proveedores, competidores o un relevamiento.'],

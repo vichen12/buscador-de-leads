@@ -7,6 +7,7 @@
 // Cada búsqueda descuenta 1 del cupo de IA (diario del usuario y mensual de su empresa). Interpretar no descuenta.
 import { clasificarWeb, instagramDe, normalizarTelefono } from './clasificar.js'
 import { anotarPlaces, anotarSinCupo, filaChatUso, nuevoUso, sumarTokens } from './uso.ts'
+import { PRECIOS, costoUsd, creditosPorCosto } from './precios.ts'
 
 type Dic = Record<string, any>
 // Lo que necesita del entorno se lo pasa la función (así este módulo no importa nada de npm y se puede compartir)
@@ -501,33 +502,8 @@ const CALIDADES: Record<string, { modelo: string, creditos: number }> = {
   maxima: { modelo: 'claude-opus-5-5', creditos: 30 },
 }
 
-// Cuánto cuesta una búsqueda de verdad y cuántos créditos se cobran por eso.
-// Regla del negocio: lo que se cobra es, como mínimo, el DOBLE de lo que cuesta. Un crédito se vende a
-// VALOR_CREDITO dólares, así que una búsqueda que cuesta C dólares descuenta ceil(C × MARGEN / VALOR_CREDITO).
-// Los precios se pueden corregir sin tocar código: config_claves → nombre «precios_ia», valor JSON con
-// las mismas claves que PRECIOS (dólares por millón de tokens; por búsqueda web; por consulta a Maps).
-export const PRECIOS: Dic = {
-  modelos: { haiku: { in: 1, out: 5 }, sonnet: { in: 3, out: 15 }, opus: { in: 5, out: 25 } },
-  busqueda_web: 0.01, places: 0.035, valor_credito: 0.10, margen: 2, tope_creditos: 80,
-}
-export function costoUsd(uso: { por: Record<string, { in: number, out: number }>, busquedasWeb: number }, consultasPlaces: number, precios: Dic = PRECIOS) {
-  const pm = { ...PRECIOS.modelos, ...(precios.modelos ?? {}) }
-  let total = 0
-  for (const [modelo, t] of Object.entries(uso.por)) {
-    const fam = /opus/.test(modelo) ? 'opus' : /sonnet/.test(modelo) ? 'sonnet' : 'haiku'
-    const pr = pm[modelo] ?? pm[fam]
-    total += (t.in * pr.in + t.out * pr.out) / 1e6
-  }
-  total += uso.busquedasWeb * Number(precios.busqueda_web ?? PRECIOS.busqueda_web)
-  total += consultasPlaces * Number(precios.places ?? PRECIOS.places)
-  return total
-}
-export function creditosPorCosto(costo: number, precios: Dic = PRECIOS) {
-  const valor = Number(precios.valor_credito ?? PRECIOS.valor_credito) || PRECIOS.valor_credito
-  const margen = Math.max(1, Number(precios.margen ?? PRECIOS.margen) || PRECIOS.margen)
-  const tope = Number(precios.tope_creditos ?? PRECIOS.tope_creditos) || PRECIOS.tope_creditos
-  return Math.min(tope, Math.max(1, Math.ceil((costo * margen) / valor - 1e-9)))
-}
+// Precios y créditos: en precios.ts (los comparte con el Asistente)
+export { PRECIOS, costoUsd, creditosPorCosto } from './precios.ts'
 
 export const CANTIDAD_MAX = 100
 /** Créditos que se reservan antes de buscar: el de la calidad para 20 empresas, proporcional a lo pedido. */
