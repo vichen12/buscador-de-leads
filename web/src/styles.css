@@ -3060,3 +3060,12 @@ html[data-tema="oscuro"] .bwa-opcion:hover { background: #10251a; }
 .bwa-retocar { display: inline-flex; align-items: center; gap: 5px; padding: 4px 2px 0; font-size: 12px; }
 .bwa-confirmar, .bwa-vacio { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .bwa-acciones { display: flex; gap: 6px; margin-top: 4px; }
+
+/* Menú de WhatsApp de la lista: vive dentro de la columna «Contacto», que pone sus links en una
+   sola línea y centrados. Acá adentro el texto tiene que cortar y alinearse a la izquierda. */
+.contacto-celda .bwa-menu a.bwa-opcion { display: block; white-space: normal; line-height: 1.4; text-align: left; color: var(--ink); }
+.contacto-celda .bwa-menu .bwa-op-cab { display: flex; justify-content: flex-start; }
+.contacto-celda .bwa-menu .bwa-op-texto { display: -webkit-box; margin-top: 3px; white-space: normal; overflow-wrap: anywhere; }
+.contacto-celda .bwa-menu a.bwa-retocar { display: inline-flex; white-space: normal; line-height: 1.4; color: var(--acc-ink); }
+.contacto-celda .bwa-menu svg { color: inherit; }
+.contacto-celda .bwa-boton svg { color: #fff; }
