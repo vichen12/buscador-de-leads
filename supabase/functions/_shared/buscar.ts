@@ -5,7 +5,7 @@
 // al final revisa los resultados contra esa interpretación. Nunca trae empresas que el usuario o su
 // equipo ya tienen o descartaron. Usa el perfil comercial (qué vende y a quién), sirve para cualquier negocio.
 // Cada búsqueda descuenta 1 del cupo de IA (diario del usuario y mensual de su empresa). Interpretar no descuenta.
-import { clasificarWeb, instagramDe, normalizarTelefono } from './clasificar.js'
+import { clasificarWeb, instagramDe, normalizarTelefono, limpiarTelefono } from './clasificar.js'
 import { anotarPlaces, anotarSinCupo, filaChatUso, nuevoUso, sumarTokens } from './uso.ts'
 import { PRECIOS, costoUsd, creditosPorCosto } from './precios.ts'
 
@@ -137,7 +137,7 @@ async function desdeMaps(clavePlaces: string, terminos: string[], zona: string, 
       const d = await r.json()
       return (d.places ?? []).filter((p: Dic) => !p.businessStatus || p.businessStatus === 'OPERATIONAL').map((p: Dic) => ({
         nombre: p.displayName?.text ?? '', tipo: p.primaryTypeDisplayName?.text ?? '', direccion: p.formattedAddress ?? '',
-        telefono: p.nationalPhoneNumber || p.internationalPhoneNumber || '', web: p.websiteUri ?? '', google_maps: p.googleMapsUri ?? '',
+        telefono: code && code !== 'AR' ? (p.internationalPhoneNumber || p.nationalPhoneNumber || '') : (p.nationalPhoneNumber || p.internationalPhoneNumber || ''), web: p.websiteUri ?? '', google_maps: p.googleMapsUri ?? '',
         rating: p.rating ?? '', resenas: p.userRatingCount ?? '', fuente: p.googleMapsUri ?? '', termino: t,
       }))
     } catch (e) { console.error('places', e); return [] }
@@ -234,7 +234,7 @@ Traé ${o.cuantos} negocios o más (cuantos más reales y que encajen, mejor; ha
 \`\`\`json
 [{"nombre": "nombre comercial tal como lo conoce la gente", "tipo": "qué es, en 2-4 palabras", "direccion": "calle y número, localidad", "telefono": "", "email": "", "web": "https://...", "google_maps": "https://maps.google.com/... o https://maps.app.goo.gl/...", "instagram": "https://www.instagram.com/usuario/", "facebook": "https://www.facebook.com/...", "linkedin": "https://www.linkedin.com/company/...", "rating": "", "resenas": "", "fuente": "url donde lo encontraste", "segmento": "cuál de los tipos de empresa pedidos es (copialo tal cual)", "que_es": "qué es la empresa en una o dos frases concretas: qué hace o vende, a quién, tamaño aproximado y dónde opera", "encaje": "por qué LE SERVIRÍA a quien busca: conectá lo que vende quien busca con algo concreto que viste de esta empresa (qué viste de la empresa → por qué eso la hace candidata para lo que vende quien busca)", "puntaje": 4, "razones": {"a_favor": ["razón concreta y verificable que viste", "otra razón"], "en_contra": ["señal en contra si la hay"]}, "senales": "novedad reciente que da motivo para escribir ahora (está contratando, abrió sucursal, salió en noticias), o vacío", "decisor": {"nombre": "", "cargo": "", "linkedin": "", "fuente": "url donde lo viste"}, "nota": "dato útil para el primer contacto (opcional)"${o.filtros.length ? `, "cumple": {${o.filtros.map(f => `"${f.id}": true`).join(', ')}}` : ''}}]
 \`\`\`
-"nombre": el nombre comercial limpio, sin sufijos como "- Inicio" o "| Facebook". "web": la URL del sitio propio del negocio (aunque sea un link de reservas), o vacío. "google_maps", "instagram", "facebook" y "linkedin": sólo si viste el link real, si no vacío. "rating" y "resenas" sólo si los viste. "puntaje": de 1 a 5, qué tan buen prospecto es según lo que buscamos; "razones": las razones concretas de ese puntaje (a favor y en contra), sólo cosas que viste. "decisor": la persona que decide la compra de lo que vendemos (dueño, gerente comercial, compras, logística, según el rubro) si aparece en su web, en LinkedIn público o en notas de prensa, con la url donde lo viste; si no lo encontraste, dejalo vacío (no inventes nombres). "senales": sólo novedades reales y recientes que hayas visto.`
+"telefono": SÓLO un número que viste publicado en la web de la empresa, su ficha de Google Maps o su red social, copiado tal cual y completo (con característica de área). Si hay varios, el principal. Nunca lo deduzcas ni lo completes: si no lo viste, dejalo vacío. "nombre": el nombre comercial limpio, sin sufijos como "- Inicio" o "| Facebook". "web": la URL del sitio propio del negocio (aunque sea un link de reservas), o vacío. "google_maps", "instagram", "facebook" y "linkedin": sólo si viste el link real, si no vacío. "rating" y "resenas" sólo si los viste. "puntaje": de 1 a 5, qué tan buen prospecto es según lo que buscamos; "razones": las razones concretas de ese puntaje (a favor y en contra), sólo cosas que viste. "decisor": la persona que decide la compra de lo que vendemos (dueño, gerente comercial, compras, logística, según el rubro) si aparece en su web, en LinkedIn público o en notas de prensa, con la url donde lo viste; si no lo encontraste, dejalo vacío (no inventes nombres). "senales": sólo novedades reales y recientes que hayas visto.`
 }
 
 function limpiarNombre(n: string) {
@@ -768,7 +768,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
       nombre: limpiarNombre(String(n.nombre ?? '')),
       rubro: String(n.tipo ?? '').trim().slice(0, 60) || rubro, zona,
       direccion: String(n.direccion ?? '').trim(),
-      telefono: String(n.telefono ?? '').trim(),
+      telefono: limpiarTelefono(n.telefono),
       email: /@/.test(String(n.email ?? '')) ? String(n.email).trim() : '',
       instagram: handle && !['p', 'reel', 'explore'].includes(handle) ? `https://www.instagram.com/${handle}/` : '',
       que_tiene_hoy: web ? queTiene : 'Sin web',

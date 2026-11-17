@@ -18,6 +18,7 @@ import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEm
 import { HerramientasIA, Etiquetas, Comentarios, Propuestas, VisitasDeEmpresa, ArchivosEmpresa } from '../components/FichaParte2.jsx'
 import { useApp } from '../App.jsx'
 import { NotasPanel } from '../components/Notas.jsx'
+import GrabarAudio from '../components/GrabarAudio.jsx'
 import { mensajesWa, mundoDe, quienSoy, rellenarWa, sugeridoWa } from '../lib/mensajesWa.js'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
@@ -369,6 +370,7 @@ export default function Prospecto() {
               {tab === 'whatsapp' && <ElegirMensajeWa p={p} perfil={perfil} yo={quienSoy({ perfil, comercial, acceso, session })} actual={actual.cuerpo} disabled={optOut} sinWhatsApp={!tieneWA ? 'Esta empresa no tiene un celular válido' : sinCupo ? 'Llegaste al límite de WhatsApp de hoy' : ''} onElegir={t => editar('cuerpo', t)} telefono={p.telefono} onAbierto={trasAbrirWa} />}
               <textarea className="editor" rows={tab === 'email' ? 12 : 9} value={actual.cuerpo} disabled={optOut || reescribiendo} aria-label="Mensaje"
                 placeholder={generando ? 'Escribiendo…' : 'Escribí el mensaje o tocá "Generar borradores".'} onChange={e => editar('cuerpo', e.target.value)} />
+              {tab === 'whatsapp' && <GrabarAudio p={p} disabled={optOut} onRegistrado={() => Promise.all([cargar(), refrescar()])} />}
               <div className="meta-editor">
                 <span className="muted chico">
                   {actual.cuerpo.length} caracteres

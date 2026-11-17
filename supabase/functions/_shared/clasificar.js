@@ -56,12 +56,42 @@ export function normalizarTelefono(t) {
 }
 
 /**
+ * Deja un solo teléfono creíble, o '' si no hay ninguno:
+ * - si vienen varios («0261 423-1234 / 261 15 555-1234», «… y …») se queda con el primero que tenga
+ *   suficientes dígitos (antes se mezclaban y salía un número cualquiera);
+ * - saca internos («int. 23», «ext 4»);
+ * - descarta los inventados (todos iguales, 1234567…, 5555555) y los que no tienen la cantidad de
+ *   dígitos de un teléfono (en Argentina, área + número = 10).
+ * Los de otros países (con + y otro código) se dejan tal cual si tienen entre 8 y 15 dígitos.
+ */
+export function limpiarTelefono(t) {
+  const texto = String(t ?? '').replace(/\b(int(erno)?|ext(ension)?|interno)\.?\s*\d+/gi, ' ')
+  const partes = texto.split(/\s*(?:\/|\||;|,|\by\b|\bo\b|\n)\s*/i).map(x => x.trim()).filter(x => x.replace(/\D/g, '').length >= 7)
+  for (const p of partes) {
+    const d = p.replace(/\D/g, '')
+    // Inventados: los últimos 7 dígitos todos iguales o en escalera (1234567), o una tira de 7 iguales
+    const local = d.slice(-7)
+    if (/^(\d)\1+$/.test(local) || ['0123456', '1234567', '2345678', '3456789', '4567890'].includes(local) || /(\d)\1{6,}/.test(d)) continue
+    const internacional = /^\s*(\+|00)/.test(p) && !/^\s*(\+|00)\s*54/.test(p)
+    if (internacional) { if (d.length >= 8 && d.length <= 15) return p.replace(/\s+/g, ' ').trim(); continue }
+    if (normalizarTelefono(p).length === 10 && d.length <= 13) return p.replace(/\s+/g, ' ').trim()
+  }
+  return ''
+}
+
+/**
  * Número para wa.me (549 + área + número) si parece celular; '' si parece fijo.
+ * Si es de otro país (empieza con + y otro código), va tal cual.
  * En Argentina los fijos de 7 dígitos locales suelen empezar con 4 (ej. 0261 4xx-xxxx).
  * Un número escrito con "15" o con "+54 9" es siempre celular.
  */
 export function numeroWhatsApp(t) {
-  const crudo = String(t || '').replace(/\D/g, '')
+  const texto = String(t || '').trim()
+  if (/^(\+|00)/.test(texto) && !/^(\+|00)\s*54/.test(texto)) {
+    const d = texto.replace(/\D/g, '').replace(/^00/, '')
+    return d.length >= 8 && d.length <= 15 ? d : ''
+  }
+  const crudo = texto.replace(/\D/g, '')
   const n = normalizarTelefono(t)
   if (n.length !== 10) return ''
   const esCelularExplicito = crudo.startsWith('549') || /^0\d{2,4}15/.test(crudo)
