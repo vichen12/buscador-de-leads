@@ -183,7 +183,7 @@ const plata = n => '$ ' + Math.round(Number(n) || 0).toLocaleString('es-AR')
 function Analitica({ r }) {
   const clases = CLASES.map(([k, label, color]) => ({ label, color, valor: r.clasificacion_respuestas[k] ?? 0 })).filter(x => x.valor > 0)
   const v = r.valor_por_estado
-  const abierto = ['contactado', 'respondio', 'reunion', 'propuesta'].reduce((a, k) => a + Number(v[k] ?? 0), 0)
+  const abierto = ['primer_llamado', 'contactado', 'respondio', 'reunion', 'propuesta'].reduce((a, k) => a + Number(v[k] ?? 0), 0)
   const ganado = Number(v.cliente ?? 0), perdido = Number(v.perdido ?? 0)
   const rubros = r.por_rubro.filter(x => x.contactados >= 1).map(x => ({ label: x.clave, valor: Math.round((x.respondieron / x.contactados) * 100), sub: `${x.respondieron} de ${x.contactados} respondieron` }))
     .sort((a, b) => b.valor - a.valor).slice(0, 5)

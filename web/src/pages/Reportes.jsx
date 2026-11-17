@@ -176,7 +176,7 @@ function Contenido({ d, nombres, equipo, cargando }) {
           </article>
           <article className="home-card">
             <header><div><h3>Dónde está cada empresa hoy</h3><small>Tocá una etapa para verlas</small></div></header>
-            <Embudo onElegir={e => nav(`/prospectos?estado=${e.clave}`)} etapas={['pendiente', 'contactado', 'respondio', 'reunion', 'propuesta', 'cliente'].map(e => ({ clave: e, label: ESTADOS[e].label, valor: d.embudo[e] ?? 0, color: e === 'cliente' ? '#15803d' : '#fd4a22' }))} />
+            <Embudo onElegir={e => nav(`/prospectos?estado=${e.clave}`)} etapas={['pendiente', 'primer_llamado', 'contactado', 'respondio', 'reunion', 'propuesta', 'cliente'].map(e => ({ clave: e, label: ESTADOS[e].label, valor: d.embudo[e] ?? 0, color: e === 'cliente' ? '#15803d' : '#fd4a22' }))} />
             {(d.embudo.perdido ?? 0) > 0 && <small className="muted">Además, {d.embudo.perdido} perdidas.</small>}
           </article>
           <article className="home-card">

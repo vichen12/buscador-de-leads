@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, AlertCircle, Info, Loader2, X, Circle, Send, MessageSquareReply, Trophy, Ban, ChevronDown, Check, ShieldOff, MailCheck, MailWarning, MailX, CalendarCheck, FileText, XCircle } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Info, Loader2, X, Circle, Send, MessageSquareReply, Trophy, Ban, ChevronDown, Check, ShieldOff, MailCheck, MailWarning, MailX, CalendarCheck, FileText, XCircle, PhoneCall } from 'lucide-react'
 import { ESTADOS, ESTADOS_VISIBLES } from '../lib/util.js'
 
 // ---------- Toasts ----------
@@ -97,7 +97,7 @@ export function LogoEmpresa({ nombre = '', web = '', grande }) {
   )
 }
 
-export const ICONO_ESTADO = { pendiente: Circle, contactado: Send, respondio: MessageSquareReply, reunion: CalendarCheck, propuesta: FileText, cliente: Trophy, perdido: XCircle, no_interesado: Ban, no_contactar: ShieldOff }
+export const ICONO_ESTADO = { pendiente: Circle, primer_llamado: PhoneCall, contactado: Send, respondio: MessageSquareReply, reunion: CalendarCheck, propuesta: FileText, cliente: Trophy, perdido: XCircle, no_interesado: Ban, no_contactar: ShieldOff }
 
 export function EstadoBadge({ estado }) {
   const e = ESTADOS[estado] ?? ESTADOS.pendiente

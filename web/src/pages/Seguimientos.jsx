@@ -10,7 +10,9 @@ import { NotasBoton, useResumenNotas } from '../components/Notas.jsx'
 
 /** Lo que hay que hacer hoy: tareas (llamar, WhatsApp, LinkedIn, las que dejan las secuencias) y seguimientos vencidos */
 // Un seguimiento agendado vale en cualquier etapa activa, no sólo en «Contactado»
-const ESTADOS_SEGUIMIENTO = ['contactado', 'respondio', 'reunion', 'propuesta']
+// Los que esperan seguimiento: todo lo abierto (primer llamado, contactado, respondió, reunión, propuesta).
+// Se filtra por lo que NO es, así funciona aunque la base todavía no tenga «primer_llamado».
+const CERRADOS = '(pendiente,cliente,perdido,no_interesado,no_contactar)'
 
 export default function Seguimientos() {
   const toast = useToast()
@@ -34,8 +36,8 @@ export default function Seguimientos() {
     q = ver === 'hechas' ? q.not('hecha_at', 'is', null).order('hecha_at', { ascending: false }) : ver === 'proximas' ? q.is('hecha_at', null).gt('vence', hoy) : q.is('hecha_at', null).lte('vence', hoy)
     const [t, s, pr] = await Promise.all([
       q,
-      supabase.from('prospectos').select('id, nombre, rubro, telefono, ultimo_contacto, proximo_seguimiento').eq('owner_id', yo).in('estado', ESTADOS_SEGUIMIENTO).lte('proximo_seguimiento', hoy).order('proximo_seguimiento'),
-      supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', yo).in('estado', ESTADOS_SEGUIMIENTO).gt('proximo_seguimiento', hoy).order('proximo_seguimiento').limit(30),
+      supabase.from('prospectos').select('id, nombre, rubro, telefono, ultimo_contacto, proximo_seguimiento').eq('owner_id', yo).not('estado', 'in', CERRADOS).lte('proximo_seguimiento', hoy).order('proximo_seguimiento'),
+      supabase.from('prospectos').select('id, nombre, rubro, proximo_seguimiento').eq('owner_id', yo).not('estado', 'in', CERRADOS).gt('proximo_seguimiento', hoy).order('proximo_seguimiento').limit(30),
     ])
     if (t.error || s.error) { setError(mensajeError(t.error || s.error)); setTareas([]); setLista([]); return }
     setTareas(t.data ?? []); setLista(s.data ?? []); setProximos(pr.data ?? [])

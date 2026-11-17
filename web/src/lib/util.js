@@ -2,6 +2,7 @@ import Papa from 'papaparse'
 
 export const ESTADOS = {
   pendiente: { label: 'Pendiente', color: '#52525b', fondo: '#f0ece5', borde: '#e2e2e7', barra: '#a8a196', ayuda: 'Todavía no le escribiste' },
+  primer_llamado: { label: 'Primer llamado', color: '#0f766e', fondo: '#e6f6f3', borde: '#c3e8e1', barra: '#14b8a6', ayuda: 'Ya lo llamaste una vez: falta el contacto en serio' },
   contactado: { label: 'Contactado', color: '#1d4ed8', fondo: '#ebf1ff', borde: '#d3e0fd', barra: '#3b82f6', ayuda: 'Ya le mandaste el primer mensaje' },
   respondio: { label: 'Respondió', color: '#b45309', fondo: '#fdf4e4', borde: '#f5ddb2', barra: '#f59e0b', ayuda: 'Hay conversación en curso' },
   reunion: { label: 'Reunión agendada', color: '#7c3aed', fondo: '#f1ebff', borde: '#e0d3fb', barra: '#8b5cf6', ayuda: 'Tienen una reunión o llamada pactada' },
