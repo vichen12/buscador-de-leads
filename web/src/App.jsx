@@ -1,49 +1,55 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { supabase, configurado, llamarFuncion } from './lib/supabase.js'
 import { ToastProvider, ConfirmProvider, Cargando } from './components/ui.jsx'
 import { CambiarEstadoProvider } from './components/CambiarEstado.jsx'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
-import Tablero from './pages/Tablero.jsx'
-import Prospectos from './pages/Prospectos.jsx'
-import Prospecto from './pages/Prospecto.jsx'
-import Seguimientos from './pages/Seguimientos.jsx'
-import Importar from './pages/Importar.jsx'
-import Revisar from './pages/Revisar.jsx'
-import Email from './pages/Email.jsx'
-import Envios from './pages/Envios.jsx'
 import { contarPorRevisar } from './lib/hallazgos.js'
 import BuscarPlaces from './pages/BuscarPlaces.jsx'
-import Cuenta from './pages/Cuenta.jsx'
-import Admin from './pages/Admin.jsx'
-import Asistente from './pages/Asistente.jsx'
-import MiNegocio from './pages/MiNegocio.jsx'
-import Conexiones from './pages/Conexiones.jsx'
-import { Baja, Terminos, Privacidad, FormularioPublico } from './pages/Publico.jsx'
-import TuDia from './pages/TuDia.jsx'
-import Metas from './pages/Metas.jsx'
-import Catalogo from './pages/Catalogo.jsx'
-import Visitas from './pages/Visitas.jsx'
-import Ayuda from './pages/Ayuda.jsx'
-import Uso from './pages/Uso.jsx'
-import Mas from './pages/Mas.jsx'
-import Directorio from './pages/Directorio.jsx'
-import DirectorioMiEmpresa from './pages/DirectorioMiEmpresa.jsx'
-import Landing from './pages/Landing.jsx'
-import Interesados from './pages/Interesados.jsx'
-import Plantillas from './pages/Plantillas.jsx'
-import MensajesWhatsapp from './pages/MensajesWhatsapp.jsx'
 import ElegirPais from './components/ElegirPais.jsx'
-import Respuestas from './pages/Respuestas.jsx'
-import Secuencias from './pages/Secuencias.jsx'
-import Equipo from './pages/Equipo.jsx'
-import Reportes from './pages/Reportes.jsx'
-import Clientes from './pages/Clientes.jsx'
+
+// Cada pantalla se baja recién cuando se abre (antes iban todas en el archivo inicial)
+const Tablero = lazy(() => import('./pages/Tablero.jsx'))
+const Prospectos = lazy(() => import('./pages/Prospectos.jsx'))
+const Prospecto = lazy(() => import('./pages/Prospecto.jsx'))
+const Seguimientos = lazy(() => import('./pages/Seguimientos.jsx'))
+const Importar = lazy(() => import('./pages/Importar.jsx'))
+const Revisar = lazy(() => import('./pages/Revisar.jsx'))
+const Email = lazy(() => import('./pages/Email.jsx'))
+const Envios = lazy(() => import('./pages/Envios.jsx'))
+const Cuenta = lazy(() => import('./pages/Cuenta.jsx'))
+const Admin = lazy(() => import('./pages/Admin.jsx'))
+const Asistente = lazy(() => import('./pages/Asistente.jsx'))
+const MiNegocio = lazy(() => import('./pages/MiNegocio.jsx'))
+const Conexiones = lazy(() => import('./pages/Conexiones.jsx'))
+const Baja = lazy(() => import('./pages/Publico.jsx').then(m => ({ default: m.Baja })))
+const Terminos = lazy(() => import('./pages/Publico.jsx').then(m => ({ default: m.Terminos })))
+const Privacidad = lazy(() => import('./pages/Publico.jsx').then(m => ({ default: m.Privacidad })))
+const FormularioPublico = lazy(() => import('./pages/Publico.jsx').then(m => ({ default: m.FormularioPublico })))
+const TuDia = lazy(() => import('./pages/TuDia.jsx'))
+const Metas = lazy(() => import('./pages/Metas.jsx'))
+const Catalogo = lazy(() => import('./pages/Catalogo.jsx'))
+const Visitas = lazy(() => import('./pages/Visitas.jsx'))
+const Ayuda = lazy(() => import('./pages/Ayuda.jsx'))
+const Uso = lazy(() => import('./pages/Uso.jsx'))
+const Mas = lazy(() => import('./pages/Mas.jsx'))
+const Directorio = lazy(() => import('./pages/Directorio.jsx'))
+const DirectorioMiEmpresa = lazy(() => import('./pages/DirectorioMiEmpresa.jsx'))
+const Landing = lazy(() => import('./pages/Landing.jsx'))
+const Interesados = lazy(() => import('./pages/Interesados.jsx'))
+const Plantillas = lazy(() => import('./pages/Plantillas.jsx'))
+const MensajesWhatsapp = lazy(() => import('./pages/MensajesWhatsapp.jsx'))
+const Respuestas = lazy(() => import('./pages/Respuestas.jsx'))
+const Secuencias = lazy(() => import('./pages/Secuencias.jsx'))
+const Equipo = lazy(() => import('./pages/Equipo.jsx'))
+const Reportes = lazy(() => import('./pages/Reportes.jsx'))
+const Clientes = lazy(() => import('./pages/Clientes.jsx'))
+const TableroB2C = lazy(() => import('./pages/TableroB2C.jsx'))
+const Aliados = lazy(() => import('./pages/AliadosCreadores.jsx').then(m => ({ default: m.Aliados })))
+const Creadores = lazy(() => import('./pages/AliadosCreadores.jsx').then(m => ({ default: m.Creadores })))
+const Campanas = lazy(() => import('./pages/Campanas.jsx'))
 import { NuevaClave, DosPasos } from './components/Seguridad.jsx'
-import TableroB2C from './pages/TableroB2C.jsx'
-import { Aliados, Creadores } from './pages/AliadosCreadores.jsx'
-import Campanas from './pages/Campanas.jsx'
 import { Ban, LogOut } from 'lucide-react'
 
 const Ctx = createContext(null)
@@ -66,6 +72,7 @@ const PUBLICAS = /^\/(baja\/|f\/|conoce$|terminos$|privacidad$)/
 function Raiz() {
   const { pathname } = useLocation()
   if (PUBLICAS.test(pathname)) return (
+    <Suspense fallback={<Cargando />}>
     <Routes>
       <Route path="/baja/:token" element={<Baja />} />
       <Route path="/f/:token" element={<FormularioPublico />} />
@@ -73,6 +80,7 @@ function Raiz() {
       <Route path="/terminos" element={<Terminos />} />
       <Route path="/privacidad" element={<Privacidad />} />
     </Routes>
+    </Suspense>
   )
   return <Privada />
 }
@@ -143,6 +151,7 @@ function Privada() {
   return (
     <Ctx.Provider value={valor}>
       <Layout>
+        <Suspense fallback={<Cargando />}>
         <Routes>
           {/* Lo primero es Buscar, en B2B y en B2C. El tablero B2B está en /tablero (en «Más») y el de B2C en /inicio. */}
           <Route path="/" element={<Navigate to="/buscar" replace />} />
@@ -184,6 +193,7 @@ function Privada() {
           <Route path="/ajustes" element={<Navigate to="/cuenta" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </Suspense>
       </Layout>
     </Ctx.Provider>
   )
