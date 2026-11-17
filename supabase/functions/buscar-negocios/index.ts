@@ -11,6 +11,29 @@ const ayudas = { clienteDelUsuario, claveServicio, json, admin }
 
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined
 
+/**
+ * Nunca más empresas de las que pidió: si la búsqueda trajo de más, quedan las primeras (las que
+ * mejor encajan) y las de más que se acababan de guardar en «Por revisar» se borran.
+ */
+async function recortar(d: Record<string, unknown>, cantidadPedida: unknown) {
+  const cantidad = Math.min(Math.max(Math.round(Number(cantidadPedida)) || 10, 5), 100)
+  const lista = Array.isArray(d?.resultados) ? (d.resultados as Record<string, unknown>[]) : null
+  if (!lista || lista.length <= cantidad) return d
+  const sobran = lista.slice(cantidad).map(r => r.id).filter((id): id is string => typeof id === 'string')
+  const db = admin()
+  if (sobran.length) await db.from('hallazgos').delete().in('id', sobran).eq('estado', 'por_revisar')
+  if (typeof d.busqueda_id === 'string') await db.from('busquedas').update({ guardados: cantidad }).eq('id', d.busqueda_id)
+  return { ...d, resultados: lista.slice(0, cantidad) }
+}
+
+async function buscarRecortado(req: Request, body: Record<string, unknown>) {
+  const r = await buscar(req, ayudas)
+  if (!r.ok) return r
+  const d = await r.json().catch(() => null)
+  if (!d || d.error) return json(d ?? { error: 'Respuesta inválida' }, d ? 200 : 500)
+  return json(await recortar(d, body.cantidad))
+}
+
 async function enSegundoPlano(req: Request, body: Record<string, unknown>) {
   let user
   try { ({ user } = await clienteDelUsuario(req)) } catch { return json({ error: 'Iniciá sesión de nuevo' }, 401) }
@@ -21,7 +44,7 @@ async function enSegundoPlano(req: Request, body: Record<string, unknown>) {
     requisitos: body.libre === true ? { libre: true } : {}, estado: 'buscando',
   }).select('id').single()
   // Base sin las columnas nuevas: se busca como antes (esperando la respuesta)
-  if (error || !fila) return buscar(req, ayudas)
+  if (error || !fila) return buscarRecortado(req, body)
   const id = fila.id as string
   const pedido = new Request(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify({ ...body, segundo_plano: false, busqueda_existente: id }) })
   const terminar = (estado: string, resultado: unknown) =>
@@ -30,7 +53,8 @@ async function enSegundoPlano(req: Request, body: Record<string, unknown>) {
     try {
       const r = await buscar(pedido, ayudas)
       const d = await r.json().catch(() => ({ error: 'Respuesta inválida' }))
-      await terminar(r.ok && !d?.error ? 'lista' : 'error', d)
+      const ok = r.ok && !d?.error
+      await terminar(ok ? 'lista' : 'error', ok ? await recortar(d, body.cantidad) : d)
     } catch (e) {
       await terminar('error', { error: 'La búsqueda falló: ' + String((e as Error)?.message ?? e).slice(0, 200) })
     }
@@ -44,5 +68,7 @@ Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const body = await req.clone().json().catch(() => ({}))
   if (body?.segundo_plano === true && !body.modo) return enSegundoPlano(req, body)
-  return buscar(req, ayudas)
+  // Las consultas chicas (interpretar / preguntar) no traen resultados: van directo
+  if (body?.modo) return buscar(req, ayudas)
+  return buscarRecortado(req, body)
 })
