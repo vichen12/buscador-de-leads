@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import { Globe2, MapPin, Star, X, Building2, Check } from 'lucide-react'
+import './SelectorZona.css'
 import { PAISES, REGIONES, PROVINCIAS_AR, CIUDADES, ZONAS, REGIONES_PAIS, nombrePais, lugaresDe } from '../lib/catalogo.js'
 
 const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
@@ -8,6 +9,8 @@ const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀
  * "Dónde": país, provincia, ciudad o lo que escribas. Al abrir muestra todo agrupado (tus zonas, países,
  * provincias, ciudades); al escribir filtra en todos los grupos.
  */
+const unicosSuyas = arr => [...new Map(arr.filter(Boolean).map(z => [limpiar(z), { v: z }])).values()].slice(0, 8)
+
 const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, sugeridas = [], disabled, multi = false, seleccionadas = [], placeholder = 'País, provincia o ciudad', pais = '', region = '', soloPais = '' }, ref) {
   const [abierto, setAbierto] = useState(false)
   const [texto, setTexto] = useState(multi ? '' : value)
@@ -27,9 +30,11 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
     const mza = soloPais === 'AR' && region === 'Mendoza' ? ['Gran Mendoza', ...ZONAS.flatMap(g => g.items)] : []
     const ciudades = unicos([...mza, ...(CIUDADES.find(c => c.pais === nombrePais(soloPais))?.items ?? []), ...sugeridas.filter(z => !(REGIONES_PAIS[soloPais] ?? []).some(r => limpiar(r) === limpiar(z)))])
     const regiones = unicos(REGIONES_PAIS[soloPais] ?? [])
+    const suyas = sugeridas.length ? [{ titulo: 'Tus zonas', icono: Star, items: unicosSuyas(sugeridas), chips: true }] : []
     return [
-      { titulo: 'Ciudades', icono: Building2, items: ciudades },
-      { titulo: soloPais === 'AR' ? 'Provincias' : soloPais === 'MX' || soloPais === 'BR' || soloPais === 'US' ? 'Estados' : 'Regiones', icono: MapPin, items: regiones },
+      ...suyas,
+      { titulo: soloPais === 'AR' ? 'Provincias' : soloPais === 'MX' || soloPais === 'BR' || soloPais === 'US' ? 'Estados' : 'Regiones', icono: MapPin, items: regiones, chips: true },
+      { titulo: 'Ciudades', icono: Building2, items: ciudades, chips: true },
     ].filter(g => g.items.length)
   }, [sugeridas, soloPais, region])
   const gruposTodos = useMemo(() => [
@@ -48,9 +53,11 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
   const filtrando = !!t && (multi || limpiar(texto) !== limpiar(value))
   const visibles = useMemo(() => {
     if (!filtrando) return grupos
-    return grupos.map(g => ({ ...g, items: g.items.filter(i => limpiar(i.label ?? i.v).includes(t) || limpiar(i.v).includes(t)) })).filter(g => g.items.length)
+    const puntos = i => { const a = limpiar(i.label ?? i.v); return a.startsWith(t) ? 0 : a.split(/[\s,]+/).some(w => w.startsWith(t)) ? 1 : 2 }
+    return grupos.map(g => ({ ...g, items: g.items.filter(i => limpiar(i.label ?? i.v).includes(t) || limpiar(i.v).includes(t)).sort((a, b) => puntos(a) - puntos(b)) })).filter(g => g.items.length)
   }, [grupos, t, filtrando])
   const planos = visibles.flatMap(g => g.items)
+  const exacto = planos.some(i => limpiar(i.label ?? i.v) === t || limpiar(i.v) === t)
   useEffect(() => setActivo(0), [t])
 
   const elegir = v => { if (!v) return; onChange(v); setTexto(multi ? '' : v); setAbierto(false) }
@@ -68,23 +75,26 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
     <div className="selector-zona" ref={caja}>
       <div className="sz-input">
         <input ref={ref} value={texto} disabled={disabled} placeholder={placeholder}
-          onFocus={() => setAbierto(true)} onChange={e => { setTexto(e.target.value); setAbierto(true) }} onKeyDown={teclas}
+          onFocus={e => { setAbierto(true); e.target.select() }} onChange={e => { setTexto(e.target.value); setAbierto(true) }} onKeyDown={teclas}
           role="combobox" aria-expanded={abierto} aria-label="Dónde buscar" />
         {texto && !disabled && <button type="button" className="sz-limpiar" onClick={() => { setTexto(''); if (!multi) onChange(''); setAbierto(true) }} aria-label="Borrar"><X size={13} /></button>}
       </div>
       {abierto && !disabled && (
         <div className="sz-panel" role="listbox">
-          {filtrando && !planos.length && (
-            <button type="button" className="sz-libre" onClick={() => elegir(texto.trim())}><MapPin size={14} /> Buscar en “{texto.trim()}”</button>
+          {!filtrando && value && !multi && (
+            <div className="sz-elegido"><Check size={14} /> <span>Buscando en <b>{value}</b></span><small>Escribí para cambiar</small></div>
           )}
-          <div className={soloPais && !filtrando ? 'sz-columnas' : ''}>
+          {filtrando && !exacto && (
+            <button type="button" className="sz-libre" onMouseDown={e => e.preventDefault()} onClick={() => elegir(texto.trim())}><MapPin size={14} /> Buscar en “{texto.trim()}”{planos.length ? '' : ' (tal cual lo escribiste)'}</button>
+          )}
+          <div>
           {visibles.map(g => {
             const Icono = g.icono
             return (
               <div key={g.titulo} className="sz-grupo">
                 <div className="sz-titulo"><Icono size={13} /> {g.titulo}</div>
                 <div className={g.chips && !filtrando ? 'sz-chips' : 'sz-lista'}>
-                  {g.items.slice(0, filtrando ? 8 : 40).map(i => {
+                  {g.items.slice(0, filtrando ? 10 : 36).map(i => {
                     idx++
                     const on = multi ? seleccionadas.some(z => limpiar(z) === limpiar(i.v)) : limpiar(i.v) === limpiar(value)
                     return (

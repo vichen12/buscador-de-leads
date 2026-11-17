@@ -1,0 +1,17 @@
+/* Selector de zona: más compacto y prolijo (chips, lo elegido arriba, títulos fijos al bajar) */
+.sz-panel { width: min(600px, calc(100vw - 32px)); max-height: 380px; padding: 8px 12px 12px; border-radius: 18px; }
+.sz-elegido { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 10px; padding: 9px 12px; border-radius: 12px; background: var(--acc-soft); color: var(--acc-ink, var(--acc)); font-size: 13.5px; }
+.sz-elegido small { margin-left: auto; color: var(--mut); font-size: 12px; }
+.sz-grupo + .sz-grupo { margin-top: 8px; padding-top: 8px; }
+.sz-titulo { position: sticky; top: -8px; z-index: 1; margin: 0 -12px 6px; padding: 8px 12px 4px; background: var(--card, #fff); }
+.sz-chips { gap: 6px; }
+.sz-chips button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; font-size: 13px; font-weight: 500; }
+.sz-chips button.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+.sz-chips .sz-check { width: 13px; height: 13px; }
+.sz-lista button { display: flex; align-items: center; gap: 8px; }
+.sz-lista .sz-check { margin-left: auto; color: var(--acc); }
+.sz-lista button.on { color: var(--acc-ink, var(--acc)); }
+.sz-libre { font-weight: 600; }
+@media (max-width: 700px) {
+  .sz-panel { position: fixed; left: 12px !important; right: 12px; top: auto; bottom: calc(var(--bf-libre, 80px) + 10px); width: auto; max-height: 55vh; }
+}
