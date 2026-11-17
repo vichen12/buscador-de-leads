@@ -829,7 +829,7 @@ Respondé SOLO con JSON: {"preguntas": [{"pregunta": "...", "opciones": ["...", 
       cuenta[c.segmento] = (cuenta[c.segmento] ?? 0) + 1
       return cuenta[c.segmento] <= tope
     })({}))
-    .slice(0, cantidad + 5)
+    .slice(0, cantidad) // nunca más de lo que pidió (antes cantidad + 5: pedías 5 y venían 10)
   // Se cobra lo que costó de verdad (con el margen): Claude + búsquedas web + consultas a Google Maps
   const costo = costoUsd(uso, conteoPlaces.consultas, precios)
   if (!anotada) await cobrar(resultados.length ? creditosPorCosto(costo, precios) : usoIn ? 1 : 0)
