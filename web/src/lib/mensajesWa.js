@@ -13,7 +13,23 @@ export const VARIABLES_WA = [
 ]
 
 // Vienen escritos para arrancar: se cambian como quieras. {{empresa}} y lo demás se completan solos.
+// Mi negocio: le escribís a un posible cliente de lo que vendés (sea lo que sea).
 const INICIALES = [
+  {
+    titulo: 'Tiene web', para: 'con_web',
+    texto: `Hola, ¿cómo están? Soy {{mi_nombre}} de {{mi_empresa}}. Estuve viendo la web de {{empresa}} ({{web}}) y creo que lo que hacemos les puede servir.
+
+¿Con quién podría hablar para contarles en 10 minutos?`,
+  },
+  {
+    titulo: 'No tiene web', para: 'sin_web',
+    texto: `Hola, ¿cómo están? Soy {{mi_nombre}} de {{mi_empresa}}. Encontré a {{empresa}} buscando {{rubro}} en {{zona}} y creo que lo que hacemos les puede servir.
+
+¿Con quién podría hablar para contarles en 10 minutos?`,
+  },
+]
+// Los primeros que hubo (vender páginas web): ahora son los de ejemplo de la búsqueda libre
+const INICIALES_WEB = [
   {
     titulo: 'Tiene web (vieja)', para: 'con_web',
     texto: `Hola, ¿cómo están? Soy {{mi_nombre}} de {{mi_empresa}}. Estuve mirando la página de {{empresa}} ({{web}}) y en el celular se ve un poco desactualizada: cuesta encontrar el contacto y carga lento.
@@ -28,8 +44,8 @@ Hoy mucha gente decide a quién comprarle por lo que ve online. Les podemos arma
   },
 ]
 
-// Para la búsqueda libre (proveedores, aliados, lo que sea): otro tono, no le vendés nada.
-const INICIALES_LIBRE = [
+// Para la búsqueda libre (proveedores, aliados, lo que sea): otro tono.
+const INICIALES_LIBRE_GENERICOS = [
   {
     titulo: 'Tiene web', para: 'con_web',
     texto: `Hola, ¿cómo están? Soy {{mi_nombre}} de {{mi_empresa}}. Vi la página de {{empresa}} ({{web}}) y me interesa saber más de lo que hacen.
@@ -44,6 +60,11 @@ const INICIALES_LIBRE = [
   },
 ]
 
+const INICIALES_LIBRE = INICIALES_WEB
+
+/** ¿Es el juego viejo de vender páginas web (el que vino de ejemplo antes de separar por lado)? */
+const esJuegoWeb = l => Array.isArray(l) && l.some(m => /armamos una versi[oó]n nueva|armar una web|p[aá]gina web propia/i.test(m?.texto ?? ''))
+
 /** De qué lado es la empresa: «libre» (búsqueda libre) o «negocio» (clientes para mi negocio) */
 export const mundoDe = p => (p?.libre ? 'libre' : 'negocio')
 const CLAVE = { negocio: 'whatsapp_mensajes', libre: 'whatsapp_mensajes_libre' }
@@ -51,10 +72,18 @@ export const CLAVE_MUNDO_WA = CLAVE
 
 /** Los mensajes guardados de ese lado (si nunca guardó, los dos de ejemplo para arrancar) */
 export function mensajesWa(perfil, mundo = 'negocio') {
-  const l = perfil?.config_email?.[CLAVE[mundo] ?? CLAVE.negocio]
-  if (Array.isArray(l) && l.length) return l
-  return (mundo === 'libre' ? INICIALES_LIBRE : INICIALES).map(m => ({ ...m }))
+  const cfg = perfil?.config_email ?? {}
+  const negocio = cfg[CLAVE.negocio], libre = cfg[CLAVE.libre]
+  // Antes de separar por lado había un solo juego (el de vender webs): ése va a la búsqueda libre
+  const viejo = esJuegoWeb(negocio) && !(Array.isArray(libre) && libre.length)
+  if (mundo === 'libre') {
+    if (Array.isArray(libre) && libre.length) return libre
+    return (viejo ? negocio : INICIALES_LIBRE).map(m => ({ ...m }))
+  }
+  if (Array.isArray(negocio) && negocio.length && !viejo) return negocio
+  return INICIALES.map(m => ({ ...m }))
 }
+export { INICIALES_LIBRE_GENERICOS }
 
 /**
  * El nombre de la empresa como se diría en un mensaje: sin «S.R.L.», «S.A.» y similares, y si

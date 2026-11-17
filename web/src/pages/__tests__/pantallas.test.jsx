@@ -166,7 +166,7 @@ describe('Nombre de la empresa en el mensaje', () => {
     expect(conWeb.texto).toContain('{{empresa}}')
     const yo = quienSoy({ perfil: { nombre: 'Vicente Dalla' }, comercial: { respuestas: { empresa: 'Estudio Web' } } })
     expect(yo).toEqual({ mi_nombre: 'Vicente', mi_empresa: 'Estudio Web' })
-    expect(rellenarWa(sinWeb.texto, { nombre: 'TALLER RUIZ' }, yo)).toContain('Soy Vicente de Estudio Web. Busqué Taller Ruiz en Google')
+    expect(rellenarWa(mensajesWa({}, 'libre')[1].texto, { nombre: 'TALLER RUIZ' }, yo)).toContain('Soy Vicente de Estudio Web. Busqué Taller Ruiz en Google')
     expect(quienSoy({ perfil: {}, comercial: { respuestas: { web: 'https://www.bombascuyo.com' } } }).mi_empresa).toBe('Bombascuyo')
     expect(rellenarWa('Soy {{mi_nombre}} de {{mi_empresa}}. Hola', {}, { mi_nombre: 'Ana' })).toBe('Soy Ana. Hola')
   })
@@ -176,7 +176,7 @@ describe('Pantalla de Mensajes de WhatsApp', () => {
   it('se dibuja con «Quién escribe», las pestañas y la vista previa', async () => {
     const html = await dibujar('/mensajes-whatsapp', () => import('../MensajesWhatsapp.jsx'))
     expect(html).toContain('Quién escribe')
-    expect(html).toContain('Tiene web (vieja)')
+    expect(html).toContain('Tiene web')
     expect(html).toContain('No tiene web')
     expect(html).toContain('Panadería la Espiga'.replace('la', 'La'))
   })

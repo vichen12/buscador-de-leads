@@ -17,6 +17,7 @@ import Duplicados from '../components/Duplicados.jsx'
 import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { useApp } from '../App.jsx'
 import BotonWhatsApp from '../components/BotonWhatsApp.jsx'
+import { NotasBoton, useResumenNotas } from '../components/Notas.jsx'
 
 import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
 import { opcionesProvincias, textoCuenta, deProvincia } from '../lib/provincias.js'
@@ -57,6 +58,7 @@ export default function Prospectos() {
   const [infoBusqueda, setInfoBusqueda] = useState(null)
   const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
+  const [resumenNotas, recargarNotas] = useResumenNotas()
   async function cargar() {
     const consulta = () => { let c = supabase.from('prospectos').select('*, mensajes(tipo)').order('created_at', { ascending: false }); return de !== 'todas' ? c.eq('owner_id', session.user.id) : c }
     const { data, error } = await traerTodo(consulta)
@@ -366,7 +368,7 @@ export default function Prospectos() {
                       {p.telefono ? <a href={`tel:${p.telefono.split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={12} /> {p.telefono}</a> : null}
                       {p.email ? <a href={`mailto:${p.email}`}><Mail size={12} /> {p.email} <EstadoEmail estado={p.email_estado} motivo={p.email_motivo} /></a> : null}
                       {!p.telefono && !p.email && <span className="muted">—</span>}
-                      <BotonWhatsApp p={p} onRegistrado={cargar} />
+                      <span className="fila-acciones-chicas"><BotonWhatsApp p={p} onRegistrado={cargar} /><NotasBoton p={p} resumen={resumenNotas[p.id]} onCambio={recargarNotas} /></span>
                     </td>
                     <td><Enlaces e={p} fuente={false} /></td>
                     <td><Desplegable compacto className="estado-celda" ariaLabel={'Estado de ' + p.nombre} value={p.estado} onChange={v => moverA(p, v)} anchoMenu={200} opciones={opcionesEstado} /></td>

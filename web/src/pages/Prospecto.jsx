@@ -17,6 +17,7 @@ import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEmpresa } from '../components/FichaExtras.jsx'
 import { HerramientasIA, Etiquetas, Comentarios, Propuestas, VisitasDeEmpresa, ArchivosEmpresa } from '../components/FichaParte2.jsx'
 import { useApp } from '../App.jsx'
+import { NotasPanel } from '../components/Notas.jsx'
 import { mensajesWa, mundoDe, quienSoy, rellenarWa, sugeridoWa } from '../lib/mensajesWa.js'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
@@ -51,7 +52,6 @@ export default function Prospecto() {
   const [instruccion, setInstruccion] = useState('')
   const [confirmarEnvio, setConfirmarEnvio] = useState(null)
   const [editando, setEditando] = useState(false)
-  const [nota, setNota] = useState('')
   const [aviso, setAviso] = useState('')
   const [bloqueo, setBloqueo] = useState(null) // motivo si el email está en "No contactar"
   const verificado = useRef(new Set())
@@ -449,6 +449,10 @@ export default function Prospecto() {
         </section>
       </div>
 
+      <section className="tarjeta">
+        <div className="tarjeta-titulo"><h3><StickyNote size={16} /> Notas</h3><small className="muted">Cada nota queda con la fecha y el estado en que estaba</small></div>
+        <NotasPanel p={p} onCambio={cargar} />
+      </section>
       <RespuestasDeEmpresa p={p} />
       <details className="ajustes-finos">
         <summary>Más sobre esta empresa <span className="muted chico">contactos, tareas, propuestas, visitas, comentarios y archivos</span></summary>
@@ -468,10 +472,6 @@ export default function Prospecto() {
 
       <section className="tarjeta">
         <div className="tarjeta-titulo"><h3><Clock size={16} /> Historial</h3></div>
-        <form className="nota-rapida" onSubmit={async e => { e.preventDefault(); if (nota.trim()) { await registrar('nota', nota.trim()); setNota(''); toast('Nota agregada') } }}>
-          <input placeholder="Agregar una nota (qué te dijo, cuándo volver a escribir…)" value={nota} onChange={e => setNota(e.target.value)} />
-          <button className="btn oscuro">Agregar</button>
-        </form>
         {hist.length === 0 ? <p className="muted">Sin interacciones todavía.</p> : (
           <ul className="timeline">
             {hist.map(h => {

@@ -6,6 +6,7 @@ import { fecha, fechaHora, hoyLocal, mensajeError } from '../lib/util.js'
 import { Avatar, Cargando, ErrorCarga, Vacio, useToast } from '../components/ui.jsx'
 import { TareaItem } from '../components/Tareas.jsx'
 import { useApp } from '../App.jsx'
+import { NotasBoton, useResumenNotas } from '../components/Notas.jsx'
 
 /** Lo que hay que hacer hoy: tareas (llamar, WhatsApp, LinkedIn, las que dejan las secuencias) y seguimientos vencidos */
 // Un seguimiento agendado vale en cualquier etapa activa, no sólo en «Contactado»
@@ -84,7 +85,7 @@ export default function Seguimientos() {
               <Link key={p.id} to={`/prospectos/${p.id}?tab=seguimiento`} className="accion-item">
                 <Avatar nombre={p.nombre} />
                 <div><b className="fuerte">{p.nombre}</b><div className="muted chico">{p.rubro} · último contacto {fechaHora(p.ultimo_contacto)}</div></div>
-                <span className="espacio" /><span className="btn chico">Preparar seguimiento</span><ChevronRight size={16} />
+                <span className="espacio" /><NotasBoton p={p} resumen={resumenNotas[p.id]} onCambio={recargarNotas} /><span className="btn chico">Preparar seguimiento</span><ChevronRight size={16} />
               </Link>
             ))}
           </div>
@@ -98,7 +99,7 @@ export default function Seguimientos() {
               <Link key={p.id} to={`/prospectos/${p.id}`} className="accion-item">
                 <Avatar nombre={p.nombre} />
                 <div><b className="fuerte">{p.nombre}</b><div className="muted chico">{p.rubro}</div></div>
-                <span className="espacio" /><span className="chip"><CalendarClock size={12} /> {fecha(p.proximo_seguimiento)}</span>
+                <span className="espacio" /><NotasBoton p={p} resumen={resumenNotas[p.id]} onCambio={recargarNotas} /><span className="chip"><CalendarClock size={12} /> {fecha(p.proximo_seguimiento)}</span>
               </Link>
             ))}
           </div>

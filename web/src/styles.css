@@ -3133,3 +3133,34 @@ html[data-tema="oscuro"] .op-busqueda.libre .op-busqueda-icono { background: #1b
 .desplegable-opcion.apagada { opacity: .55; }
 .menu-provincias { max-height: 360px; }
 .menu-provincias .desplegable-opcion small { font-size: 11.5px; }
+
+/* WhatsApp: cuando no se puede, un rótulo gris claro (antes parecía un botón prendido pero borroso) */
+.bwa-no { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; padding: 3px 9px; border-radius: 8px; border: 1px dashed var(--line-2); color: var(--mut); font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: help; }
+.elegir-wa-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; }
+.elegir-wa-cab .link { margin-left: auto; flex: none; }
+
+/* Notas por empresa */
+.notas { display: flex; flex-direction: column; gap: 12px; }
+.notas-nueva { display: flex; flex-direction: column; gap: 6px; }
+.notas-nueva textarea { resize: vertical; min-height: 64px; font-size: 14px; line-height: 1.5; }
+.notas-nueva-pie { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.notas-nueva-pie small { flex: 1; min-width: 180px; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.notas-nueva-pie .estado { transform: scale(.85); transform-origin: left center; }
+.notas-vacio { display: flex; align-items: center; gap: 6px; margin: 0; }
+.notas-lista { list-style: none; margin: 0; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--line); }
+.notas-lista li { position: relative; }
+.notas-lista li::before { content: ''; position: absolute; left: -20px; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: var(--card); border: 2px solid var(--acc); }
+.notas-cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--mut); }
+.notas-cab .estado { font-size: 11px; padding: 1px 7px; }
+.notas-lista p { margin: 3px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.notas.compacto .notas-lista { max-height: 260px; overflow-y: auto; }
+.notas-boton { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--mut); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.notas-boton:hover { border-color: var(--line-2); color: var(--ink); }
+.notas-boton.con { color: #8a5a00; background: #fff7e6; border-color: #f5ddb2; }
+html[data-tema="oscuro"] .notas-boton.con { color: #f3c27a; background: #3a2a12; border-color: #5a4220; }
+.notas-flotante { position: fixed; z-index: 60; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh-lg); animation: desplegar-suave .18s cubic-bezier(.2, .8, .2, 1); }
+.notas-flotante-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13.5px; }
+.notas-flotante-cab b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notas-cerrar { border: 0; background: var(--hover); color: var(--ink-2); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; flex: none; }
+.fila-acciones-chicas { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.fila-acciones-chicas .bwa, .fila-acciones-chicas .bwa-no { margin-top: 0; }

@@ -78,10 +78,12 @@ export default function BotonWhatsApp({ p, onRegistrado }) {
 
   return (
     <span className="bwa" ref={caja}>
-      <button ref={boton} type="button" className="btn wa chico bwa-boton" disabled={!!motivo} title={motivo || 'Mandar uno de tus mensajes por WhatsApp'}
-        onClick={() => setAbierto(a => !a)} aria-expanded={abierto}>
-        <MessageCircle size={13} /> WhatsApp
-      </button>
+      {motivo
+        ? <span className="bwa-no" title={motivo}><MessageCircle size={12} /> {!tieneWA ? 'Sin WhatsApp' : optOut ? 'No contactar' : 'Límite de hoy'}</span>
+        : <button ref={boton} type="button" className="btn wa chico bwa-boton" title="Mandar uno de tus mensajes por WhatsApp"
+            onClick={() => setAbierto(a => !a)} aria-expanded={abierto}>
+            <MessageCircle size={13} /> WhatsApp
+          </button>}
       {abierto && (
         <div className="bwa-menu" style={pos ? { ...pos, position: 'fixed' } : { visibility: 'hidden' }} role="dialog" aria-label={`WhatsApp a ${p.nombre}`}>
           {pendiente ? (
