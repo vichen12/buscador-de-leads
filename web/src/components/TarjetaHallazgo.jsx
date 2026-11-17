@@ -11,10 +11,13 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
   const dir = [h.direccion, h.zona && !h.direccion?.toLowerCase().includes(h.zona.toLowerCase()) ? h.zona : ''].filter(Boolean).join(' · ')
   return (
     <article className={'hallazgo ' + h.estado + (sel ? ' sel' : '')}>
-      {onSel && h.estado !== 'aprobado' && (
-        <input type="checkbox" className="hallazgo-check" checked={!!sel} onChange={onSel} aria-label={'Seleccionar ' + h.nombre} />
-      )}
-      <LogoEmpresa nombre={h.nombre} web={h.web ?? h.web_actual} />
+      {/* La casilla siempre ocupa su lugar (aunque no se pueda tildar) para que nada se corra */}
+      <span className="hallazgo-check-lugar">
+        {onSel && h.estado !== 'aprobado' && (
+          <input type="checkbox" className="hallazgo-check" checked={!!sel} onChange={onSel} aria-label={'Seleccionar ' + h.nombre} />
+        )}
+      </span>
+      <span className="hallazgo-logo"><LogoEmpresa nombre={h.nombre} web={h.web ?? h.web_actual} /></span>
       <div className="hallazgo-cuerpo">
         <div className="hallazgo-cab">
           <h3>{h.prospecto_id ? <Link to={`/prospectos/${h.prospecto_id}`}>{h.nombre}</Link> : h.nombre}</h3>
@@ -23,11 +26,11 @@ export default function TarjetaHallazgo({ h, sel, onSel, onAprobar, onDescartar,
         </div>
         <div className="hallazgo-sub">
           {h.rubro && <span className="tipo">{h.rubro}</span>}
-          {dir && <span className="lugar"><MapPin size={12} /> {dir}</span>}
+          {dir && <span className="lugar lugar-dir" title={dir}><MapPin size={12} /> <span>{dir}</span></span>}
           {h.resenas > 0 && <span className="lugar"><Star size={12} /> {h.rating ? `${h.rating} · ` : ''}{h.resenas} reseñas</span>}
         </div>
-        {h.descripcion && <p className="hallazgo-que-es">{h.descripcion}</p>}
-        {h.encaje && <div className="hallazgo-te-sirve"><Target size={14} /><div><small>{h.libre ? 'Por qué coincide' : 'Por qué te serviría'}</small>{h.encaje}</div></div>}
+        {h.descripcion && <p className="hallazgo-que-es" title={h.descripcion}>{h.descripcion}</p>}
+        {h.encaje && <div className="hallazgo-te-sirve" title={h.encaje}><Target size={14} /><div><small>{h.libre ? 'Por qué coincide' : 'Por qué te serviría'}</small><span className="hallazgo-te-sirve-txt">{h.encaje}</span></div></div>}
         {h.senales && <p className="hallazgo-senal"><Megaphone size={13} /> {h.senales}</p>}
         {h.decisor?.nombre && <p className="hallazgo-decisor"><UserRound size={13} style={{ verticalAlign: -2 }} /> Decide: <b>{h.decisor.nombre}</b>{h.decisor.cargo ? `, ${h.decisor.cargo}` : ''}{h.decisor.fuente && <> · <a href={h.decisor.fuente} target="_blank" rel="noreferrer">fuente</a></>}</p>}
         <div className="hallazgo-pie">
