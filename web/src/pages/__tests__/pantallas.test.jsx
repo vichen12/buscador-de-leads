@@ -1,6 +1,9 @@
 // Que cada pantalla principal se dibuje sin romperse (una pantalla en blanco ya pasó una vez).
 // Se renderizan en el servidor con datos de mentira: si el código de la pantalla tira un error, falla.
 import { describe, expect, it, vi } from 'vitest'
+
+// Dibujar una pantalla la primera vez carga mucho código: en una compu ocupada pasa los 5 s por defecto
+vi.setConfig({ testTimeout: 30000 })
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 
