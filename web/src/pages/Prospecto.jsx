@@ -17,7 +17,7 @@ import { useCambiarEstado } from '../components/CambiarEstado.jsx'
 import { RespuestasDeEmpresa, TareasDeEmpresa, ContactosDeEmpresa, SecuenciaDeEmpresa } from '../components/FichaExtras.jsx'
 import { HerramientasIA, Etiquetas, Comentarios, Propuestas, VisitasDeEmpresa, ArchivosEmpresa } from '../components/FichaParte2.jsx'
 import { useApp } from '../App.jsx'
-import { mensajesWa, quienSoy, rellenarWa, sugeridoWa } from '../lib/mensajesWa.js'
+import { mensajesWa, mundoDe, quienSoy, rellenarWa, sugeridoWa } from '../lib/mensajesWa.js'
 
 const TABS = [['whatsapp', 'WhatsApp', MessageCircle], ['email', 'Email', Mail], ['seguimiento', 'Seguimiento', CalendarClock]]
 const TIPO_INT = {
@@ -101,6 +101,13 @@ export default function Prospecto() {
   const limite = perfil?.limite_diario ?? 15
   const sinCupo = enviadosHoy >= limite
   const tieneWA = Boolean(numeroWhatsApp(p.telefono)) && p.telefono_tipo !== 'fijo'
+  // Vista previa de WhatsApp vacía: muestra tu mensaje sugerido para esta empresa
+  const sugeridoTexto = (() => {
+    if (tab !== 'whatsapp' || !p) return ''
+    const l = mensajesWa(perfil, mundoDe(p)).filter(m => m.texto?.trim())
+    const i = sugeridoWa(l, p)
+    return l.length ? rellenarWa(l[i >= 0 ? i : 0].texto, p, quienSoy({ perfil, comercial, acceso, session })) : ''
+  })()
   const editar = (campo, valor) => setBorrador(b => ({ ...b, [tab]: { ...actual, [campo]: valor } }))
 
   async function generar() {
@@ -394,7 +401,7 @@ export default function Prospecto() {
               ) : (
                 <div className="preview">
                   <div className="preview-cab"><Avatar nombre={p.nombre} /><div><span>{p.nombre}</span><small>WhatsApp · vista previa</small></div></div>
-                  <div className="preview-cuerpo">{actual.cuerpo ? <div className="burbuja" key={actual.cuerpo.length}>{actual.cuerpo}<small><span>{hora}</span> ✓✓</small></div> : <span className="muted chico centrado" style={{ margin: 'auto' }}>Vista previa del mensaje</span>}</div>
+                  <div className="preview-cuerpo">{actual.cuerpo ? <div className="burbuja" key={actual.cuerpo.length}>{actual.cuerpo}<small><span>{hora}</span> ✓✓</small></div> : sugeridoTexto ? <><small className="muted chico centrado">Sugerido para esta empresa</small><div className="burbuja sugerida">{sugeridoTexto}<small><span>{hora}</span></small></div></> : <span className="muted chico centrado" style={{ margin: 'auto' }}>Vista previa del mensaje</span>}</div>
                 </div>
               )}
             </div>
@@ -551,16 +558,22 @@ function Resaltado({ texto, frases }) {
 
 /** WhatsApp: tus mensajes (los de Más → Mensajes de WhatsApp). Tocás uno y queda cargado, listo para abrir WhatsApp. */
 function ElegirMensajeWa({ p, perfil, yo, actual, disabled, sinWhatsApp, telefono, onElegir, onAbierto }) {
-  const lista = mensajesWa(perfil).filter(m => m.texto?.trim())
+  const mundo = mundoDe(p)
+  const lista = mensajesWa(perfil, mundo).filter(m => m.texto?.trim())
   if (!lista.length) return (
     <div className="elegir-wa vacio"><MessageCircle size={15} /><span>Escribí tus propios mensajes de WhatsApp y mandalos desde acá con un toque.</span><Link to="/mensajes-whatsapp" className="btn chico">Escribir mis mensajes</Link></div>
   )
+  const copiar = async texto => { try { await navigator.clipboard.writeText(texto) } catch { /* sin permiso */ } onElegir(texto) }
   const sug = sugeridoWa(lista, p)
   // El sugerido primero
   const orden = lista.map((m, i) => ({ m, i })).sort((a, b) => (b.i === sug) - (a.i === sug))
   return (
     <div className="elegir-wa">
-      <div className="elegir-wa-cab"><small className="muted">Tus mensajes de WhatsApp</small><Link to="/mensajes-whatsapp" className="link chico">Editar</Link></div>
+      <div className="elegir-wa-cab">
+        <small className="muted">Tus mensajes de WhatsApp · <b>{mundo === 'libre' ? 'búsqueda libre' : 'mi negocio'}</b></small>
+        <Link to="/mensajes-whatsapp" className="link chico">Editar</Link>
+      </div>
+      {sinWhatsApp && <div className="elegir-wa-aviso"><Phone size={14} /><span>{sinWhatsApp}. Podés copiar el mensaje{p.telefono ? ' o llamar' : ''}.</span>{p.telefono && <a className="btn chico" href={`tel:${String(p.telefono).split('/')[0].replace(/[^\d+]/g, '')}`}><Phone size={13} /> Llamar</a>}</div>}
       <div className="elegir-wa-lista">
         {orden.map(({ m, i }) => {
           const texto = rellenarWa(m.texto, p, yo)
@@ -573,8 +586,8 @@ function ElegirMensajeWa({ p, perfil, yo, actual, disabled, sinWhatsApp, telefon
               </div>
               <p className="elegir-wa-texto">{texto}</p>
               <div className="elegir-wa-acciones">
-                {disabled || sinWhatsApp
-                  ? <button type="button" className="btn wa chico" disabled title={sinWhatsApp}><MessageCircle size={14} /> Mandar por WhatsApp</button>
+                {disabled ? null : sinWhatsApp
+                  ? <button type="button" className="btn chico elegir-wa-copiar" onClick={() => copiar(texto)}><Copy size={13} /> Copiar mensaje</button>
                   : <a className="btn wa chico" href={linkWhatsApp(telefono, texto)} target="_blank" rel="noreferrer" onClick={() => onAbierto(texto)} title="Abre el chat de esta empresa con este mensaje">
                       <MessageCircle size={14} /> Mandar por WhatsApp
                     </a>}
@@ -586,7 +599,6 @@ function ElegirMensajeWa({ p, perfil, yo, actual, disabled, sinWhatsApp, telefon
           )
         })}
       </div>
-      {sinWhatsApp && <small className="muted">{sinWhatsApp}.</small>}
     </div>
   )
 }

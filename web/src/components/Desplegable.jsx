@@ -4,10 +4,12 @@ import { Check, ChevronDown } from 'lucide-react'
 
 /**
  * Desplegable propio (reemplaza al <select> nativo en toda la app).
- * opciones: [{ value, label, ayuda?, icono?, nodo? }]  ·  nodo = contenido custom para el botón y la opción
+ * opciones: [{ value, label, ayuda?, icono?, nodo?, boton? }]  ·  nodo = contenido custom para el botón y la opción;
+ * boton = contenido sólo para el botón (si la opción es rica pero el botón tiene que ser corto)
+ * claseMenu: clase extra para el menú
  * El menú se dibuja en un portal con posición fija, así no lo corta una tabla con scroll.
  */
-export default function Desplegable({ value, onChange, opciones, ariaLabel, placeholder = 'Elegí…', disabled, className = '', compacto, anchoMenu, alinear = 'izq' }) {
+export default function Desplegable({ value, onChange, opciones, ariaLabel, placeholder = 'Elegí…', disabled, className = '', compacto, anchoMenu, alinear = 'izq', claseMenu = '' }) {
   const [abierto, setAbierto] = useState(false)
   const [activo, setActivo] = useState(0)
   const [pos, setPos] = useState(null)
@@ -55,12 +57,12 @@ export default function Desplegable({ value, onChange, opciones, ariaLabel, plac
         aria-haspopup="listbox" aria-expanded={abierto} aria-label={ariaLabel} disabled={disabled}
         onClick={e => { e.stopPropagation(); setAbierto(a => !a) }} onKeyDown={teclas}>
         <span className="desplegable-valor">
-          {actual ? (actual.nodo ?? <>{actual.icono}{actual.label}</>) : <span className="muted">{placeholder}</span>}
+          {actual ? (actual.boton ?? actual.nodo ?? <>{actual.icono}{actual.label}</>) : <span className="muted">{placeholder}</span>}
         </span>
         <ChevronDown size={15} className="chev" />
       </button>
       {abierto && pos && createPortal(
-        <div ref={menu} className="desplegable-menu" role="listbox" aria-label={ariaLabel}
+        <div ref={menu} className={'desplegable-menu' + (claseMenu ? ' ' + claseMenu : '')} role="listbox" aria-label={ariaLabel}
           style={{ left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom }} onMouseDown={e => e.stopPropagation()}>
           {opciones.map((o, i) => {
             const sel = String(o.value) === String(value)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePaginado, Paginador } from '../components/Paginador.jsx'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Inbox, Check, X, Download, Search, Sparkles, Undo2, Loader2, ListChecks, Ban, SkipForward } from 'lucide-react'
+import { Inbox, Check, X, Download, Search, Sparkles, Undo2, Loader2, ListChecks, Ban, SkipForward, Store, MapPin, Layers } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { descargarExcel, filaEmpresa } from '../lib/excel.js'
@@ -10,6 +10,7 @@ import { Esqueleto, useToast } from '../components/ui.jsx'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
+import { provinciasEn, deProvincia } from '../lib/provincias.js'
 import { sumarComoAliado } from '../lib/aliados.js'
 import { useApp } from '../App.jsx'
 
@@ -31,6 +32,7 @@ export default function Revisar() {
   const rubroF = params.get('rubro') || ''
   const cuandoF = params.get('cuando') || ''
   const origen = params.get('origen') || '' // '' | negocio | libre
+  const provincia = params.get('provincia') || '' // '' | nombre | _sin
   const [libres, setLibres] = useState(new Set())
   // Los atajos S / N / O recién actúan cuando elegiste una tarjeta (clic o J/K): una tecla suelta no toca nada
   const [armado, setArmado] = useState(false)
@@ -53,23 +55,26 @@ export default function Revisar() {
     setTodos(data ?? []); setBusquedas(bs ?? []); setCargando(false)
   }
   useEffect(() => { cargar() }, [])
-  useEffect(() => { setSel(new Set()); setArmado(false) }, [tab, busqueda, motivoF, rubroF, cuandoF, origen])
+  useEffect(() => { setSel(new Set()); setArmado(false) }, [tab, busqueda, motivoF, rubroF, cuandoF, origen, provincia])
   useEffect(() => { setPorRevisar(todos.filter(h => h.estado === 'por_revisar').length) }, [todos])
 
-  const cuenta = useMemo(() => Object.fromEntries(TABS.map(([k]) => [k, todos.filter(h => h.estado === k && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres)).length])), [todos, busqueda, origen, libres])
+  const cuenta = useMemo(() => Object.fromEntries(TABS.map(([k]) => [k, todos.filter(h => h.estado === k && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres) && deProvincia(h, provincia)).length])), [todos, busqueda, origen, libres, provincia])
   const hayLibres = useMemo(() => todos.some(h => esLibre(h, libres)), [todos, libres])
   const lista = useMemo(() => {
     const t = q.toLowerCase().trim()
     const desde = cuandoF ? Date.now() - Number(cuandoF) * 864e5 : 0
-    return todos.filter(h => h.estado === tab && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres) &&
+    return todos.filter(h => h.estado === tab && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres) && deProvincia(h, provincia) &&
       (tab !== 'descartado' || ((!motivoF || (motivoF === '_sin' ? !h.motivo : h.motivo === motivoF)) && (!rubroF || (h.rubro || 'Sin rubro') === rubroF) && (!desde || new Date(h.revisado_at || h.created_at).getTime() >= desde))) &&
       (!t || [h.nombre, h.rubro, h.zona, h.direccion, h.telefono, h.email, h.motivo].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => tab === 'descartado' ? new Date(b.revisado_at || b.created_at) - new Date(a.revisado_at || a.created_at) : 0)
-  }, [todos, tab, busqueda, q, motivoF, rubroF, cuandoF, origen, libres])
-  const rechazadas = useMemo(() => todos.filter(h => h.estado === 'descartado' && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres)), [todos, busqueda, origen, libres])
+  }, [todos, tab, busqueda, q, motivoF, rubroF, cuandoF, origen, libres, provincia])
+  const rechazadas = useMemo(() => todos.filter(h => h.estado === 'descartado' && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres) && deProvincia(h, provincia)), [todos, busqueda, origen, libres, provincia])
   const porMotivo = useMemo(() => rechazadas.reduce((a, h) => { const k = h.motivo || '_sin'; a[k] = (a[k] ?? 0) + 1; return a }, {}), [rechazadas])
   const rubrosRechazadas = useMemo(() => Object.entries(rechazadas.reduce((a, h) => { const k = h.rubro || 'Sin rubro'; a[k] = (a[k] ?? 0) + 1; return a }, {})).sort((a, b) => b[1] - a[1]), [rechazadas])
   const busquedasConDatos = busquedas.filter(b => todos.some(h => h.busqueda_id === b.id))
+  const porBusqueda = useMemo(() => { const m = new Map(); for (const h of todos) if (h.busqueda_id) m.set(h.busqueda_id, (m.get(h.busqueda_id) ?? 0) + 1); return m }, [todos])
+  // Provincias de lo que se ve en esta pestaña (sin contar el filtro de provincia)
+  const provincias = useMemo(() => provinciasEn(todos.filter(h => h.estado === tab && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres))), [todos, tab, busqueda, origen, libres])
 
   const marcar = (ids, cambio) => setTodos(l => l.map(h => ids.includes(h.id) ? { ...h, ...cambio } : h))
   const conOcupado = async (ids, fn) => {
@@ -109,9 +114,8 @@ export default function Revisar() {
 
   const todasSel = lista.length > 0 && lista.every(h => sel.has(h.id))
   const ids = [...sel]
-  const nombreBusqueda = b => `${b.requisitos?.libre ? 'Libre · ' : ''}${b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)} · ${b.zona}`
 
-  const pag = usePaginado(lista, 30, [tab, busqueda, q, origen])
+  const pag = usePaginado(lista, 30, [tab, busqueda, q, origen, provincia])
   // Atajos de teclado para revisar rápido (sólo en "Por revisar" y si no estás escribiendo)
   useEffect(() => { setFoco(f => Math.min(f, Math.max(0, pag.items.length - 1))) }, [pag.items.length, pag.pagina])
   useEffect(() => {
@@ -161,9 +165,27 @@ export default function Revisar() {
 
       <div className="barra-herramientas">
         <div className="buscador"><Search size={16} /><input placeholder="Buscar por nombre, teléfono, zona…" value={q} onChange={e => setQ(e.target.value)} /></div>
+        {provincias.length > 1 && (
+          <Desplegable compacto ariaLabel="Provincia" value={provincia} onChange={v => set('provincia', v)} anchoMenu={240}
+            opciones={[{ value: '', label: 'Todas las provincias', icono: <MapPin size={14} className="muted" /> },
+              ...provincias.map(([p, n]) => ({ value: p || '_sin', label: p || 'Sin provincia', ayuda: `${n} ${n === 1 ? 'empresa' : 'empresas'}` }))]} />
+        )}
         {busquedasConDatos.length > 0 && (
-          <Desplegable compacto ariaLabel="Búsqueda" value={busqueda} onChange={v => set('busqueda', v)} anchoMenu={300}
-            opciones={[{ value: '', label: 'Todas las búsquedas' }, ...busquedasConDatos.map(b => ({ value: b.id, label: nombreBusqueda(b), ayuda: new Date(b.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) }))]} />
+          <Desplegable compacto className="desplegable-busqueda" claseMenu="menu-busquedas" ariaLabel="Búsqueda" value={busqueda} onChange={v => set('busqueda', v)} anchoMenu={360} alinear="der"
+            opciones={[
+              { value: '', label: 'Todas las búsquedas', nodo: <OpcionBusqueda icono={<Layers size={15} />} titulo="Todas las búsquedas" sub={`${busquedasConDatos.length} ${busquedasConDatos.length === 1 ? 'búsqueda' : 'búsquedas'}`} />, boton: <><Layers size={14} className="muted" /> Todas las búsquedas</> },
+              ...busquedasConDatos.map(b => {
+                const libre = !!b.requisitos?.libre
+                const titulo = b.rubro ? b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1) : 'Búsqueda'
+                const n = porBusqueda.get(b.id) ?? 0
+                const sub = [String(b.zona ?? '').split(',')[0], fechaCorta(b.created_at), `${n} ${n === 1 ? 'empresa' : 'empresas'}`].filter(Boolean).join(' · ')
+                const I = libre ? Search : Store
+                return {
+                  value: b.id, label: titulo, nodo: <OpcionBusqueda icono={<I size={15} />} libre={libre} titulo={titulo} sub={sub} />,
+                  boton: <><I size={14} className="muted" /><span className="desplegable-recorte" title={titulo}>{titulo}</span></>,
+                }
+              }),
+            ]} />
         )}
       </div>
 
@@ -224,5 +246,20 @@ export default function Revisar() {
         </div>
       )}
     </>
+  )
+}
+
+const fechaCorta = f => (f ? new Date(f).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }).replace('.', '') : '')
+
+/** Una opción del desplegable de búsquedas: ícono, el pedido en una línea y abajo lugar · fecha · cuántas. */
+function OpcionBusqueda({ icono, libre, titulo, sub }) {
+  return (
+    <span className={'op-busqueda' + (libre ? ' libre' : '')}>
+      <span className="op-busqueda-icono">{icono}</span>
+      <span className="op-busqueda-txt">
+        <b title={titulo}>{titulo}</b>
+        {sub && <small>{sub}</small>}
+      </span>
+    </span>
   )
 }

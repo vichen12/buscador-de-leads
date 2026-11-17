@@ -186,3 +186,15 @@ describe('Pantalla de Mensajes de WhatsApp', () => {
     expect(quienSoy({ perfil })).toEqual({ mi_nombre: 'Vicho', mi_empresa: 'Viejo SRL' })
   })
 })
+
+describe('Mensajes de WhatsApp por lado', () => {
+  it('libre y mi negocio tienen su propio juego', async () => {
+    const { mensajesWa, mundoDe } = await import('../../lib/mensajesWa.js')
+    expect(mundoDe({ libre: true })).toBe('libre')
+    expect(mundoDe({})).toBe('negocio')
+    expect(mensajesWa({}, 'libre')[0].texto).not.toBe(mensajesWa({}, 'negocio')[0].texto)
+    const perfil = { config_email: { whatsapp_mensajes: [{ titulo: 'N', texto: 'n' }], whatsapp_mensajes_libre: [{ titulo: 'L', texto: 'l' }] } }
+    expect(mensajesWa(perfil, 'negocio')[0].titulo).toBe('N')
+    expect(mensajesWa(perfil, 'libre')[0].titulo).toBe('L')
+  })
+})

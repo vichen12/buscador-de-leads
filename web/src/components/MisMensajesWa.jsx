@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { MessageCircle, Plus, Save, Trash2, Loader2, UserRound, Building2, Globe, MonitorSmartphone, Sparkles, AlertTriangle, RotateCcw } from 'lucide-react'
+import { MessageCircle, Plus, Save, Trash2, Loader2, UserRound, Building2, Globe, MonitorSmartphone, Sparkles, AlertTriangle, RotateCcw, Store, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { mensajeError } from '../lib/util.js'
 import { Avatar, useToast } from './ui.jsx'
 import { useApp } from '../App.jsx'
-import { MAX_MENSAJES_WA, VARIABLES_WA, mensajesWa, quienSoy, rellenarWa } from '../lib/mensajesWa.js'
+import { CLAVE_MUNDO_WA, MAX_MENSAJES_WA, VARIABLES_WA, mensajesWa, quienSoy, rellenarWa } from '../lib/mensajesWa.js'
 
 const PARA = [['con_web', 'Con web', Globe], ['sin_web', 'Sin web', MonitorSmartphone], ['', 'Cualquiera', Sparkles]]
 // Si todavía no tenés empresas en tu lista, la vista previa usa estas
@@ -22,7 +22,12 @@ export default function MisMensajesWa() {
   const detectado = quienSoy({ ...app, perfil: { ...perfil, config_email: {} } })
   const guardadoYo = perfil?.config_email?.whatsapp_yo ?? {}
 
-  const [lista, setLista] = useState(() => mensajesWa(perfil))
+  // Un juego de mensajes por lado: «mi negocio» y «búsqueda libre»
+  const leerListas = () => ({ negocio: mensajesWa(perfil, 'negocio'), libre: mensajesWa(perfil, 'libre') })
+  const [listas, setListas] = useState(leerListas)
+  const [mundo, setMundo] = useState('negocio')
+  const lista = listas[mundo]
+  const setLista = f => setListas(ls => ({ ...ls, [mundo]: typeof f === 'function' ? f(ls[mundo]) : f }))
   const [yoForm, setYoForm] = useState(() => ({ mi_nombre: guardadoYo.mi_nombre ?? '', mi_empresa: guardadoYo.mi_empresa ?? '' }))
   const [activo, setActivo] = useState(0)
   const [guardando, setGuardando] = useState(false)
@@ -32,7 +37,7 @@ export default function MisMensajesWa() {
 
   useEffect(() => {
     if (sucio) return
-    setLista(mensajesWa(perfil))
+    setListas(leerListas())
     const g = perfil?.config_email?.whatsapp_yo ?? {}
     setYoForm({ mi_nombre: g.mi_nombre ?? '', mi_empresa: g.mi_empresa ?? '' })
   }, [perfil])
@@ -61,17 +66,17 @@ export default function MisMensajesWa() {
   const borrar = () => { setLista(l => l.filter((_, j) => j !== i)); setActivo(Math.max(0, i - 1)); setSucio(true) }
 
   async function guardar() {
-    const limpia = lista.map(x => ({ titulo: x.titulo.trim() || 'Mensaje', para: x.para ?? '', texto: x.texto.trim() }))
+    const limpiar = l => l.map(x => ({ titulo: x.titulo.trim() || 'Mensaje', para: x.para ?? '', texto: x.texto.trim() }))
     const whatsapp_yo = { mi_nombre: yoForm.mi_nombre.trim(), mi_empresa: yoForm.mi_empresa.trim() }
     setGuardando(true)
-    const { error } = await supabase.from('perfiles').update({ config_email: { ...(perfil.config_email ?? {}), whatsapp_mensajes: limpia, whatsapp_yo } }).eq('id', perfil.id)
+    const { error } = await supabase.from('perfiles').update({ config_email: { ...(perfil.config_email ?? {}), [CLAVE_MUNDO_WA.negocio]: limpiar(listas.negocio), [CLAVE_MUNDO_WA.libre]: limpiar(listas.libre), whatsapp_yo } }).eq('id', perfil.id)
     setGuardando(false)
     if (error) return toast(mensajeError(error), 'error')
     setSucio(false); refrescar()
     toast('Guardado. En cada empresa, pestaña WhatsApp, elegís cuál mandar.', 'ok')
   }
   function descartar() {
-    setLista(mensajesWa(perfil)); setYoForm({ mi_nombre: guardadoYo.mi_nombre ?? '', mi_empresa: guardadoYo.mi_empresa ?? '' }); setSucio(false)
+    setListas(leerListas()); setYoForm({ mi_nombre: guardadoYo.mi_nombre ?? '', mi_empresa: guardadoYo.mi_empresa ?? '' }); setSucio(false)
   }
 
   const clave = m?.para === 'sin_web' ? 'sin_web' : 'con_web'
@@ -96,8 +101,15 @@ export default function MisMensajesWa() {
         </div>
       </section>
 
-      {/* Los mensajes, en pestañas */}
+      {/* Los mensajes, en pestañas: un juego para cada lado */}
       <section className="tarjeta wa-editor">
+        <div className="wa-mundos">
+          <div className="wa-seg wa-seg-grande" role="radiogroup" aria-label="Para qué búsquedas">
+            <button type="button" role="radio" aria-checked={mundo === 'negocio'} className={mundo === 'negocio' ? 'on' : ''} onClick={() => { setMundo('negocio'); setActivo(0) }}><Store size={14} /> Clientes para mi negocio</button>
+            <button type="button" role="radio" aria-checked={mundo === 'libre'} className={mundo === 'libre' ? 'on' : ''} onClick={() => { setMundo('libre'); setActivo(0) }}><Search size={14} /> Búsqueda libre</button>
+          </div>
+          <small className="muted">{mundo === 'negocio' ? 'Se usan con las empresas que encontraste buscando clientes para tu negocio.' : 'Se usan con las empresas de tus búsquedas libres (proveedores, aliados, lo que sea).'}</small>
+        </div>
         <div className="wa-tabs" role="tablist" aria-label="Tus mensajes">
           {lista.map((x, j) => (
             <button key={j} type="button" role="tab" aria-selected={j === i} className={j === i ? 'on' : ''} onClick={() => setActivo(j)}>

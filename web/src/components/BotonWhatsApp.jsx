@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase.js'
 import { NO_CONTACTAR, mensajeError } from '../lib/util.js'
 import { useToast } from './ui.jsx'
 import { useApp } from '../App.jsx'
-import { mensajesWa, quienSoy, rellenarWa, sugeridoWa } from '../lib/mensajesWa.js'
+import { mensajesWa, mundoDe, quienSoy, rellenarWa, sugeridoWa } from '../lib/mensajesWa.js'
 
 /**
  * Botón verde de WhatsApp para la lista: elegís uno de tus mensajes y se abre el chat de ESA
@@ -56,7 +56,7 @@ export default function BotonWhatsApp({ p, onRegistrado }) {
   if (!p.telefono) return null
 
   const yo = quienSoy(app)
-  const lista = mensajesWa(perfil).filter(m => m.texto?.trim())
+  const lista = mensajesWa(perfil, mundoDe(p)).filter(m => m.texto?.trim())
   const sug = sugeridoWa(lista, p)
   const orden = lista.map((m, i) => ({ m, i })).sort((a, b) => (b.i === sug) - (a.i === sug))
 
@@ -100,7 +100,7 @@ export default function BotonWhatsApp({ p, onRegistrado }) {
             </div>
           ) : (
             <>
-              <small className="muted bwa-titulo">Elegí qué mensaje mandarle</small>
+              <small className="muted bwa-titulo">Elegí qué mensaje mandarle · {mundoDe(p) === 'libre' ? 'búsqueda libre' : 'mi negocio'}</small>
               {orden.map(({ m, i }) => {
                 const texto = rellenarWa(m.texto, p, yo)
                 return (

@@ -28,10 +28,32 @@ Hoy mucha gente decide a quién comprarle por lo que ve online. Les podemos arma
   },
 ]
 
-/** Los mensajes guardados (si nunca guardó, los dos de ejemplo para arrancar) */
-export function mensajesWa(perfil) {
-  const l = perfil?.config_email?.whatsapp_mensajes
-  return Array.isArray(l) && l.length ? l : INICIALES.map(m => ({ ...m }))
+// Para la búsqueda libre (proveedores, aliados, lo que sea): otro tono, no le vendés nada.
+const INICIALES_LIBRE = [
+  {
+    titulo: 'Tiene web', para: 'con_web',
+    texto: `Hola, ¿cómo están? Soy {{mi_nombre}} de {{mi_empresa}}. Vi la página de {{empresa}} ({{web}}) y me interesa saber más de lo que hacen.
+
+¿Me podrían pasar información o decirme con quién puedo hablar?`,
+  },
+  {
+    titulo: 'No tiene web', para: 'sin_web',
+    texto: `Hola, ¿cómo están? Soy {{mi_nombre}} de {{mi_empresa}}. Encontré a {{empresa}} buscando {{rubro}} en {{zona}}.
+
+¿Me podrían pasar más información de lo que ofrecen?`,
+  },
+]
+
+/** De qué lado es la empresa: «libre» (búsqueda libre) o «negocio» (clientes para mi negocio) */
+export const mundoDe = p => (p?.libre ? 'libre' : 'negocio')
+const CLAVE = { negocio: 'whatsapp_mensajes', libre: 'whatsapp_mensajes_libre' }
+export const CLAVE_MUNDO_WA = CLAVE
+
+/** Los mensajes guardados de ese lado (si nunca guardó, los dos de ejemplo para arrancar) */
+export function mensajesWa(perfil, mundo = 'negocio') {
+  const l = perfil?.config_email?.[CLAVE[mundo] ?? CLAVE.negocio]
+  if (Array.isArray(l) && l.length) return l
+  return (mundo === 'libre' ? INICIALES_LIBRE : INICIALES).map(m => ({ ...m }))
 }
 
 /**
