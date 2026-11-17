@@ -86,13 +86,16 @@ export function limpiarTelefono(t) {
  * Un número escrito con "15" o con "+54 9" es siempre celular.
  */
 export function numeroWhatsApp(t) {
-  const texto = String(t || '').trim()
+  // Si el número viene mezclado («0261 423-1234 / 15 …»), con interno o inventado, se limpia acá mismo:
+  // así sirve también para las empresas que ya estaban guardadas
+  const texto = (limpiarTelefono(t) || '').trim()
+  if (!texto) return ''
   if (/^(\+|00)/.test(texto) && !/^(\+|00)\s*54/.test(texto)) {
     const d = texto.replace(/\D/g, '').replace(/^00/, '')
     return d.length >= 8 && d.length <= 15 ? d : ''
   }
   const crudo = texto.replace(/\D/g, '')
-  const n = normalizarTelefono(t)
+  const n = normalizarTelefono(texto)
   if (n.length !== 10) return ''
   const esCelularExplicito = crudo.startsWith('549') || /^0\d{2,4}15/.test(crudo)
   if (esCelularExplicito) return '549' + n

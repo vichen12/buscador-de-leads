@@ -17,3 +17,10 @@ describe('teléfonos', () => {
     expect(numeroWhatsApp('0351 15 481-2233')).toBe('5493514812233')
   })
 })
+
+describe('WhatsApp con números guardados mezclados', () => {
+  it('usa el primero y descarta los inventados', () => {
+    expect(numeroWhatsApp('0351 15 481-2233 / 0351 422-1111')).toBe('5493514812233')
+    expect(numeroWhatsApp('011 1234-567')).toBe('')
+  })
+})
