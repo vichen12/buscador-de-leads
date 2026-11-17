@@ -27,3 +27,15 @@ describe('provinciaDe', () => {
     expect(l.filter(x => deProvincia(x, ''))).toHaveLength(4)
   })
 })
+
+import { opcionesProvincias } from './provincias.js'
+describe('opciones del filtro de provincias', () => {
+  it('trae siempre las 24, primero las de esta vista y después las de otras búsquedas', () => {
+    const vista = [{ zona: 'Rosario, Argentina' }]
+    const todas = [...vista, { zona: 'Córdoba, Argentina' }, { zona: 'Córdoba, Argentina' }]
+    const o = opcionesProvincias(vista, todas)
+    expect(o).toHaveLength(24)
+    expect(o[0]).toEqual(['Santa Fe', 1, 1])
+    expect(o[1]).toEqual(['Córdoba', 0, 2])
+  })
+})

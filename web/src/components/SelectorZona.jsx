@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, startTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { Globe2, MapPin, Star, X, Building2, Check } from 'lucide-react'
 import './SelectorZona.css'
 import { PAISES, REGIONES, PROVINCIAS_AR, CIUDADES, ZONAS, REGIONES_PAIS, nombrePais, lugaresDe } from '../lib/catalogo.js'
@@ -60,7 +60,7 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
   const exacto = planos.some(i => limpiar(i.label ?? i.v) === t || limpiar(i.v) === t)
   useEffect(() => setActivo(0), [t])
 
-  const elegir = v => { if (!v) return; onChange(v); setTexto(multi ? '' : v); setAbierto(false) }
+  const elegir = v => { if (!v) return; setTexto(multi ? '' : v); setAbierto(false); startTransition(() => onChange(v)) }
   const teclas = e => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setAbierto(true); setActivo(a => Math.min(planos.length - 1, a + 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActivo(a => Math.max(0, a - 1)) }

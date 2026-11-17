@@ -69,9 +69,20 @@ function enTexto(t) {
  * Argentina. Mira primero la zona (de atrás para adelante: «Ciudad, Provincia, País») y después la
  * dirección.
  */
+const cache = new Map()
 export function provinciaDe(item) {
   const zona = String(item?.zona ?? '')
   const direccion = String(item?.direccion ?? '')
+  // Se calcula una sola vez por zona + dirección (antes se recalculaba miles de veces por clic y la pantalla se trababa)
+  const k = zona + '|' + direccion
+  if (cache.has(k)) return cache.get(k)
+  if (cache.size > 20000) cache.clear()
+  const p = calcular(zona, direccion)
+  cache.set(k, p)
+  return p
+}
+
+function calcular(zona, direccion) {
   const partesZona = zona.split(',').map(limpiar).filter(Boolean)
   const ultimo = partesZona[partesZona.length - 1] ?? ''
   if (OTROS_PAISES.some(p => ultimo === p || ` ${limpiar(direccion)} `.endsWith(` ${p} `))) return ''
@@ -90,6 +101,22 @@ export function provinciasEn(lista) {
   for (const x of lista) { const p = provinciaDe(x); cuenta.set(p, (cuenta.get(p) ?? 0) + 1) }
   return [...cuenta.entries()].sort((a, b) => (a[0] === '') - (b[0] === '') || b[1] - a[1])
 }
+
+/**
+ * Las opciones del filtro: SIEMPRE las 24 provincias. Primero las que tienen empresas en lo que estás
+ * viendo, después las que tienen en otro lado (otra búsqueda o el otro tipo de búsqueda) y al final
+ * las que no tienen ninguna. Cada una: [nombre ('_sin' = sin provincia), en esta vista, en total].
+ */
+export function opcionesProvincias(vista, todas = vista) {
+  const enVista = new Map(provinciasEn(vista)), enTodas = new Map(provinciasEn(todas))
+  const fila = n => [n, enVista.get(n) ?? 0, enTodas.get(n) ?? 0]
+  const filas = NOMBRES_PROVINCIAS.map(fila)
+  filas.sort((a, b) => b[1] - a[1] || b[2] - a[2] || a[0].localeCompare(b[0], 'es'))
+  if (enTodas.get('')) filas.push(['_sin', enVista.get('') ?? 0, enTodas.get('')])
+  return filas
+}
+export const textoCuenta = (enVista, enTotal) =>
+  enVista ? `${enVista} ${enVista === 1 ? 'empresa' : 'empresas'}` : enTotal ? `${enTotal} en otras búsquedas` : 'Sin empresas todavía'
 
 /** Filtro: '' = todas; '_sin' = las que no tienen provincia. */
 export const deProvincia = (item, prov) => !prov || (prov === '_sin' ? provinciaDe(item) === '' : provinciaDe(item) === prov)

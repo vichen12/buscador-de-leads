@@ -19,7 +19,7 @@ import { useApp } from '../App.jsx'
 import BotonWhatsApp from '../components/BotonWhatsApp.jsx'
 
 import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
-import { provinciasEn, deProvincia } from '../lib/provincias.js'
+import { opcionesProvincias, textoCuenta, deProvincia } from '../lib/provincias.js'
 export default function Prospectos() {
   const [params, setParams] = useSearchParams()
   const nav = useNavigate()
@@ -104,7 +104,7 @@ export default function Prospectos() {
     }[orden]
     return r.sort(cmp)
   }, [lista, q, estado, rubro, orden, vista, busqueda, califFiltro, etiqueta, origen, libres, provincia])
-  const provincias = useMemo(() => provinciasEn(lista), [lista])
+  const provincias = useMemo(() => opcionesProvincias(lista.filter(p => delOrigen(p, origen, libres) && (!busqueda || p.busqueda_id === busqueda)), lista), [lista, origen, libres, busqueda])
   const hayLibres = useMemo(() => lista.some(p => esLibre(p, libres)), [lista, libres])
   // Cambió un filtro: la selección se limpia, así ninguna acción cae sobre filas que ya no se ven
   useEffect(() => { setSel(new Set()) }, [q, estado, rubro, busqueda, califFiltro, etiqueta, origen, provincia, de, vista])
@@ -243,11 +243,9 @@ export default function Prospectos() {
           <Desplegable compacto ariaLabel="Tipo de empresa" value={rubro} onChange={v => set('rubro', v)} anchoMenu={240}
             opciones={[{ value: '', label: 'Todos los tipos', icono: <Tag size={14} className="muted" /> }, ...rubros.map(r => ({ value: r, label: r }))]} />
         )}
-        {provincias.length > 1 && (
-          <Desplegable compacto ariaLabel="Provincia" value={provincia} onChange={v => set('provincia', v)} anchoMenu={240}
-            opciones={[{ value: '', label: 'Todas las provincias', icono: <MapPin size={14} className="muted" /> },
-              ...provincias.map(([p, n]) => ({ value: p || '_sin', label: p || 'Sin provincia', ayuda: `${n} ${n === 1 ? 'empresa' : 'empresas'}` }))]} />
-        )}
+        <Desplegable compacto ariaLabel="Provincia" value={provincia} onChange={v => set('provincia', v)} anchoMenu={260} claseMenu="menu-provincias"
+          opciones={[{ value: '', label: 'Todas las provincias', icono: <MapPin size={14} className="muted" /> },
+            ...provincias.map(([p, n, t]) => ({ value: p, label: p === '_sin' ? 'Sin provincia' : p, ayuda: textoCuenta(n, t), apagada: !n && !t }))]} />
         {etiquetas.length > 0 && (
           <Desplegable compacto ariaLabel="Etiqueta" value={etiqueta} onChange={v => set('etiqueta', v)} anchoMenu={200}
             opciones={[{ value: '', label: 'Todas las etiquetas', icono: <Tag size={14} className="muted" /> }, ...etiquetas.map(t => ({ value: t, label: t }))]} />

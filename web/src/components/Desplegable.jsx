@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown } from 'lucide-react'
 
@@ -39,7 +39,8 @@ export default function Desplegable({ value, onChange, opciones, ariaLabel, plac
   }, [abierto])
   useEffect(() => { menu.current?.querySelector('[data-activo=true]')?.scrollIntoView({ block: 'nearest' }) }, [activo, abierto])
 
-  const elegir = o => { setAbierto(false); boton.current?.focus(); if (String(o.value) !== String(value)) onChange(o.value) }
+  // Primero se cierra el menú y después (sin bloquear la animación) se aplica el cambio: filtrar listas largas tarda
+  const elegir = o => { setAbierto(false); boton.current?.focus(); if (String(o.value) !== String(value)) startTransition(() => onChange(o.value)) }
   const teclas = e => {
     if (disabled) return
     if (!abierto && ['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); setAbierto(true); return }
@@ -68,7 +69,7 @@ export default function Desplegable({ value, onChange, opciones, ariaLabel, plac
             const sel = String(o.value) === String(value)
             return (
               <button key={String(o.value)} type="button" role="option" aria-selected={sel} data-activo={i === activo}
-                className={'desplegable-opcion' + (sel ? ' sel' : '') + (i === activo ? ' activo' : '')}
+                className={'desplegable-opcion' + (sel ? ' sel' : '') + (i === activo ? ' activo' : '') + (o.apagada ? ' apagada' : '')}
                 onMouseEnter={() => setActivo(i)} onClick={e => { e.stopPropagation(); elegir(o) }}>
                 <span className="desplegable-texto">
                   {o.nodo ?? <>{o.icono}<span><span>{o.label}</span>{o.ayuda && <small>{o.ayuda}</small>}</span></>}

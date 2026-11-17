@@ -10,7 +10,7 @@ import { Esqueleto, useToast } from '../components/ui.jsx'
 import TarjetaHallazgo from '../components/TarjetaHallazgo.jsx'
 import Desplegable from '../components/Desplegable.jsx'
 import { ORIGENES, busquedasLibres, esLibre, delOrigen } from '../lib/origen.js'
-import { provinciasEn, deProvincia } from '../lib/provincias.js'
+import { opcionesProvincias, textoCuenta, deProvincia } from '../lib/provincias.js'
 import { sumarComoAliado } from '../lib/aliados.js'
 import { useApp } from '../App.jsx'
 
@@ -43,7 +43,8 @@ export default function Revisar() {
   const [sel, setSel] = useState(new Set())
   const [ocupados, setOcupados] = useState(new Set())
   const [foco, setFoco] = useState(0)
-  const set = (k, v) => setParams(() => { const p = new URLSearchParams(window.location.search); v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
+  const set = (k, v) => setMuchos({ [k]: v })
+  const setMuchos = cambios => setParams(() => { const p = new URLSearchParams(window.location.search); for (const [k, v] of Object.entries(cambios)) v ? p.set(k, v) : p.delete(k); return p }, { replace: true })
 
   async function cargar() {
     const [{ data, error }, { data: bs }] = await Promise.all([
@@ -55,6 +56,12 @@ export default function Revisar() {
     setTodos(data ?? []); setBusquedas(bs ?? []); setCargando(false)
   }
   useEffect(() => { cargar() }, [])
+  useEffect(() => {
+    const alVolver = () => { if (document.visibilityState === 'visible') cargar() }
+    const t = setInterval(alVolver, 30000)
+    document.addEventListener('visibilitychange', alVolver)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', alVolver) }
+  }, [])
   useEffect(() => { setSel(new Set()); setArmado(false) }, [tab, busqueda, motivoF, rubroF, cuandoF, origen, provincia])
   useEffect(() => { setPorRevisar(todos.filter(h => h.estado === 'por_revisar').length) }, [todos])
 
@@ -74,7 +81,14 @@ export default function Revisar() {
   const busquedasConDatos = busquedas.filter(b => todos.some(h => h.busqueda_id === b.id))
   const porBusqueda = useMemo(() => { const m = new Map(); for (const h of todos) if (h.busqueda_id) m.set(h.busqueda_id, (m.get(h.busqueda_id) ?? 0) + 1); return m }, [todos])
   // Provincias de lo que se ve en esta pestaña (sin contar el filtro de provincia)
-  const provincias = useMemo(() => provinciasEn(todos.filter(h => h.estado === tab && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres))), [todos, tab, busqueda, origen, libres])
+  const provincias = useMemo(() => opcionesProvincias(
+    todos.filter(h => h.estado === tab && (!busqueda || h.busqueda_id === busqueda) && delOrigen(h, origen, libres)),
+    todos.filter(h => h.estado === tab)), [todos, tab, busqueda, origen, libres])
+  // Si elegís una provincia que sólo tiene empresas en otra búsqueda o del otro lado, se muestran todas
+  const elegirProvincia = v => {
+    const f = provincias.find(([p]) => p === v)
+    setMuchos(f && !f[1] && f[2] ? { provincia: v, origen: '', busqueda: '' } : { provincia: v })
+  }
 
   const marcar = (ids, cambio) => setTodos(l => l.map(h => ids.includes(h.id) ? { ...h, ...cambio } : h))
   const conOcupado = async (ids, fn) => {
@@ -165,11 +179,9 @@ export default function Revisar() {
 
       <div className="barra-herramientas">
         <div className="buscador"><Search size={16} /><input placeholder="Buscar por nombre, teléfono, zona…" value={q} onChange={e => setQ(e.target.value)} /></div>
-        {provincias.length > 1 && (
-          <Desplegable compacto ariaLabel="Provincia" value={provincia} onChange={v => set('provincia', v)} anchoMenu={240}
-            opciones={[{ value: '', label: 'Todas las provincias', icono: <MapPin size={14} className="muted" /> },
-              ...provincias.map(([p, n]) => ({ value: p || '_sin', label: p || 'Sin provincia', ayuda: `${n} ${n === 1 ? 'empresa' : 'empresas'}` }))]} />
-        )}
+        <Desplegable compacto ariaLabel="Provincia" value={provincia} onChange={elegirProvincia} anchoMenu={260} claseMenu="menu-provincias"
+          opciones={[{ value: '', label: 'Todas las provincias', icono: <MapPin size={14} className="muted" /> },
+            ...provincias.map(([p, n, t]) => ({ value: p, label: p === '_sin' ? 'Sin provincia' : p, ayuda: textoCuenta(n, t), apagada: !n && !t }))]} />
         {busquedasConDatos.length > 0 && (
           <Desplegable compacto className="desplegable-busqueda" claseMenu="menu-busquedas" ariaLabel="Búsqueda" value={busqueda} onChange={v => set('busqueda', v)} anchoMenu={360} alinear="der"
             opciones={[

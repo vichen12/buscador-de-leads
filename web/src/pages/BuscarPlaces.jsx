@@ -151,7 +151,10 @@ export default function BuscarPlaces() {
   useEffect(() => { if ((!zonaTocada.current || !zona) && sugZonas[0]) setZona(sugZonas[0]) }, [sugZonas])
   // Guardar lo escrito y el último resultado (sólo en esta pestaña): si cambiás de pantalla y volvés, está todo igual
   useEffect(() => {
-    try { sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify({ rubro, zona, paisBusq, cantidadTexto, pedido, res })) } catch { /* sin almacenamiento o resultado muy grande */ }
+    const t = setTimeout(() => {
+      try { sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify({ rubro, zona, paisBusq, cantidadTexto, pedido, res })) } catch { /* sin almacenamiento o resultado muy grande */ }
+    }, 400)
+    return () => clearTimeout(t)
   }, [rubro, zona, paisBusq, cantidadTexto, pedido, res])
   const cargarHistorial = () => supabase.from('busquedas').select('*').order('created_at', { ascending: false }).limit(6).then(({ data }) => setHistorial(data ?? []))
   useEffect(() => { cargarHistorial() }, [])
