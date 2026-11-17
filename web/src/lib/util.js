@@ -3,11 +3,13 @@ import Papa from 'papaparse'
 export const ESTADOS = {
   pendiente: { label: 'Pendiente', color: '#52525b', fondo: '#f0ece5', borde: '#e2e2e7', barra: '#a8a196', ayuda: 'Todavía no le escribiste' },
   primer_llamado: { label: 'Primer llamado', color: '#0f766e', fondo: '#e6f6f3', borde: '#c3e8e1', barra: '#14b8a6', ayuda: 'Ya lo llamaste una vez: falta el contacto en serio' },
+  no_atendio: { label: 'No atendió · volver a llamar', color: '#a16207', fondo: '#fef6e0', borde: '#f6e2a8', barra: '#eab308', ayuda: 'Lo llamaste y no atendió: hay que volver a intentar' },
   contactado: { label: 'Contactado', color: '#1d4ed8', fondo: '#ebf1ff', borde: '#d3e0fd', barra: '#3b82f6', ayuda: 'Ya le mandaste el primer mensaje' },
   respondio: { label: 'Respondió', color: '#b45309', fondo: '#fdf4e4', borde: '#f5ddb2', barra: '#f59e0b', ayuda: 'Hay conversación en curso' },
   reunion: { label: 'Reunión agendada', color: '#7c3aed', fondo: '#f1ebff', borde: '#e0d3fb', barra: '#8b5cf6', ayuda: 'Tienen una reunión o llamada pactada' },
   propuesta: { label: 'Propuesta enviada', color: '#0e7490', fondo: '#e6f6f9', borde: '#c3e8ef', barra: '#06b6d4', ayuda: 'Le mandaste la propuesta o cotización' },
   cliente: { label: 'Cliente', color: '#15803d', fondo: '#e9f7ee', borde: '#c6eacf', barra: '#22c55e', ayuda: 'Cerraste la venta' },
+  no_insistir: { label: 'No atendió · no insistir', color: '#78716c', fondo: '#f2efec', borde: '#e2ddd8', barra: '#a8a29e', ayuda: 'No atendió varias veces: no vale la pena seguir llamando' },
   perdido: { label: 'Perdido', color: '#c0262d', fondo: '#fdeceb', borde: '#f6cac6', barra: '#ef4444', ayuda: 'No se dio (con el motivo)' },
   no_contactar: { label: 'No contactar', color: '#7f1d1d', fondo: '#f6e9e9', borde: '#e7c9c9', barra: '#991b1b', ayuda: 'Pidió la baja o está en tu lista de "No contactar": no se le puede escribir' },
   no_interesado: { label: 'No interesado', color: '#c0262d', fondo: '#fdeceb', borde: '#f6cac6', barra: '#ef4444', ayuda: 'No se le escribe más', oculto: true },

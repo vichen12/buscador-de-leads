@@ -12,7 +12,7 @@ import { NotasBoton, useResumenNotas } from '../components/Notas.jsx'
 // Un seguimiento agendado vale en cualquier etapa activa, no sólo en «Contactado»
 // Los que esperan seguimiento: todo lo abierto (primer llamado, contactado, respondió, reunión, propuesta).
 // Se filtra por lo que NO es, así funciona aunque la base todavía no tenga «primer_llamado».
-const CERRADOS = '(pendiente,cliente,perdido,no_interesado,no_contactar)'
+const CERRADOS = '(pendiente,cliente,perdido,no_interesado,no_contactar,no_insistir)'
 
 export default function Seguimientos() {
   const toast = useToast()
