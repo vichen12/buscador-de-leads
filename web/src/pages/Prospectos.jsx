@@ -107,6 +107,12 @@ export default function Prospectos() {
     return r.sort(cmp)
   }, [lista, q, estado, rubro, orden, vista, busqueda, califFiltro, etiqueta, origen, libres, provincia])
   const provincias = useMemo(() => opcionesProvincias(lista.filter(p => delOrigen(p, origen, libres) && (!busqueda || p.busqueda_id === busqueda)), lista), [lista, origen, libres, busqueda])
+  // Si elegís una provincia que sólo tiene empresas en la otra pestaña (o en otra búsqueda), se pasa a «Todo» para verlas
+  const elegirProvincia = v => {
+    const f = provincias.find(([p]) => p === v)
+    if (!(f && !f[1] && f[2])) return set('provincia', v)
+    setParams(() => { const q = new URLSearchParams(window.location.search); q.set('provincia', v); q.delete('origen'); q.delete('busqueda'); return q }, { replace: true })
+  }
   const hayLibres = useMemo(() => lista.some(p => esLibre(p, libres)), [lista, libres])
   // Cambió un filtro: la selección se limpia, así ninguna acción cae sobre filas que ya no se ven
   useEffect(() => { setSel(new Set()) }, [q, estado, rubro, busqueda, califFiltro, etiqueta, origen, provincia, de, vista])
@@ -245,7 +251,7 @@ export default function Prospectos() {
           <Desplegable compacto ariaLabel="Tipo de empresa" value={rubro} onChange={v => set('rubro', v)} anchoMenu={240}
             opciones={[{ value: '', label: 'Todos los tipos', icono: <Tag size={14} className="muted" /> }, ...rubros.map(r => ({ value: r, label: r }))]} />
         )}
-        <Desplegable compacto ariaLabel="Provincia" value={provincia} onChange={v => set('provincia', v)} anchoMenu={260} claseMenu="menu-provincias"
+        <Desplegable compacto ariaLabel="Provincia" value={provincia} onChange={elegirProvincia} anchoMenu={260} claseMenu="menu-provincias"
           opciones={[{ value: '', label: 'Todas las provincias', icono: <MapPin size={14} className="muted" /> },
             ...provincias.map(([p, n, t]) => ({ value: p, label: p === '_sin' ? 'Sin provincia' : p, ayuda: textoCuenta(n, t), apagada: !n && !t }))]} />
         {etiquetas.length > 0 && (

@@ -12,6 +12,7 @@ import { RUBROS, ZONAS, zonaCompleta, zonasDe, nombrePais, lugaresDe, zonaConPai
 import { Aviso, useToast } from '../components/ui.jsx'
 import Autocompletar from '../components/Autocompletar.jsx'
 import SelectorZona from '../components/SelectorZona.jsx'
+import DictadoVoz from '../components/DictadoVoz.jsx'
 import { useApp } from '../App.jsx'
 import { leerIA, textoCosto } from '../lib/uso.js'
 import { guardarEnCurso, leerEnCurso, limpiarEnCurso, esperarBusqueda } from '../lib/busquedaEnCurso.js'
@@ -303,6 +304,7 @@ export default function BuscarPlaces() {
           <Autocompletar ref={rubroRef} className="bh-input" opciones={todosRubros} value={rubro} onChange={setRubro} aria-label="Qué buscás"
             placeholder={libre ? 'Describí qué negocios estás buscando…' : 'Describí qué empresas estás buscando…'} disabled={cargando} />
           {rubro && !cargando && <button type="button" className="bh-limpiar" onClick={() => { setRubro(''); rubroRef.current?.focus() }} aria-label="Borrar"><X size={15} /></button>}
+          <DictadoVoz value={rubro} onChange={setRubro} disabled={cargando} />
           <button className="btn bh-boton" disabled={cargando || servicios.ia === false}>
             {cargando ? <Loader2 size={19} className="spin" /> : <Search size={19} />} {cargando ? 'Buscando…' : 'Buscar'}
           </button>
@@ -314,7 +316,7 @@ export default function BuscarPlaces() {
             <Desplegable className="bh-pais" ariaLabel="País" value={paisBusq} disabled={cargando} anchoMenu={230}
               onChange={v => { zonaTocada.current = true; setPaisBusq(v); setZona('') }}
               opciones={[...paisesCuenta.map(c => PAISES.find(x => x.code === c)).filter(Boolean), ...PAISES.filter(x => !paisesCuenta.includes(x.code))].map(x => ({ value: x.code, label: x.nombre, icono: <Bandera code={x.code} />, ayuda: paisesCuenta.includes(x.code) ? 'de tu cuenta' : '' }))} />
-            <SelectorZona soloPais={paisBusq} region={paisBusq === perfil?.pais ? perfil?.region : ''} value={zona} placeholder="Provincia, ciudad o zona" onChange={v => { zonaTocada.current = true; setZona(v) }} sugeridas={sugZonas.slice(0, 6)} disabled={cargando} />
+            <SelectorZona flecha soloPais={paisBusq} region={paisBusq === perfil?.pais ? perfil?.region : ''} value={zona} placeholder="Provincia, ciudad o zona" onChange={v => { zonaTocada.current = true; setZona(v) }} sugeridas={sugZonas.slice(0, 6)} disabled={cargando} />
           </div>
           <span className="bh-sep" aria-hidden="true" />
           <div className="bh-opcion">

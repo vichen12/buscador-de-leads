@@ -3177,3 +3177,23 @@ html[data-tema="oscuro"] .notas-boton.con { color: #f3c27a; background: #3a2a12;
 .audio-listo audio { width: 100%; height: 38px; }
 .audio-acciones { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 html[data-tema="oscuro"] .audio-grabando { background: #3a1714; color: #ffb4ab; }
+
+/* Buscar: la provincia se ve como los otros desplegables (flechita, cursor de botón, ancho del texto) */
+.bh-donde .selector-zona:has(.con-flecha) { min-width: 0; }
+.sz-input.con-flecha { display: inline-flex; align-items: center; gap: 2px; padding-right: 6px; border-radius: 10px; cursor: pointer; transition: background .15s; }
+.sz-input.con-flecha:hover, .sz-input.con-flecha.abierto { background: var(--hover); }
+.bh-donde .sz-input.con-flecha:hover input { background: transparent; }
+.sz-input.con-flecha input { field-sizing: content; max-width: 240px; width: auto; flex: 0 1 auto; min-width: 4ch; cursor: pointer; padding-right: 2px; text-overflow: ellipsis; }
+.sz-input.con-flecha input:focus { cursor: text; }
+.sz-flecha { color: var(--mut); flex-shrink: 0; cursor: pointer; transition: transform .2s var(--ease); }
+.sz-input.con-flecha.abierto .sz-flecha { transform: rotate(180deg); }
+
+/* Dictado por voz (micrófono en Buscar) */
+@keyframes dictado-onda { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--err) 45%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
+.dictado-voz { flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; transition: background .15s, color .15s, border-color .15s, transform .12s; }
+.dictado-voz:hover:not(:disabled) { background: var(--acc-soft); color: var(--acc); border-color: color-mix(in srgb, var(--acc) 35%, var(--line)); }
+.dictado-voz:active:not(:disabled) { transform: scale(.94); }
+.dictado-voz:disabled { opacity: .5; cursor: default; }
+.dictado-voz.escuchando { background: var(--err); border-color: var(--err); color: #fff; animation: dictado-onda 1.3s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .dictado-voz.escuchando { animation: none; } }
+@media (max-width: 760px) { .bh-barra .bh-input { flex-basis: calc(100% - 96px); } }

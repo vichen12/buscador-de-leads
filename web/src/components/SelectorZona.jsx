@@ -1,5 +1,5 @@
 import { forwardRef, startTransition, useEffect, useMemo, useRef, useState } from 'react'
-import { Globe2, MapPin, Star, X, Building2, Check } from 'lucide-react'
+import { Globe2, MapPin, Star, X, Building2, Check, ChevronDown } from 'lucide-react'
 import './SelectorZona.css'
 import { PAISES, REGIONES, PROVINCIAS_AR, CIUDADES, ZONAS, REGIONES_PAIS, nombrePais, lugaresDe } from '../lib/catalogo.js'
 
@@ -11,7 +11,7 @@ const limpiar = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀
  */
 const unicosSuyas = arr => [...new Map(arr.filter(Boolean).map(z => [limpiar(z), { v: z }])).values()].slice(0, 8)
 
-const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, sugeridas = [], disabled, multi = false, seleccionadas = [], placeholder = 'País, provincia o ciudad', pais = '', region = '', soloPais = '' }, ref) {
+const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, sugeridas = [], disabled, multi = false, seleccionadas = [], placeholder = 'País, provincia o ciudad', pais = '', region = '', soloPais = '', flecha = false }, ref) {
   const [abierto, setAbierto] = useState(false)
   const [texto, setTexto] = useState(multi ? '' : value)
   const [activo, setActivo] = useState(0)
@@ -73,11 +73,13 @@ const SelectorZona = forwardRef(function SelectorZona({ value = '', onChange, su
 
   return (
     <div className="selector-zona" ref={caja}>
-      <div className="sz-input">
-        <input ref={ref} value={texto} disabled={disabled} placeholder={placeholder}
+      <div className={'sz-input' + (flecha ? ' con-flecha' : '') + (abierto ? ' abierto' : '')}>
+        <input ref={ref} value={texto} disabled={disabled} placeholder={placeholder} size={flecha ? Math.max(5, Math.ceil((texto || placeholder).length * 0.85)) : undefined}
           onFocus={e => { setAbierto(true); e.target.select() }} onChange={e => { setTexto(e.target.value); setAbierto(true) }} onKeyDown={teclas}
           role="combobox" aria-expanded={abierto} aria-label="Dónde buscar" />
-        {texto && !disabled && <button type="button" className="sz-limpiar" onClick={() => { setTexto(''); if (!multi) onChange(''); setAbierto(true) }} aria-label="Borrar"><X size={13} /></button>}
+        {texto && !disabled && !flecha && <button type="button" className="sz-limpiar" onClick={() => { setTexto(''); if (!multi) onChange(''); setAbierto(true) }} aria-label="Borrar"><X size={13} /></button>}
+        {/* Con flecha se ve igual que los otros desplegables (como el del país); tocarlo abre la lista y se puede escribir para filtrar */}
+        {flecha && <ChevronDown size={15} className="sz-flecha" aria-hidden="true" onMouseDown={e => { e.preventDefault(); caja.current?.querySelector('input')?.focus() }} />}
       </div>
       {abierto && !disabled && (
         <div className="sz-panel" role="listbox">
