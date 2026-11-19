@@ -26,6 +26,7 @@ export default function Seguimientos() {
   const [error, setError] = useState('')
   const [nueva, setNueva] = useState('')
   const [creando, setCreando] = useState(false)
+  const [resumenNotas, recargarNotas] = useResumenNotas() // notas de cada empresa (el botón de notas de cada fila)
 
   const cargar = useCallback(async () => {
     setError('')

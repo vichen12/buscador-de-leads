@@ -449,8 +449,8 @@ export default function BuscarPlaces() {
               <button key={b.id} type="button" className="bh-reciente" onClick={() => nav(`/revisar?busqueda=${b.id}`)} title="Ver lo que trajo">
                 <span className={'bh-reciente-icono' + (b.requisitos?.libre ? ' libre' : '')}>{b.requisitos?.libre ? <Search size={16} /> : <Store size={16} />}</span>
                 <span className="bh-reciente-texto">
-                  <b>{b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1)}</b>
-                  <small><MapPin size={11} /> {b.zona.replace(/, (Argentina|Chile|Uruguay|México|Colombia|Perú|Paraguay|Brasil)$/, '')} · {haceCuanto(b.created_at)}</small>
+                  <b>{b.rubro ? b.rubro.charAt(0).toUpperCase() + b.rubro.slice(1) : 'Búsqueda'}</b>
+                  <small><MapPin size={11} /> {String(b.zona ?? '').replace(/, (Argentina|Chile|Uruguay|México|Colombia|Perú|Paraguay|Brasil)$/, '')} · {haceCuanto(b.created_at)}</small>
                 </span>
                 <span className="bh-reciente-num" title="Empresas que trajo">{b.guardados ?? 0}</span>
               </button>
